@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    service: app
+  name: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: app
+  template:
+    metadata:
+      labels:
+        service: app
+    spec:
+      containers:
+        - env:
+            - name: AWS_DEFAULT_REGION
+              value: us-west-1
+            - name: JAVA_OPTS
+              value: -Xms1g -Xmx1g
+            - name: PLAY_HTTP_SECRET_KEY
+              value: my_fake_chronon_monitoring_hub_http_secret_key
+          image: 345594603419.dkr.ecr.us-west-1.amazonaws.com/zipline-ai/demo-app:latest
+          name: app
+          ports:
+            - containerPort: 9000
+              protocol: TCP
+      restartPolicy: Always

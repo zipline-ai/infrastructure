@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    service: frontend
+  name: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: frontend
+  template:
+    metadata:
+      labels:
+        service: frontend
+    spec:
+      containers:
+        - env:
+            - name: API_BASE_URL
+              value: http://$(APP_SERVICE_HOST):9000
+          image: 345594603419.dkr.ecr.us-west-1.amazonaws.com/zipline-ai/demo-frontend:latest
+          name: frontend
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+      restartPolicy: Always
