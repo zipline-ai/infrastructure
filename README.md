@@ -43,6 +43,19 @@ docker push $FRONTEND_REPO
 
 ```
 
+### Restart Servers
+
+If the servers are already running, the following commands should restart them with the new version without changing 
+the address they are accessible at:
+
+```
+cd k8s/
+aws eks update-kubeconfig --region us-west-1 --name Zipline-Demo-EKS
+
+kubectl rollout restart deployment/app
+kubectl rollout restart deployment/frontend
+```
+
 ### Start Servers
 
 Once the images have been uploaded to the repositories, use the following commands to start the servers in Kubernetes:
@@ -53,3 +66,4 @@ aws eks update-kubeconfig --region us-west-1 --name Zipline-Demo-EKS
 
 kubectl apply -f "*.yaml"
 ```
+
