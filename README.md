@@ -30,9 +30,9 @@ export $FRONTEND_REPO=[Addr of Frontend Repo]
 # Log Docker into aws
 aws ecr get-login-password --region [region] | docker login --username AWS --password-stdin [aws_account_id].dkr.ecr.[REGION].amazonaws.com
 
-docker build base_image -f ./.github/image/Dockerfile
-docker build zipline_app -f ./docker-init/DockerFile
-docker build zipline_frontend -f ./docker-init/DockerFile
+docker build -t base_image -f ./.github/image/Dockerfile .
+docker build -t zipline_app -f ./docker-init/Dockerfile .
+docker build -t zipline_frontend -f ./docker-init/frontend/Dockerfile .
 
 
 docker tag zipline_app -t $APP_REPO
