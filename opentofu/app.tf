@@ -25,7 +25,7 @@ resource "kubernetes_deployment" "app" {
       spec {
         container {
           image = "${aws_ecr_repository.app.repository_url}:latest"
-          name = "frontend"
+          name = "app"
 
           env {
             name = "AWS_DEFAULT_REGION"
@@ -41,7 +41,7 @@ resource "kubernetes_deployment" "app" {
           }
 
           port {
-            container_port = 3000
+            container_port = 9000
             protocol = "TCP"
           }
         }
@@ -62,13 +62,13 @@ resource "kubernetes_service" "app" {
 
   spec {
     port {
+      name = "9000"
       port = 9000
       target_port = 9000
     }
     selector = {
       service = "app"
     }
-    type = "LoadBalancer"
   }
 
 }

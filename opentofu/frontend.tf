@@ -29,7 +29,7 @@ resource "kubernetes_deployment" "frontend" {
 
                     env {
                         name = "API_BASE_URL"
-                        value = "http://${kubernetes_service.app.status.0.load_balancer.0.ingress.0.hostname}:9000"
+                        value = "http://${data.kubernetes_service.app.spec.0.cluster_ip}:9000"
                     }
 
                     port {
@@ -54,6 +54,7 @@ resource "kubernetes_service" "frontend" {
 
     spec {
         port {
+            name = "3000"
             port = 3000
             target_port = 3000
         }
@@ -63,4 +64,10 @@ resource "kubernetes_service" "frontend" {
         type = "LoadBalancer"
     }
 
+}
+
+data "kubernetes_service" "app" {
+    metadata {
+        name = "app"
+    }
 }
