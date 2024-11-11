@@ -1,3 +1,4 @@
+// Deploys the app on Kubernetes with a service for the frontend to find.
 resource "kubernetes_deployment" "app" {
   metadata {
     name = "app"
@@ -29,7 +30,7 @@ resource "kubernetes_deployment" "app" {
 
           env {
             name = "AWS_DEFAULT_REGION"
-            value = "us-west-1"
+            value = var.region
           }
           env {
             name = "JAVA_OPTS"

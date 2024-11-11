@@ -1,3 +1,4 @@
+// Deploys the frontend on Kubernetes with a loadbalancer so it is accessible.
 resource "kubernetes_deployment" "frontend" {
     metadata {
         name = "frontend"

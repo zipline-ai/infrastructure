@@ -9,7 +9,7 @@ terraform {
   backend "s3" {
     bucket         = "zipline-ai-opentofu-state-bucket"
     key            = "opentofu-state"
-    region         = "us-west-1"
+    region         = var.region
   }
 }
  

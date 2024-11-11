@@ -1,3 +1,4 @@
+// Establishes an EKS cluster on AWS with 2 m6g.medium machines
 resource "aws_eks_cluster" "zipline_demo_eks" {
   name     = "Zipline-Demo-EKS"
   role_arn = aws_iam_role.cluster_role.arn

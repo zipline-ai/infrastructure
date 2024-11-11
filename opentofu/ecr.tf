@@ -1,3 +1,4 @@
+// Establishes the image repos for the app and the frontend
 resource "aws_ecr_repository" "app" {
   name                 = "zipline-ai/demo-app"
   image_tag_mutability = "MUTABLE"
