@@ -1,6 +1,6 @@
 // Establishes the image repos for the app and the frontend
 resource "aws_ecr_repository" "app" {
-  name                 = "zipline-ai/demo-app"
+  name                 = "zipline-ai/canary-app"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {
@@ -9,7 +9,7 @@ resource "aws_ecr_repository" "app" {
 }
 
 resource "aws_ecr_repository" "frontend" {
-  name                 = "zipline-ai/demo-frontend"
+  name                 = "zipline-ai/canary-frontend"
   image_tag_mutability = "MUTABLE"
 
   image_scanning_configuration {

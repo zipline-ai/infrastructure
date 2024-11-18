@@ -23,10 +23,10 @@ resource "aws_security_group" "elb" {
   vpc_id      = aws_vpc.main.id
 
   tags = {
-    "kubernetes.io/cluster/zipline_demo_eks" = "owned"
+    "kubernetes.io/cluster/zipline_canary_eks" = "owned"
   }
   tags_all = {
-    "kubernetes.io/cluster/zipline_demo_eks" = "owned"
+    "kubernetes.io/cluster/zipline_canary_eks" = "owned"
   }
 
 }
@@ -82,10 +82,10 @@ resource "aws_security_group" "allow_access" {
   }
 
   tags  = {
-    "kubernetes.io/cluster/Zipline-Demo-EKS" = "owned"
+    "kubernetes.io/cluster/Zipline-Canary-EKS" = "owned"
   }
   tags_all = {
-    "kubernetes.io/cluster/Zipline-Demo-EKS" = "owned"
+    "kubernetes.io/cluster/Zipline-Canary-EKS" = "owned"
   }
 }
 

@@ -1,4 +1,8 @@
 // Deploys the app on Kubernetes with a service for the frontend to find.
+data "aws_ecr_repository" "app" {
+  name = "zipline-ai/canary-app"
+}
+
 resource "kubernetes_deployment" "app" {
   metadata {
     name = "app"
@@ -25,7 +29,7 @@ resource "kubernetes_deployment" "app" {
 
       spec {
         container {
-          image = "${aws_ecr_repository.app.repository_url}:latest"
+          image = "${data.aws_ecr_repository.app.repository_url}:main"
           name = "app"
 
           env {
@@ -50,6 +54,11 @@ resource "kubernetes_deployment" "app" {
       }
     }
 
+  }
+  lifecycle {
+    ignore_changes = [
+      spec[0].template[0].metadata[0].annotations["kubectl.kubernetes.io/restartedAt"],
+    ]
   }
 }
 

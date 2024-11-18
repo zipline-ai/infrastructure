@@ -1,6 +1,6 @@
 // Establishes an EKS cluster on AWS with 2 m6g.medium machines
-resource "aws_eks_cluster" "zipline_demo_eks" {
-  name     = "Zipline-Demo-EKS"
+resource "aws_eks_cluster" "zipline_canary_eks" {
+  name     = "Zipline-Canary-EKS"
   role_arn = aws_iam_role.cluster_role.arn
 
   vpc_config {
@@ -25,9 +25,9 @@ resource "aws_eks_cluster" "zipline_demo_eks" {
   }
 }
 
-resource "aws_eks_node_group" "demo_arm_spot_node_group" {
-  cluster_name    = aws_eks_cluster.zipline_demo_eks.name
-  node_group_name = "demo-arm-spot-node-group"
+resource "aws_eks_node_group" "canary_arm_spot_node_group" {
+  cluster_name    = aws_eks_cluster.zipline_canary_eks.name
+  node_group_name = "canary-arm-spot-node-group"
   node_role_arn   = aws_iam_role.ec2_role.arn
   subnet_ids      = [aws_subnet.main.id, aws_subnet.secondary.id]
 
@@ -63,24 +63,25 @@ resource "aws_eks_node_group" "demo_arm_spot_node_group" {
 # Addons
 
 resource "aws_eks_addon" "cni" {
-  cluster_name = aws_eks_cluster.zipline_demo_eks.name
+  cluster_name = aws_eks_cluster.zipline_canary_eks.name
   addon_name   = "vpc-cni"
 }
 
 
 resource "aws_eks_addon" "coredns" {
-  cluster_name = aws_eks_cluster.zipline_demo_eks.name
+  cluster_name = aws_eks_cluster.zipline_canary_eks.name
   addon_name   = "coredns"
+  depends_on = [aws_eks_node_group.canary_arm_spot_node_group]
 }
 
 
 resource "aws_eks_addon" "kube_proxy" {
-  cluster_name = aws_eks_cluster.zipline_demo_eks.name
+  cluster_name = aws_eks_cluster.zipline_canary_eks.name
   addon_name   = "kube-proxy"
 }
 
 resource "aws_eks_addon" "agent_identity" {
-  cluster_name = aws_eks_cluster.zipline_demo_eks.name
+  cluster_name = aws_eks_cluster.zipline_canary_eks.name
   addon_name   = "eks-pod-identity-agent"
 }
 
@@ -101,7 +102,7 @@ data "aws_iam_policy_document" "eks_assume_role" {
 }
 
 resource "aws_iam_role" "cluster_role" {
-  name               = "Zipline-Demo-Role"
+  name               = "Zipline-Canary-Role"
   description        = "Allows the cluster Kubernetes control plane to manage AWS resources on your behalf."
   assume_role_policy = data.aws_iam_policy_document.eks_assume_role.json
 }
