@@ -78,8 +78,6 @@ resource "kubernetes_service" "frontend" {
 
 }
 
-data "kubernetes_service" "app" {
-    metadata {
-        name = "app"
-    }
+output "frontend_url" {
+    value = "http://${kubernetes_service.frontend.status.0.load_balancer.0.ingress.0.hostname}:3000"
 }
