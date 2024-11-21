@@ -12,10 +12,10 @@ Required applications are:
 
 ## Steps
 
-### Initialize Clusters
+### Initialize AWS Canary Clusters
 ```
 aws configure
-cd canary-tf/
+cd canary-aws/
 tofu apply
  ```
 This will output the established App and Frontend Repo URIs for use in the next step.
@@ -66,7 +66,7 @@ kubectl rollout restart deployment/frontend
 Once the images have been uploaded to the repositories, use the following commands to start the servers in Kubernetes:
 
 ``` 
-cd canary-tf/k8s/
+cd canary-aws/k8s/
 tofu apply
 ```
 
