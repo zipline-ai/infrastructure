@@ -29,7 +29,8 @@ resource "kubernetes_deployment" "frontend" {
 
             spec {
                 container {
-                    image = "${data.aws_ecr_repository.frontend.repository_url}:main"
+                    image = "${data.aws_ecr_repository.frontend.repository_url}:canary"
+                    image_pull_policy = "Always"
                     name = "frontend"
 
                     env {
