@@ -16,6 +16,7 @@ Required applications are:
 ```
 aws configure
 cd canary-aws/
+tofu init
 tofu apply
  ```
 This will output the established App and Frontend Repo URIs for use in the next step.
