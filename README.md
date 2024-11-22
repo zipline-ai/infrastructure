@@ -62,12 +62,3 @@ kubectl rollout restart deployment/app
 kubectl rollout restart deployment/frontend
 ```
 
-### Start Servers
-
-Once the images have been uploaded to the repositories, use the following commands to start the servers in Kubernetes:
-
-``` 
-cd canary-aws/k8s/
-tofu apply
-```
-
