@@ -1,6 +1,6 @@
 // Establishes an EKS cluster on AWS with 2 m6g.medium machines
 resource "aws_eks_cluster" "zipline_canary_eks" {
-  name     = "Zipline-Canary-EKS"
+  name     = "Zipline-${var.name}-EKS"
   role_arn = aws_iam_role.cluster_role.arn
 
   vpc_config {
@@ -25,9 +25,9 @@ resource "aws_eks_cluster" "zipline_canary_eks" {
   }
 }
 
-resource "aws_eks_node_group" "canary_arm_spot_node_group" {
+resource "aws_eks_node_group" "arm_spot_node_group" {
   cluster_name    = aws_eks_cluster.zipline_canary_eks.name
-  node_group_name = "canary-arm-spot-node-group"
+  node_group_name = "${var.name}-arm-spot-node-group"
   node_role_arn   = aws_iam_role.ec2_role.arn
   subnet_ids      = [aws_subnet.main.id, aws_subnet.secondary.id]
 
@@ -71,7 +71,7 @@ resource "aws_eks_addon" "cni" {
 resource "aws_eks_addon" "coredns" {
   cluster_name = aws_eks_cluster.zipline_canary_eks.name
   addon_name   = "coredns"
-  depends_on = [aws_eks_node_group.canary_arm_spot_node_group]
+  depends_on = [aws_eks_node_group.arm_spot_node_group]
 }
 
 
@@ -102,7 +102,7 @@ data "aws_iam_policy_document" "eks_assume_role" {
 }
 
 resource "aws_iam_role" "cluster_role" {
-  name               = "Zipline-Canary-Role"
+  name               = "Zipline-${var.name}-Role"
   description        = "Allows the cluster Kubernetes control plane to manage AWS resources on your behalf."
   assume_role_policy = data.aws_iam_policy_document.eks_assume_role.json
 }
@@ -150,7 +150,7 @@ data "aws_iam_policy_document" "ec2_assume_role" {
 }
 
 resource "aws_iam_role" "ec2_role" {
-  name               = "initial-ec2-role"
+  name               = "${var.name}-ec2-role"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
 }
 
@@ -177,10 +177,4 @@ resource "aws_iam_role_policy_attachment" "AmazonEMRFullAccessPolicy_v2" {
 
 data "tls_certificate" "eks" {
   url = aws_eks_cluster.zipline_canary_eks.identity[0].oidc[0].issuer
-}
-
-resource "aws_iam_openid_connect_provider" "eks" {
-  url = aws_eks_cluster.zipline_canary_eks.identity[0].oidc[0].issuer
-  client_id_list  = ["sts.amazonaws.com"]
-  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
 }

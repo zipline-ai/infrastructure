@@ -1,8 +1,4 @@
 // Deploys the frontend on Kubernetes with a loadbalancer so it is accessible.
-data "aws_ecr_repository" "frontend" {
-    name = "zipline-ai/canary-frontend"
-}
-
 resource "kubernetes_deployment" "frontend" {
     metadata {
         name = "frontend"
@@ -53,7 +49,7 @@ resource "kubernetes_deployment" "frontend" {
             spec[0].template[0].metadata[0].annotations["kubectl.kubernetes.io/restartedAt"],
         ]
     }
-    depends_on = [ kubernetes_service.app ]
+    depends_on = [ kubernetes_service.app, aws_eks_addon.coredns, aws_eks_node_group.arm_spot_node_group ]
 }
 
 resource "kubernetes_service" "frontend" {

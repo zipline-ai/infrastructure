@@ -1,8 +1,4 @@
 // Deploys the app on Kubernetes with a service for the frontend to find.
-data "aws_ecr_repository" "app" {
-  name = "zipline-ai/canary-app"
-}
-
 resource "kubernetes_deployment" "app" {
   metadata {
     name = "app"
@@ -61,6 +57,8 @@ resource "kubernetes_deployment" "app" {
       spec[0].template[0].metadata[0].annotations["kubectl.kubernetes.io/restartedAt"],
     ]
   }
+
+  depends_on = [ aws_eks_node_group.arm_spot_node_group, aws_eks_addon.coredns ]
 }
 
 resource "kubernetes_service" "app" {

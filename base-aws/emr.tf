@@ -1,5 +1,5 @@
 resource "aws_emr_cluster" "emr_cluster" {
-  name          = "zipline-emr"
+  name          = "zipline-${var.name}-emr"
   release_label = "emr-7.3.0"
   applications  = ["Spark", "Flink", "Hadoop", "Hive", "JupyterEnterpriseGateway", "Livy", "Zeppelin"]
 
@@ -72,7 +72,7 @@ data "aws_iam_policy_document" "emr_assume_role" {
   }
 }
 resource "aws_iam_role" "iam_emr_service_role" {
-  name               = "iam_emr_service_role"
+  name               = "${var.name}_emr_service_role"
   assume_role_policy = data.aws_iam_policy_document.emr_assume_role.json
 }
 data "aws_iam_policy_document" "iam_emr_service_policy" {
@@ -137,7 +137,7 @@ data "aws_iam_policy_document" "iam_emr_service_policy" {
   }
 }
 resource "aws_iam_role_policy" "iam_emr_service_policy" {
-  name   = "iam_emr_service_policy"
+  name   = "${var.name}_emr_service_policy"
   role   = aws_iam_role.iam_emr_service_role.id
   policy = data.aws_iam_policy_document.iam_emr_service_policy.json
 }
@@ -155,11 +155,11 @@ data "aws_iam_policy_document" "emr_ec2_assume_role" {
 }
 
 resource "aws_iam_role" "iam_emr_profile_role" {
-  name               = "iam_emr_profile_role"
+  name               = "${var.name}_emr_profile_role"
   assume_role_policy = data.aws_iam_policy_document.emr_ec2_assume_role.json
 }
 resource "aws_iam_instance_profile" "emr_profile" {
-  name = "emr_profile"
+  name = "${var.name}_emr_profile"
   role = aws_iam_role.iam_emr_profile_role.name
 }
 data "aws_iam_policy_document" "iam_emr_profile_policy" {
@@ -193,7 +193,7 @@ data "aws_iam_policy_document" "iam_emr_profile_policy" {
   }
 }
 resource "aws_iam_role_policy" "iam_emr_profile_policy" {
-  name   = "iam_emr_profile_policy"
+  name   = "${var.name}_emr_profile_policy"
   role   = aws_iam_role.iam_emr_profile_role.id
   policy = data.aws_iam_policy_document.iam_emr_profile_policy.json
 }

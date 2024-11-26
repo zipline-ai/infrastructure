@@ -23,10 +23,10 @@ resource "aws_security_group" "elb" {
   vpc_id      = aws_vpc.main.id
 
   tags = {
-    "kubernetes.io/cluster/zipline_canary_eks" = "owned"
+    "kubernetes.io/cluster/zipline_${var.name}_eks" = "owned"
   }
   tags_all = {
-    "kubernetes.io/cluster/zipline_canary_eks" = "owned"
+    "kubernetes.io/cluster/zipline_${var.name}_eks" = "owned"
   }
 
 }
