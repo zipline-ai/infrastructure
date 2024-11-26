@@ -19,36 +19,17 @@ cd canary-aws/
 tofu init
 tofu apply
  ```
-This will output the established App and Frontend Repo URIs for use in the next step.
 
-### Build and Push Images
-For initial setup, the Chronon images need to be built (for the established canary instance, this is pushed
-automatically by a Github workflow).
-The OpenTofu script outputs the addresses where the images should be uploaded.
-Within the Chronon repository (not available in this repo) run the following to build the images and upload them.
-
-Replace the addresses of the repos, as well as the aws region and account_id in the script and run:
+### Initialize Dev Clusters
 ```
-export APP_REPO=[URI of App Repo]:latest
-export FRONTEND_REPO=[URI of Frontend Repo]:latest
+aws configure
+cd dev-aws/
+tofu init -var user=$USER
+tofu apply -var user=$USER
+ ```
 
-# Log Docker into aws
-aws ecr get-login-password --region [region] | docker login --username AWS --password-stdin [aws_account_id].dkr.ecr.[REGION].amazonaws.com
-
-cd [Path to Chronon]
-
-docker build -t base_image -f ./.github/image/Dockerfile .
-docker build -t zipline-ai/demo_app -f ./docker-init/Dockerfile .
-docker build -t zipline-ai/demo_frontend -f ./docker-init/frontend/Dockerfile .
-
-
-docker tag zipline-ai/demo_app $APP_REPO
-docker push $APP_REPO
-
-docker tag zipline-ai/demo_frontend $FRONTEND_REPO
-docker push $FRONTEND_REPO
-
-```
+### Images
+The images are automatically pushed from the chronon repository for the kubernetes deployments.
 
 ### Restart Canary Servers
 
