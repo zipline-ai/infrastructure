@@ -4,11 +4,10 @@ Configuration to Initialize Zipline Infrastructure
 We are using OpenTofu to manage the infrastructure
 
 ## Requirements
+To work with this repo you'll need a few tools installed on your laptop. 
 
-Required applications are:
-* [aws_cli](https://docs.aws.amazon.com/eks/latest/userguide/install-awscli.html)
-* [opentofu](https://opentofu.org/docs/intro/install/)
-* [kubectl](https://docs.aws.amazon.com/eks/latest/userguide/install-kubectl.html)
+* Install [asdf](https://asdf-vm.com/guide/getting-started.html#_2-download-asdf)
+* ```asdf install``` (see `.tool-versions` for required applications)
 
 ## Steps
 
