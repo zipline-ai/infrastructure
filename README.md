@@ -7,6 +7,8 @@ We are using OpenTofu to manage the infrastructure
 To work with this repo you'll need a few tools installed on your laptop. 
 
 * Install [asdf](https://asdf-vm.com/guide/getting-started.html#_2-download-asdf)
+* ```asdf plugin add asdf-plugin-manager```
+* ```asdf-plugin-manager add-all``` (see `.plugin-versions` for required plugins)
 * ```asdf install``` (see `.tool-versions` for required applications)
 
 ## Steps

@@ -1,0 +1,8 @@
+asdf-plugin-manager  https://github.com/asdf-community/asdf-plugin-manager.git  b5862c1
+awscli               https://github.com/MetricMike/asdf-awscli.git              c26bbb4
+java                 https://github.com/halcyon/asdf-java.git                   0ec69b2
+kubectl              https://github.com/asdf-community/asdf-kubectl.git         2fb3b57
+opentofu             https://github.com/virtualroot/asdf-opentofu.git           e11a7c8
+python               https://github.com/danhper/asdf-python.git                 a3a0185
+sbt                  https://github.com/lerencao/asdf-sbt                       53c9f4b
+scala                https://github.com/asdf-community/asdf-scala.git           0533444
