@@ -1,0 +1,6 @@
+asdf-plugin-manager  https://github.com/asdf-community/asdf-plugin-manager.git  b5862c1
+awscli               https://github.com/MetricMike/asdf-awscli.git              c26bbb4
+gcloud               https://github.com/jthegedus/asdf-gcloud.git               00cdf06
+kubectl              https://github.com/asdf-community/asdf-kubectl.git         2fb3b57
+opentofu             https://github.com/virtualroot/asdf-opentofu.git           e11a7c8
+python               https://github.com/danhper/asdf-python.git                 a3a0185
