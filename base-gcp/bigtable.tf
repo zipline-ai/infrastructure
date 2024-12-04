@@ -1,4 +1,4 @@
-resource "google_bigtable_instance" "zipline-bigtable" {
+resource "google_bigtable_instance" "zipline_bigtable_instance" {
   name = "zipline-${var.name}-bigtable"
   cluster {
     cluster_id   = "zipline-${var.name}-bigtable-cluster"
@@ -10,8 +10,8 @@ resource "google_bigtable_instance" "zipline-bigtable" {
   }
 }
 
-resource "google_bigtable_table" "data-bigtable" {
+resource "google_bigtable_table" "zipline_data_table" {
   name = "zipline-${var.name}-data-table"
-  instance_name = google_bigtable_instance.zipline-bigtable.name
+  instance_name = google_bigtable_instance.zipline_bigtable_instance.name
 
 }
