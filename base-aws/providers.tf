@@ -6,11 +6,6 @@ terraform {
      version = "~> 5.0"
    }
  }
-  # backend "s3" {
-  #   bucket         = "zipline-ai-opentofu-state-bucket"
-  #   key            = "opentofu-canary-state"
-  #   region         = var.region
-  # }
 }
  
 provider "aws" {
