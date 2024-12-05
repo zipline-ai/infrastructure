@@ -2,7 +2,7 @@ resource "google_bigtable_instance" "zipline_bigtable_instance" {
   name = "zipline-${var.name}-bigtable"
   cluster {
     cluster_id   = "zipline-${var.name}-bigtable-cluster"
-    zone       = var.zone
+    zone         = var.zone
     storage_type = "HDD"
   }
   lifecycle {
