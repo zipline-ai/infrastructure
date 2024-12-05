@@ -23,5 +23,10 @@ resource "google_dataproc_cluster" "zipline-dataproc" {
         "cloud-platform"
       ]
     }
+    software_config {
+      optional_components = [
+        "FLINK"
+      ]
+    }
   }
 }
