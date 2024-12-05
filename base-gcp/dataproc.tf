@@ -25,7 +25,8 @@ resource "google_dataproc_cluster" "zipline-dataproc" {
     }
     software_config {
       optional_components = [
-        "FLINK"
+        "FLINK",
+        "ZOOKEEPER"
       ]
     }
   }
