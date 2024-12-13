@@ -97,7 +97,10 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
     gce_cluster_config {
       service_account = google_service_account.dataproc_sa.email
       service_account_scopes = [
-        "cloud-platform"
+        "cloud-platform",
+        "https://www.googleapis.com/auth/cloud.useraccounts.readonly",
+        "https://www.googleapis.com/auth/devstorage.read_write",
+        "https://www.googleapis.com/auth/logging.write",
       ]
       metadata = {
         proxy-uri = "https://standalone-federation-federation-7ed7-a095ece4-kl3uzbcuyq-uc.a.run.app:443",

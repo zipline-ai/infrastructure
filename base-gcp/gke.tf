@@ -24,13 +24,6 @@ resource "google_container_cluster" "dataplane" {
   remove_default_node_pool = true
   initial_node_count       = 1
 
-  node_config {
-    machine_type = "n4-standard-2"
-    disk_size_gb = 10
-    disk_type    = "pd-standard"
-    spot = true
-  }
-
   service_external_ips_config {
     enabled = false
   }
@@ -40,15 +33,19 @@ resource "google_container_node_pool" "control_plane_node_pool" {
   name       = "dataplane-pool"
   location   = var.region
   cluster    = google_container_cluster.dataplane.name
-  initial_node_count = 2
+  initial_node_count = 1
   autoscaling {
-    min_node_count = 2
+    min_node_count = 1
     max_node_count = 10
   }
 
   node_config {
     preemptible  = true
-    machine_type = "n4-standard-2"
-    disk_type = "pd-balanced"
+    machine_type = "e2-medium"
+    disk_type = "pd-standard"
+    disk_size_gb = 100
+  }
+  network_config {
+    enable_private_nodes = true
   }
 }
