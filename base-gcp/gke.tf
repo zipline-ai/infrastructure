@@ -14,25 +14,41 @@ resource "google_project_iam_binding" "node_group_access" {
   ]
 }
 
-resource "google_container_cluster" "control_plane" {
-  name     = "controlplane"
-  location = "us-west1"
+resource "google_container_cluster" "dataplane" {
+  name     = "dataplane-cluster"
+  location = var.region
 
   # We can't create a cluster with no node pool defined, but we want to only use
   # separately managed node pools. So we create the smallest possible default
   # node pool and immediately delete it.
   remove_default_node_pool = true
   initial_node_count       = 1
+
+  node_config {
+    machine_type = "n4-standard-2"
+    disk_size_gb = 10
+    disk_type    = "pd-standard"
+    spot = true
+  }
+
+  service_external_ips_config {
+    enabled = false
+  }
 }
 
 resource "google_container_node_pool" "control_plane_node_pool" {
   name       = "dataplane-pool"
-  location   = "us-west1"
-  cluster    = google_container_cluster.control_plane.name
-  node_count = 2
+  location   = var.region
+  cluster    = google_container_cluster.dataplane.name
+  initial_node_count = 2
+  autoscaling {
+    min_node_count = 2
+    max_node_count = 10
+  }
 
   node_config {
     preemptible  = true
-    machine_type = "c4a-standard-1"
+    machine_type = "n4-standard-2"
+    disk_type = "pd-balanced"
   }
 }

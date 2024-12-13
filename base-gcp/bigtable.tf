@@ -1,7 +1,7 @@
 resource "google_bigtable_instance" "zipline_bigtable_instance" {
-  name = "zipline-${var.name}-bigtable"
+  name = "zipline-${lower(var.name)}-instance"
   cluster {
-    cluster_id   = "zipline-${var.name}-bigtable-cluster"
+    cluster_id   = "zipline-${lower(var.name)}"
     zone         = var.zone
     storage_type = "HDD"
   }
@@ -10,8 +10,27 @@ resource "google_bigtable_instance" "zipline_bigtable_instance" {
   }
 }
 
-resource "google_bigtable_table" "zipline_data_table" {
-  name = "zipline-${var.name}-data-table"
+resource "google_bigtable_table" "groupby_batch" {
   instance_name = google_bigtable_instance.zipline_bigtable_instance.name
+  name = "GROUPBY_BATCH"
+}
 
+resource "google_bigtable_table" "groupby_streaming" {
+  instance_name = google_bigtable_instance.zipline_bigtable_instance.name
+  name = "GROUPBY_STREAMING"
+}
+
+resource "google_bigtable_table" "tile_summaries" {
+  instance_name = google_bigtable_instance.zipline_bigtable_instance.name
+  name = "TILE_SUMMARIES"
+}
+
+resource "google_bigtable_table" "chronon_metadata" {
+  instance_name = google_bigtable_instance.zipline_bigtable_instance.name
+  name = "CHRONON_METADATA"
+}
+
+resource "google_bigtable_table" "entity_keys_by_team" {
+  instance_name = google_bigtable_instance.zipline_bigtable_instance.name
+  name = "ENTITY_KEYS_BY_TEAM"
 }

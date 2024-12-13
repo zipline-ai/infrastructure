@@ -1,0 +1,124 @@
+resource "google_service_account" "dataproc_sa" {
+  account_id   = "dataproc"
+  display_name = "Dataproc SA"
+}
+
+data "google_project" "zipline" {
+}
+
+resource "google_project_iam_member" "dataproc_bigquery_admin" {
+  project           = data.google_project.zipline.project_id
+  role              = "roles/bigquery.admin"
+  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+resource "google_project_iam_member" "dataproc_bigquery_connection_admin" {
+  project           = data.google_project.zipline.project_id
+  role              = "roles/bigquery.connectionAdmin"
+  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+resource "google_project_iam_member" "dataproc_bigquery_data_owner" {
+  project           = data.google_project.zipline.project_id
+  role              = "roles/bigquery.dataOwner"
+  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+resource "google_project_iam_member" "dataproc_admin" {
+  project           = data.google_project.zipline.project_id
+  role              = "roles/dataproc.admin"
+  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+resource "google_project_iam_member" "dataproc_metastore_admin" {
+  project           = data.google_project.zipline.project_id
+  role              = "roles/metastore.admin"
+  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+resource "google_project_iam_member" "dataproc_metastore_editor" {
+  project           = data.google_project.zipline.project_id
+  role              = "roles/metastore.editor"
+  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+resource "google_project_iam_member" "dataproc_metastore_mutate_admin" {
+  project           = data.google_project.zipline.project_id
+  role              = "roles/metastore.metadataMutateAdmin"
+  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+resource "google_project_iam_member" "dataproc_metastore_metadata_user" {
+  project           = data.google_project.zipline.project_id
+  role              = "roles/metastore.metadataUser"
+  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+resource "google_project_iam_member" "dataproc_service_agent" {
+  project           = data.google_project.zipline.project_id
+  role              = "roles/dataproc.serviceAgent"
+  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+resource "google_project_iam_member" "dataproc_worker" {
+  project           = data.google_project.zipline.project_id
+  role              = "roles/dataproc.worker"
+  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+
+resource "google_project_iam_member" "dataproc_metastore_federation_accessor" {
+  project           = data.google_project.zipline.project_id
+  role              = "roles/metastore.federationAccessor"
+  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+resource "google_dataproc_cluster" "zipline_dataproc" {
+  name   = "zipline-${lower(var.name)}-cluster"
+  region = var.region
+
+  cluster_config {
+    master_config {
+      num_instances = 1
+      machine_type  = "e2-standard-2"
+      disk_config {
+        boot_disk_type = "pd-standard"
+        boot_disk_size_gb = 30
+      }
+    }
+    worker_config {
+      num_instances = 2
+      machine_type = "n2-standard-4"
+      disk_config {
+        boot_disk_type = "pd-standard"
+        boot_disk_size_gb = 30
+      }
+    }
+    gce_cluster_config {
+      service_account = google_service_account.dataproc_sa.email
+      service_account_scopes = [
+        "cloud-platform"
+      ]
+      metadata = {
+        proxy-uri = "https://standalone-federation-federation-7ed7-a095ece4-kl3uzbcuyq-uc.a.run.app:443",
+        hive-version = "3.1.2",
+        SPARK_BQ_CONNECTOR_URL = "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.41.0.jar"
+      }
+    }
+    software_config {
+      image_version = "2.2.39-debian12"
+      optional_components = [
+        "FLINK",
+        "DOCKER"
+      ]
+      override_properties = {
+        "hive:hive.metastore.uris" = "thrift://localhost:9083",
+        "hive:hive.metastore.warehouse.dir" = "gs://gcs-bucket-service-baaa-35549b5d-c533-479b-a846-486147487b0f/hive-warehouse"
+      }
+    }
+    initialization_action {
+      script = "gs://metastore-init-actions/metastore-grpc-proxy/metastore-grpc-proxy.sh"
+    }
+  }
+  depends_on = [google_project_iam_member.dataproc_worker]
+}
