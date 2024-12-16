@@ -73,6 +73,29 @@ resource "google_project_iam_member" "dataproc_metastore_federation_accessor" {
   member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
+resource "google_dataproc_metastore_service" "big_query_metastore" {
+  location = "us-central1"
+  service_id = "zipline-metadata-service"
+}
+
+resource "google_dataproc_metastore_federation" "big_query_metastore_federation" {
+  location      = "us-central1"
+  federation_id = "zipline-metastore-fed"
+  version       = "3.1.2"
+
+  backend_metastores {
+    rank           = "2"
+    name           = data.google_project.zipline.id
+    metastore_type = "BIGQUERY"
+  }
+
+  backend_metastores {
+    rank           = "1"
+    name           = google_dataproc_metastore_service.big_query_metastore.id
+    metastore_type = "DATAPROC_METASTORE"
+  }
+}
+
 resource "google_dataproc_cluster" "zipline_dataproc" {
   name   = "zipline-${lower(var.name)}-cluster"
   region = var.region
@@ -103,7 +126,7 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
         "https://www.googleapis.com/auth/logging.write",
       ]
       metadata = {
-        proxy-uri = "https://standalone-federation-federation-7ed7-a095ece4-kl3uzbcuyq-uc.a.run.app:443",
+        proxy-uri = google_dataproc_metastore_federation.big_query_metastore_federation.endpoint_uri
         hive-version = "3.1.2",
         SPARK_BQ_CONNECTOR_URL = "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.41.0.jar"
       }

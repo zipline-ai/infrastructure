@@ -14,6 +14,12 @@ resource "google_project_iam_binding" "node_group_access" {
   ]
 }
 
+resource "google_project_iam_member" "node_group_artifact_registry" {
+    project = data.google_project.project.project_id
+    role = "roles/artifactregistry.reader"
+    member = "serviceAccount:${google_service_account.node_group.email}"
+}
+
 resource "google_container_cluster" "dataplane" {
   name     = "dataplane-cluster"
   location = var.region
@@ -40,10 +46,11 @@ resource "google_container_node_pool" "control_plane_node_pool" {
   }
 
   node_config {
-    preemptible  = true
-    machine_type = "e2-medium"
+    preemptible  = false
+    machine_type = "e2-standard-2"
     disk_type = "pd-standard"
-    disk_size_gb = 100
+    disk_size_gb = 30
+    service_account = google_service_account.node_group.email
   }
   network_config {
     enable_private_nodes = true
