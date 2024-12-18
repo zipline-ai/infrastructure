@@ -25,15 +25,15 @@ resource "aws_eks_cluster" "zipline_canary_eks" {
   }
 }
 
-resource "aws_eks_node_group" "arm_spot_node_group" {
+resource "aws_eks_node_group" "amd_spot_node_group" {
   cluster_name    = aws_eks_cluster.zipline_canary_eks.name
-  node_group_name = "${var.name}-arm-spot-node-group"
+  node_group_name = "${var.name}-amd-spot-large-node-group"
   node_role_arn   = aws_iam_role.ec2_role.arn
   subnet_ids      = [aws_subnet.main.id, aws_subnet.secondary.id]
 
-  ami_type = "AL2_ARM_64"
+  ami_type = "AL2_x86_64"
 
-  instance_types = ["m6g.medium"]
+  instance_types = ["t3.large"]
 
   disk_size = 20
 
@@ -71,7 +71,7 @@ resource "aws_eks_addon" "cni" {
 resource "aws_eks_addon" "coredns" {
   cluster_name = aws_eks_cluster.zipline_canary_eks.name
   addon_name   = "coredns"
-  depends_on = [aws_eks_node_group.arm_spot_node_group]
+  depends_on = [aws_eks_node_group.amd_spot_node_group]
 }
 
 
