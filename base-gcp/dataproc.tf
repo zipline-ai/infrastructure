@@ -76,6 +76,11 @@ resource "google_project_iam_member" "dataproc_metastore_federation_accessor" {
 resource "google_dataproc_metastore_service" "big_query_metastore" {
   location = "us-central1"
   service_id = "zipline-metadata-service"
+
+  hive_metastore_config {
+    version = "3.1.2"
+    endpoint_protocol = "GRPC"
+  }
 }
 
 resource "google_dataproc_metastore_federation" "big_query_metastore_federation" {
@@ -135,7 +140,8 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
       image_version = "2.2.39-debian12"
       optional_components = [
         "FLINK",
-        "DOCKER"
+        "DOCKER",
+        "JUPYTER",
       ]
       override_properties = {
         "hive:hive.metastore.uris" = "thrift://localhost:9083",
@@ -146,5 +152,9 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
       script = "gs://metastore-init-actions/metastore-grpc-proxy/metastore-grpc-proxy.sh"
     }
   }
-  depends_on = [google_project_iam_member.dataproc_worker]
+  depends_on = [
+    google_project_iam_member.dataproc_worker,
+    google_project_iam_member.dataproc_service_agent,
+    google_project_iam_member.dataproc_metastore_federation_accessor
+  ]
 }
