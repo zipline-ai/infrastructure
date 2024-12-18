@@ -4,6 +4,11 @@ resource "google_bigtable_instance" "zipline_bigtable_instance" {
     cluster_id   = "zipline-${lower(var.name)}"
     zone         = var.zone
     storage_type = "HDD"
+    autoscaling_config {
+      cpu_target = 50
+      max_nodes  = 10
+      min_nodes  = 2
+    }
   }
   lifecycle {
     prevent_destroy = true
