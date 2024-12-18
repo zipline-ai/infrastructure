@@ -34,6 +34,11 @@ resource "kubernetes_deployment" "frontend" {
                         value = "http://${kubernetes_service.app.spec[0].cluster_ip}:9000"
                     }
 
+                    env {
+                        name = "API_EXTERNAL_URL"
+                        value = "http://${kubernetes_service.app.status[0].load_balancer.0.ingress.0.hostname}:9000"
+                    }
+
                     port {
                         container_port = 3000
                         protocol = "TCP"
@@ -49,7 +54,7 @@ resource "kubernetes_deployment" "frontend" {
             spec[0].template[0].metadata[0].annotations["kubectl.kubernetes.io/restartedAt"],
         ]
     }
-    depends_on = [ kubernetes_service.app, aws_eks_addon.coredns, aws_eks_node_group.arm_spot_node_group ]
+    depends_on = [ kubernetes_service.app, aws_eks_addon.coredns, aws_eks_node_group.amd_spot_node_group ]
 }
 
 resource "kubernetes_service" "frontend" {

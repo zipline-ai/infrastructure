@@ -58,7 +58,7 @@ resource "kubernetes_deployment" "app" {
     ]
   }
 
-  depends_on = [ aws_eks_node_group.arm_spot_node_group, aws_eks_addon.coredns ]
+  depends_on = [ aws_eks_node_group.amd_spot_node_group, aws_eks_addon.coredns ]
 }
 
 resource "kubernetes_service" "app" {
@@ -78,6 +78,7 @@ resource "kubernetes_service" "app" {
     selector = {
       service = "app"
     }
+    type = "LoadBalancer"
   }
 
 }
