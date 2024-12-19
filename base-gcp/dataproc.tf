@@ -148,6 +148,9 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
         "hive:hive.metastore.warehouse.dir" = "gs://gcs-bucket-service-baaa-35549b5d-c533-479b-a846-486147487b0f/hive-warehouse"
       }
     }
+    endpoint_config {
+      enable_http_port_access = true
+    }
     initialization_action {
       script = "gs://metastore-init-actions/metastore-grpc-proxy/metastore-grpc-proxy.sh"
     }
