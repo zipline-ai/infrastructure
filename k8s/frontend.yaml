@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    service: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: frontend
+  template:
+    metadata:
+      name: frontend
+      labels:
+        service: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: 345594603419.dkr.ecr.us-west-1.amazonaws.com/zipline-ai/canary-frontend:canary
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          env:
+            - name: API_BASE_URL
+              value: http://app:9000
+      restartPolicy: Always
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  labels:
+    service: frontend
+spec:
+  ports:
+    - name: "80-3000"
+      protocol: TCP
+      port: 80
+      targetPort: 3000
+  selector:
+      service: frontend
+  type: LoadBalancer

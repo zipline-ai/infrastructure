@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: default
+  labels:
+    service: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      service: app
+  template: 
+    metadata: 
+      labels: 
+        service: app
+    spec: 
+      containers:
+        
+          - name: app
+            image: 345594603419.dkr.ecr.us-west-1.amazonaws.com/zipline-ai/canary-app:canary
+            ports:
+              - containerPort: 9000
+                protocol: TCP
+            env:
+              - name: AWS_DEFAULT_REGION
+                value: us-west-1
+
+              - name: JAVA_OPTS
+                value: -Xms1g -Xmx1g
+            
+              - name: PLAY_HTTP_SECRET_KEY
+                value: my_fake_chronon_monitoring_hub_http_secret_key
+            imagePullPolicy: Always
+
+      restartPolicy: Always
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  namespace: default
+  labels:
+    service: app
+spec:
+  ports:
+      - name: "9000"
+        protocol: TCP
+        port: 9000
+        targetPort: 9000
+  selector:
+    service: app
