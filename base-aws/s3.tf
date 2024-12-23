@@ -3,7 +3,7 @@ resource "aws_s3_bucket" "zipline_canary_bucket" {
 }
 
 resource "aws_iam_openid_connect_provider" "eks" {
-  url = aws_eks_cluster.zipline_canary_eks.identity[0].oidc[0].issuer
+  url = aws_eks_cluster.zipline_eks.identity[0].oidc[0].issuer
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
 }
