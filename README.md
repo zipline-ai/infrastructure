@@ -47,7 +47,7 @@ tofu init
 tofu apply
  ```
 
-### Initialize Dev Clusters
+### Initialize AWS Dev Clusters
 ```
 aws configure
 cd dev-aws/
