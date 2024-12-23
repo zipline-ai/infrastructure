@@ -14,9 +14,3 @@ provider "google" {
   project = "canary-443022"
   region  = "us-west1"
 }
-
-module "base_setup" {
-  source = "../base-gcp"
-
-  name = "Canary"
-}
