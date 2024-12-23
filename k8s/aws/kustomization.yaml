@@ -1,0 +1,13 @@
+# kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../base
+images:
+  - name: app-image
+    newName: 345594603419.dkr.ecr.us-west-1.amazonaws.com/zipline-ai/app
+  - name: frontend-image
+    newName: 345594603419.dkr.ecr.us-west-1.amazonaws.com/zipline-ai/frontend
+  - name: quickstart-image
+    newName: 345594603419.dkr.ecr.us-west-1.amazonaws.com/zipline-ai/quickstart

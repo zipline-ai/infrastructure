@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: 345594603419.dkr.ecr.us-west-1.amazonaws.com/zipline-ai/canary-frontend:canary
+          image: frontend-image:canary
           imagePullPolicy: Always
           ports:
             - containerPort: 3000

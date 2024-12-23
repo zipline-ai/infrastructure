@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quickstart
+  labels:
+    service: quickstart
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quickstart
+  template:
+    metadata:
+      name: quickstart
+      labels:
+        app: quickstart
+    spec:
+      containers:
+        - name: quickstart
+          image: quickstart-image:canary
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+              protocol: TCP
+      restartPolicy: Always
+      
