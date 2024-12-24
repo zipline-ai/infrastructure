@@ -21,6 +21,9 @@ resource "google_bigtable_table" "groupby_batch" {
   column_family {
     family = "cf"
   }
+  column_family {
+    family = "value"
+  }
 }
 
 resource "google_bigtable_gc_policy" "groupby_batch_gc_policy" {

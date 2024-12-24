@@ -48,9 +48,9 @@ resource "google_project_iam_member" "dataproc_metastore_mutate_admin" {
   member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
-resource "google_project_iam_member" "dataproc_metastore_metadata_user" {
+resource "google_project_iam_member" "dataproc_metastore_metadata_editor" {
   project           = data.google_project.zipline.project_id
-  role              = "roles/metastore.metadataUser"
+  role              = "roles/metastore.metadataEditor"
   member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
