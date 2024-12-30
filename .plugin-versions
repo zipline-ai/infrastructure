@@ -4,3 +4,4 @@ gcloud               https://github.com/jthegedus/asdf-gcloud.git               
 kubectl              https://github.com/asdf-community/asdf-kubectl.git         2fb3b57
 opentofu             https://github.com/virtualroot/asdf-opentofu.git           e11a7c8
 python               https://github.com/danhper/asdf-python.git                 a3a0185
+terraformer          https://github.com/gr1m0h/asdf-terraformer.git             655f7e8
