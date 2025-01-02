@@ -127,3 +127,16 @@ resource "google_bigtable_gc_policy" "entity_keys_by_team_gc_policy" {
     number = 10000
   }
 }
+
+resource "google_bigtable_app_profile" "groupby_ingest" {
+  instance = google_bigtable_instance.zipline_bigtable_instance.name
+  app_profile_id = "GROUPBY_INGEST"
+  description = "Groupby upload ingests"
+
+  single_cluster_routing {
+    cluster_id = google_bigtable_instance.zipline_bigtable_instance.cluster[0].cluster_id
+  }
+  standard_isolation {
+    priority = "PRIORITY_LOW"
+  }
+}
