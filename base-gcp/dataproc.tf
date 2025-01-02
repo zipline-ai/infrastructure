@@ -6,6 +6,30 @@ resource "google_service_account" "dataproc_sa" {
 data "google_project" "zipline" {
 }
 
+# Dataproc Roles
+
+resource "google_project_iam_member" "dataproc_admin" {
+  project           = data.google_project.zipline.project_id
+  role              = "roles/dataproc.admin"
+  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+resource "google_project_iam_member" "dataproc_service_agent" {
+  project           = data.google_project.zipline.project_id
+  role              = "roles/dataproc.serviceAgent"
+  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+resource "google_project_iam_member" "dataproc_worker" {
+  project           = data.google_project.zipline.project_id
+  role              = "roles/dataproc.worker"
+  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+
+
+# BigQuery Roles
+
 resource "google_project_iam_member" "dataproc_bigquery_admin" {
   project           = data.google_project.zipline.project_id
   role              = "roles/bigquery.admin"
@@ -24,11 +48,7 @@ resource "google_project_iam_member" "dataproc_bigquery_data_owner" {
   member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
-resource "google_project_iam_member" "dataproc_admin" {
-  project           = data.google_project.zipline.project_id
-  role              = "roles/dataproc.admin"
-  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
-}
+# Metastore Roles
 
 resource "google_project_iam_member" "dataproc_metastore_admin" {
   project           = data.google_project.zipline.project_id
@@ -54,24 +74,22 @@ resource "google_project_iam_member" "dataproc_metastore_metadata_editor" {
   member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
-resource "google_project_iam_member" "dataproc_service_agent" {
-  project           = data.google_project.zipline.project_id
-  role              = "roles/dataproc.serviceAgent"
-  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
-}
-
-resource "google_project_iam_member" "dataproc_worker" {
-  project           = data.google_project.zipline.project_id
-  role              = "roles/dataproc.worker"
-  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
-}
-
 
 resource "google_project_iam_member" "dataproc_metastore_federation_accessor" {
   project           = data.google_project.zipline.project_id
   role              = "roles/metastore.federationAccessor"
   member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
+
+# Bigtable Roles
+
+resource "google_project_iam_member" "dataproc_bigtable_user" {
+  project           = data.google_project.zipline.project_id
+  role              = "roles/bigtable.user"
+  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+# Dataproc Cluster
 
 resource "google_dataproc_cluster" "zipline_dataproc" {
   name   = "zipline-${lower(var.name)}-cluster"
