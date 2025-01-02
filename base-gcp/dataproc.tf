@@ -73,34 +73,6 @@ resource "google_project_iam_member" "dataproc_metastore_federation_accessor" {
   member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
-resource "google_dataproc_metastore_service" "big_query_metastore" {
-  location = "us-central1"
-  service_id = "zipline-metadata-service"
-
-  hive_metastore_config {
-    version = "3.1.2"
-    endpoint_protocol = "GRPC"
-  }
-}
-
-resource "google_dataproc_metastore_federation" "big_query_metastore_federation" {
-  location      = "us-central1"
-  federation_id = "zipline-metastore-fed"
-  version       = "3.1.2"
-
-  backend_metastores {
-    rank           = "2"
-    name           = data.google_project.zipline.id
-    metastore_type = "BIGQUERY"
-  }
-
-  backend_metastores {
-    rank           = "1"
-    name           = google_dataproc_metastore_service.big_query_metastore.id
-    metastore_type = "DATAPROC_METASTORE"
-  }
-}
-
 resource "google_dataproc_cluster" "zipline_dataproc" {
   name   = "zipline-${lower(var.name)}-cluster"
   region = var.region
