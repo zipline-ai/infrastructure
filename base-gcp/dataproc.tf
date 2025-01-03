@@ -98,7 +98,7 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
   cluster_config {
     master_config {
       num_instances = 1
-      machine_type  = "e2-standard-2"
+      machine_type  = "n2-highmem-64"
       disk_config {
         boot_disk_type = "pd-standard"
         boot_disk_size_gb = 30
@@ -106,7 +106,7 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
     }
     worker_config {
       num_instances = 2
-      machine_type = "n2-standard-4"
+      machine_type = "n2-highmem-32"
       disk_config {
         boot_disk_type = "pd-standard"
         boot_disk_size_gb = 30
