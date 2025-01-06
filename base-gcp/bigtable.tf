@@ -3,7 +3,7 @@ resource "google_bigtable_instance" "zipline_bigtable_instance" {
   cluster {
     cluster_id   = "zipline-${lower(var.name)}"
     zone         = var.zone
-    storage_type = "HDD"
+    storage_type = "SSD"
     autoscaling_config {
       cpu_target = 50
       max_nodes  = 10
@@ -20,9 +20,6 @@ resource "google_bigtable_table" "groupby_batch" {
   name = "GROUPBY_BATCH"
   column_family {
     family = "cf"
-  }
-  column_family {
-    family = "value"
   }
 }
 

@@ -130,7 +130,6 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
       image_version = "2.2.39-debian12"
       optional_components = [
         "FLINK",
-        "DOCKER",
         "JUPYTER",
       ]
       override_properties = {

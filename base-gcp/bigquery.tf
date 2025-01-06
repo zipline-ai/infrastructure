@@ -11,7 +11,7 @@ resource "google_bigquery_reservation" "zipline_reservation" {
 resource "google_bigquery_reservation_assignment" "query_assignment" {
   assignee    = "projects/${data.google_project.zipline.project_id}"
   job_type    = "QUERY"
-  reservation = google_bigquery_reservation.zipline_reservation.id
+  reservation = google_bigquery_reservation.zipline_reservation.name
 }
 
 resource "google_dataproc_metastore_service" "big_query_metastore" {
