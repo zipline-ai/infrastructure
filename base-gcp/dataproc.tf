@@ -48,39 +48,6 @@ resource "google_project_iam_member" "dataproc_bigquery_data_owner" {
   member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
-# Metastore Roles
-
-resource "google_project_iam_member" "dataproc_metastore_admin" {
-  project           = data.google_project.zipline.project_id
-  role              = "roles/metastore.admin"
-  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
-}
-
-resource "google_project_iam_member" "dataproc_metastore_editor" {
-  project           = data.google_project.zipline.project_id
-  role              = "roles/metastore.editor"
-  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
-}
-
-resource "google_project_iam_member" "dataproc_metastore_mutate_admin" {
-  project           = data.google_project.zipline.project_id
-  role              = "roles/metastore.metadataMutateAdmin"
-  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
-}
-
-resource "google_project_iam_member" "dataproc_metastore_metadata_editor" {
-  project           = data.google_project.zipline.project_id
-  role              = "roles/metastore.metadataEditor"
-  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
-}
-
-
-resource "google_project_iam_member" "dataproc_metastore_federation_accessor" {
-  project           = data.google_project.zipline.project_id
-  role              = "roles/metastore.federationAccessor"
-  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
-}
-
 # Bigtable Roles
 
 resource "google_project_iam_member" "dataproc_bigtable_user" {
@@ -121,7 +88,6 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
         "https://www.googleapis.com/auth/logging.write",
       ]
       metadata = {
-        proxy-uri = google_dataproc_metastore_federation.big_query_metastore_federation.endpoint_uri
         hive-version = "3.1.2",
         SPARK_BQ_CONNECTOR_URL = "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.41.0.jar"
       }
@@ -146,7 +112,6 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
   }
   depends_on = [
     google_project_iam_member.dataproc_worker,
-    google_project_iam_member.dataproc_service_agent,
-    google_project_iam_member.dataproc_metastore_federation_accessor
+    google_project_iam_member.dataproc_service_agent
   ]
 }
