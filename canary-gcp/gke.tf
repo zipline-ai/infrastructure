@@ -47,7 +47,7 @@ resource "google_container_node_pool" "control_plane_node_pool" {
 
   node_config {
     preemptible  = false
-    machine_type = "e2-standard-2"
+    machine_type = "e2-highmem-2"
     disk_type = "pd-standard"
     disk_size_gb = 30
     service_account = google_service_account.node_group.email
