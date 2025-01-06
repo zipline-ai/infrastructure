@@ -1,5 +1,5 @@
 variable "region" {
 }
 
-variable "name" {
+variable "customer_name" {
 }
