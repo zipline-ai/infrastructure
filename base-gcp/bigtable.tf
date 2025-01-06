@@ -10,9 +10,6 @@ resource "google_bigtable_instance" "zipline_bigtable_instance" {
       min_nodes  = 2
     }
   }
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 resource "google_bigtable_table" "groupby_batch" {
