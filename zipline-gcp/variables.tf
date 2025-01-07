@@ -1,5 +1,3 @@
-variable "region" {
-}
-
-variable "customer_name" {
-}
+variable "customer_name" {}
+variable "project" {}
+variable "region" {}
