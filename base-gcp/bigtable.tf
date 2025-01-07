@@ -133,4 +133,5 @@ resource "google_bigtable_app_profile" "groupby_ingest" {
   standard_isolation {
     priority = "PRIORITY_LOW"
   }
+  ignore_warnings = true
 }
