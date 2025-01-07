@@ -2,6 +2,7 @@ resource "google_bigtable_instance" "zipline_bigtable_instance" {
   name = "zipline-${lower(var.customer_name)}-instance"
   cluster {
     cluster_id   = "zipline-${lower(var.customer_name)}"
+    zone         = var.zone
     storage_type = "SSD"
     autoscaling_config {
       cpu_target = 50
@@ -9,6 +10,7 @@ resource "google_bigtable_instance" "zipline_bigtable_instance" {
       min_nodes  = 2
     }
   }
+  depends_on = [google_project_service.bigtable_admin]
 }
 
 resource "google_bigtable_table" "groupby_batch" {
