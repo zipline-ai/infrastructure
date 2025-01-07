@@ -12,5 +12,5 @@ terraform {
 }
 provider "google" {
   project = "canary-443022"
-  region  = "us-west1"
+  region  = "us-central1"
 }
