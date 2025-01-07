@@ -8,18 +8,6 @@ data "google_project" "zipline" {
 
 # Dataproc Roles
 
-resource "google_project_iam_member" "dataproc_admin" {
-  project           = data.google_project.zipline.project_id
-  role              = "roles/dataproc.admin"
-  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
-}
-
-resource "google_project_iam_member" "dataproc_service_agent" {
-  project           = data.google_project.zipline.project_id
-  role              = "roles/dataproc.serviceAgent"
-  member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
-}
-
 resource "google_project_iam_member" "dataproc_worker" {
   project           = data.google_project.zipline.project_id
   role              = "roles/dataproc.worker"
@@ -104,7 +92,7 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
     }
   }
   depends_on = [
-    google_project_iam_member.dataproc_worker,
-    google_project_iam_member.dataproc_service_agent
+    google_project_iam_member.dataproc_worker
   ]
+
 }
