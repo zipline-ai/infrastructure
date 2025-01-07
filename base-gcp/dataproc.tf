@@ -44,10 +44,32 @@ resource "google_project_iam_member" "dataproc_bigtable_user" {
   member            = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
+# Autoscailing Policy
+
+resource "google_dataproc_autoscaling_policy" "zipline_autoscaling_policy" {
+  project = data.google_project.zipline.project_id
+  location = var.region
+  policy_id = "zipline-${lower(var.customer_name)}-autoscaling-policy"
+
+  worker_config {
+    min_instances = 2
+    max_instances = 10
+  }
+
+  basic_algorithm {
+    cooldown_period = "120s"
+    yarn_config {
+      graceful_decommission_timeout = "120s"
+      scale_down_factor = 0.5
+      scale_up_factor = 0.5
+    }
+  }
+}
+
 # Dataproc Cluster
 
 resource "google_dataproc_cluster" "zipline_dataproc" {
-  name   = "zipline-${lower(var.name)}-cluster"
+  name   = "zipline-${lower(var.customer_name)}-cluster"
   region = var.region
 
   cluster_config {
@@ -89,6 +111,9 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
     }
     endpoint_config {
       enable_http_port_access = true
+    }
+    autoscaling_config {
+      policy_uri = google_dataproc_autoscaling_policy.zipline_autoscaling_policy.name
     }
   }
   depends_on = [
