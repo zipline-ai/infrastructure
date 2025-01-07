@@ -2,7 +2,6 @@ resource "google_bigtable_instance" "zipline_bigtable_instance" {
   name = "zipline-${lower(var.name)}-instance"
   cluster {
     cluster_id   = "zipline-${lower(var.name)}"
-    zone         = var.zone
     storage_type = "SSD"
     autoscaling_config {
       cpu_target = 50
