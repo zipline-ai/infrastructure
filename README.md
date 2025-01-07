@@ -1,4 +1,4 @@
-# infrastructure
+# Infrastructure
 Configuration to Initialize Zipline Infrastructure
 
 We are using OpenTofu to manage the infrastructure
@@ -13,7 +13,31 @@ To work with this repo you'll need a few tools installed on your laptop.
 * ```asdf-plugin-manager update-all```
 * ```asdf install``` (see `.tool-versions` for required applications)
 
-## Steps
+## Zipline on GCP Steps
+
+Initialize to gcloud and select the project you want to use
+* ``` gcloud auth application-default login ```
+* ``` gcloud init ```
+
+Enter the zipline-gcp directory and initialize the infrastructure
+* ``` cd zipline-gcp ```
+* ``` tofu init ```
+* ``` tofu apply ```
+
+
+## Zipline on AWS Steps
+
+Initialize to  and select the project you want to use
+* ``` gcloud auth application-default login ```
+* ``` gcloud init ```
+
+Enter the zipline-gcp directory and initialize the infrastructure
+* ``` cd zipline-gcp ```
+* ``` tofu init ```
+* ``` tofu apply ```
+
+
+## Canary Steps
 
 ### Initialize AWS Canary Clusters
 ```
@@ -23,7 +47,7 @@ tofu init
 tofu apply
  ```
 
-### Initialize Dev Clusters
+### Initialize AWS Dev Clusters
 ```
 aws configure
 cd dev-aws/
