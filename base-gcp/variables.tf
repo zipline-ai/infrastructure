@@ -14,3 +14,7 @@ variable "customer_name" {
 variable "personnel_email" {
     default = "gcp-admin@zipline.ai"
 }
+
+variable "dataproc-subnetwork" {
+    default = ""
+}
