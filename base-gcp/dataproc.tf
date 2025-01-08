@@ -1,9 +1,6 @@
 resource "google_service_account" "dataproc_sa" {
-  account_id   = "dataproc"
+  account_id   = "sa-dataproc"
   display_name = "Dataproc SA"
-}
-
-data "google_project" "zipline" {
 }
 
 # Dataproc Roles
@@ -101,6 +98,7 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
         hive-version = "3.1.2",
         SPARK_BQ_CONNECTOR_URL = "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.41.0.jar"
       }
+      internal_ip_only = true
     }
     software_config {
       image_version = "2.2.39-debian12"
