@@ -38,3 +38,9 @@ resource "google_project_iam_member" "personnel_bigquery_data" {
   role    = "roles/bigquery.dataViewer"
   member  = "group:${var.personnel_email}"
 }
+
+resource "google_project_iam_member" "personnel_compute" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/compute.admin"
+  member  = "group:${var.personnel_email}"
+}
