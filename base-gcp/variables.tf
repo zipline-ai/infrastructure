@@ -15,6 +15,6 @@ variable "personnel_email" {
     default = "gcp-admin@zipline.ai"
 }
 
-variable "subnetwork" {
+variable "dataproc-subnetwork" {
     default = ""
 }
