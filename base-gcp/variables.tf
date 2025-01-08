@@ -10,3 +10,7 @@ variable "zone" {
 variable "customer_name" {
   default = "canary"
 }
+
+variable "personnel_email" {
+    default = "gcp-admin@zipline.ai"
+}
