@@ -18,3 +18,7 @@ variable "personnel_email" {
 variable "dataproc-subnetwork" {
     default = ""
 }
+
+variable "create_artifacts_bucket" {
+  default = false # default false because we expect users to create this in the customer vpc 
+}

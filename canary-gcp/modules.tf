@@ -2,5 +2,6 @@
 module "base_setup" {
   source = "../base-gcp"
 
-  name = "Canary"
+  customer_name = "canary"
+  create_artifacts_bucket = true
 }
