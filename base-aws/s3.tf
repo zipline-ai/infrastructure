@@ -3,35 +3,35 @@ resource "aws_s3_bucket" "zipline_canary_bucket" {
 }
 
 resource "aws_iam_openid_connect_provider" "eks" {
-  url = aws_eks_cluster.zipline_canary_eks.identity[0].oidc[0].issuer
+  url             = aws_eks_cluster.zipline_canary_eks.identity[0].oidc[0].issuer
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
 }
 
 resource "kubernetes_service_account" "s3_service_account" {
   metadata {
-    name = "s3-sa"
+    name      = "s3-sa"
     namespace = "default"
   }
 }
 
 data "aws_iam_policy_document" "s3_assume_role_policy" {
   statement {
-    effect    = "Allow"
+    effect = "Allow"
     principals {
       identifiers = [aws_iam_openid_connect_provider.eks.arn]
-      type = "Federated"
+      type        = "Federated"
     }
     actions = ["sts:AssumeRoleWithWebIdentity"]
     condition {
       test     = "StringEquals"
       variable = "${aws_iam_openid_connect_provider.eks.url}:aud"
-      values = ["sts.amazonaws.com"]
+      values   = ["sts.amazonaws.com"]
     }
     condition {
-      test = "StringEquals"
+      test     = "StringEquals"
       variable = "${aws_iam_openid_connect_provider.eks.url}:sub"
-      values = ["system:serviceaccount:default:${kubernetes_service_account.s3_service_account.metadata[0].name}"]
+      values   = ["system:serviceaccount:default:${kubernetes_service_account.s3_service_account.metadata[0].name}"]
     }
   }
 }

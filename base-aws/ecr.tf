@@ -1,11 +1,11 @@
 // Establishes the image repos for the app and the frontend
 
 data "aws_ecr_repository" "app" {
-  name                 = "zipline-ai/canary-app"
+  name = "zipline-ai/canary-app"
 }
 
 data "aws_ecr_repository" "frontend" {
-  name                 = "zipline-ai/canary-frontend"
+  name = "zipline-ai/canary-frontend"
 }
 
 # resource "aws_ecr_repository" "app" {

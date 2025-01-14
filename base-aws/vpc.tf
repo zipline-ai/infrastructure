@@ -8,17 +8,17 @@ resource "aws_vpc" "main" {
 }
 
 resource "aws_subnet" "main" {
-  vpc_id     = aws_vpc.main.id
-  cidr_block = "172.31.0.0/20"
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "172.31.0.0/20"
   map_public_ip_on_launch = true
-  availability_zone = "${var.region}a"
+  availability_zone       = "${var.region}a"
 }
 
 resource "aws_subnet" "secondary" {
-  vpc_id     = aws_vpc.main.id
-  cidr_block = "172.31.16.0/20"
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "172.31.16.0/20"
   map_public_ip_on_launch = true
-  availability_zone = "${var.region}b"
+  availability_zone       = "${var.region}b"
 }
 
 resource "aws_security_group" "elb" {
@@ -35,7 +35,7 @@ resource "aws_security_group" "elb" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "tcp" {
-    security_group_id = aws_security_group.elb.id
+  security_group_id = aws_security_group.elb.id
 
   cidr_ipv4   = "0.0.0.0/0"
   from_port   = 3000
@@ -44,7 +44,7 @@ resource "aws_vpc_security_group_ingress_rule" "tcp" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "icmp" {
-    security_group_id = aws_security_group.elb.id
+  security_group_id = aws_security_group.elb.id
 
   cidr_ipv4   = "0.0.0.0/0"
   from_port   = 3
@@ -63,7 +63,7 @@ resource "aws_security_group" "allow_access" {
     protocol    = "-1"
     cidr_blocks = []
     security_groups = [
-        aws_security_group.elb.id
+      aws_security_group.elb.id
     ]
     self = true
   }
@@ -84,7 +84,7 @@ resource "aws_security_group" "allow_access" {
     ]
   }
 
-  tags  = {
+  tags = {
     "kubernetes.io/cluster/Zipline-Canary-EKS" = "owned"
   }
   tags_all = {

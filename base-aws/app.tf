@@ -25,26 +25,26 @@ resource "kubernetes_deployment" "app" {
 
       spec {
         container {
-          image = "${data.aws_ecr_repository.app.repository_url}:canary"
+          image             = "${data.aws_ecr_repository.app.repository_url}:canary"
           image_pull_policy = "Always"
-          name = "app"
+          name              = "app"
 
           env {
-            name = "AWS_DEFAULT_REGION"
+            name  = "AWS_DEFAULT_REGION"
             value = var.region
           }
           env {
-            name = "JAVA_OPTS"
+            name  = "JAVA_OPTS"
             value = "-Xms1g -Xmx1g"
           }
           env {
-            name = "PLAY_HTTP_SECRET_KEY"
+            name  = "PLAY_HTTP_SECRET_KEY"
             value = "my_fake_chronon_monitoring_hub_http_secret_key"
           }
 
           port {
             container_port = 9000
-            protocol = "TCP"
+            protocol       = "TCP"
           }
         }
         restart_policy = "Always"
@@ -58,7 +58,7 @@ resource "kubernetes_deployment" "app" {
     ]
   }
 
-  depends_on = [ aws_eks_node_group.arm_spot_node_group, aws_eks_addon.coredns ]
+  depends_on = [aws_eks_node_group.arm_spot_node_group, aws_eks_addon.coredns]
 }
 
 resource "kubernetes_service" "app" {
@@ -71,8 +71,8 @@ resource "kubernetes_service" "app" {
 
   spec {
     port {
-      name = "9000"
-      port = 9000
+      name        = "9000"
+      port        = 9000
       target_port = 9000
     }
     selector = {

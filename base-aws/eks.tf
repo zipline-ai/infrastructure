@@ -4,8 +4,8 @@ resource "aws_eks_cluster" "zipline_canary_eks" {
   role_arn = aws_iam_role.cluster_role.arn
 
   vpc_config {
-    endpoint_private_access   = true
-    subnet_ids = [aws_subnet.main.id, aws_subnet.secondary.id]
+    endpoint_private_access = true
+    subnet_ids              = [aws_subnet.main.id, aws_subnet.secondary.id]
   }
 
   enabled_cluster_log_types = ["api", "audit"]
@@ -15,7 +15,7 @@ resource "aws_eks_cluster" "zipline_canary_eks" {
   }
 
   access_config {
-    authentication_mode = "API_AND_CONFIG_MAP"
+    authentication_mode                         = "API_AND_CONFIG_MAP"
     bootstrap_cluster_creator_admin_permissions = true
   }
   bootstrap_self_managed_addons = false
@@ -71,7 +71,7 @@ resource "aws_eks_addon" "cni" {
 resource "aws_eks_addon" "coredns" {
   cluster_name = aws_eks_cluster.zipline_canary_eks.name
   addon_name   = "coredns"
-  depends_on = [aws_eks_node_group.arm_spot_node_group]
+  depends_on   = [aws_eks_node_group.arm_spot_node_group]
 }
 
 

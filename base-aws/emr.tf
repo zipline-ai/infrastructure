@@ -55,7 +55,7 @@ resource "aws_emr_cluster" "emr_cluster" {
     }
   ]
 EOF
-  service_role = aws_iam_role.iam_emr_service_role.arn
+  service_role        = aws_iam_role.iam_emr_service_role.arn
 }
 ###
 # IAM Role setups
