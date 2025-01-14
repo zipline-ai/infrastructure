@@ -86,6 +86,14 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
         boot_disk_size_gb = 1024
       }
     }
+
+    dynamic "initialization_action" {
+      for_each = var.dataproc_init_actions
+      content {
+        script = initialization_action.value
+      }
+    }
+
     gce_cluster_config {
       service_account = google_service_account.dataproc_sa.email
       service_account_scopes = [
