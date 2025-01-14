@@ -31,9 +31,9 @@ resource "aws_eks_node_group" "arm_spot_node_group" {
   node_role_arn   = aws_iam_role.ec2_role.arn
   subnet_ids      = [aws_subnet.main.id, aws_subnet.secondary.id]
 
-  ami_type = "AL2_ARM_64"
+  ami_type = "AL2_x86_64"
 
-  instance_types = ["m6g.medium"]
+  instance_types = ["t3.large"]
 
   disk_size = 20
 
