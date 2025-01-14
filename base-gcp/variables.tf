@@ -3,7 +3,7 @@ variable "region" {
 }
 
 variable "zone" {
-    default = "us-central1-a"
+  default = "us-central1-f"
 }
 
 
@@ -12,9 +12,17 @@ variable "customer_name" {
 }
 
 variable "personnel_email" {
-    default = "gcp-admin@zipline.ai"
+  default = "gcp-admin@zipline.ai"
 }
 
-variable "dataproc-subnetwork" {
-    default = ""
+variable "dataproc_subnetwork" {
+  default = ""
+}
+
+variable "dataproc_tags" {
+  default = []
+}
+
+variable "dataproc_init_actions" {
+  default = []
 }

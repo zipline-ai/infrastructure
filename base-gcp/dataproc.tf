@@ -1,6 +1,9 @@
 resource "google_service_account" "dataproc_sa" {
   account_id   = "dataproc"
   display_name = "Dataproc SA"
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # Dataproc Roles
