@@ -4,7 +4,7 @@ data "google_project" "zipline" {
 # Kafka
 
 resource "google_managed_kafka_cluster" "zipline_kafka" {
-  cluster_id = "test_cluster"
+  cluster_id = "zipline-kafka-cluster"
   location   = var.region
   project    = data.google_project.zipline.project_id
 
