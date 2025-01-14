@@ -23,9 +23,6 @@ spec:
               - containerPort: 9000
                 protocol: TCP
             env:
-              - name: AWS_DEFAULT_REGION
-                value: us-west-1
-
               - name: JAVA_OPTS
                 value: -Xms1g -Xmx1g
 
