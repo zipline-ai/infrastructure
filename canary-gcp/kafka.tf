@@ -9,7 +9,7 @@ resource "google_managed_kafka_cluster" "zipline_kafka" {
   project    = data.google_project.zipline.project_id
 
   capacity_config {
-    memory_bytes = 4294967296 # 4 GB
+    memory_bytes = 12884901888 # 12 GB
     vcpu_count   = 3
   }
 
