@@ -1,3 +1,11 @@
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "5.34.0"
+    }
+  }
+}
 data "google_project" "zipline" {
 }
 
@@ -43,4 +51,16 @@ resource "google_project_iam_member" "personnel_compute" {
   project = data.google_project.zipline.project_id
   role    = "roles/compute.admin"
   member  = "group:${var.personnel_email}"
+}
+
+resource "google_project_iam_member" "personnel_monitoring" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/monitoring.admin"
+  member  = "group:${var.personnel_email}"
+}
+
+resource "google_project_iam_member" "personnel_viewer" {
+    project = data.google_project.zipline.project_id
+    role    = "roles/viewer"
+    member  = "group:${var.personnel_email}"
 }
