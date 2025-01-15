@@ -2,14 +2,11 @@ variable "region" {
   default = "US"
 }
 
-variable "customer_names" {
-  type = set(string)
-  default = [
-    "canary",
-    "etsy"
-  ]
-}
+variable "customer_accts" {
 
-variable "personnel_email" {
-  default = "gcp-admin@zipline.ai"
+  default = {
+    canary = "gcp-admin@zipline.ai"
+    etsy = "gcp-zipline-admin@etsy.com"
+
+  }
 }
