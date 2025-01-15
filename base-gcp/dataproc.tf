@@ -53,7 +53,7 @@ resource "google_dataproc_autoscaling_policy" "zipline_autoscaling_policy" {
 
   worker_config {
     min_instances = 2
-    max_instances = 10
+    max_instances = 100
   }
 
   basic_algorithm {
