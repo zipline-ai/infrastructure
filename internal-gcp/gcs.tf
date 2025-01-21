@@ -1,7 +1,7 @@
 resource "google_storage_bucket" "artifacts" {
-  for_each = var.customer_accts
-  name     = "zipline-artifacts-${lower(each.key)}"
-  location = var.region
+  for_each                    = var.customer_accts
+  name                        = "zipline-artifacts-${lower(each.key)}"
+  location                    = var.region
   uniform_bucket_level_access = true
 }
 
