@@ -53,7 +53,7 @@ resource "google_dataproc_autoscaling_policy" "zipline_autoscaling_policy" {
 
   worker_config {
     min_instances = 2
-    max_instances = 100
+    max_instances = 256
   }
 
   basic_algorithm {
@@ -61,7 +61,7 @@ resource "google_dataproc_autoscaling_policy" "zipline_autoscaling_policy" {
     yarn_config {
       graceful_decommission_timeout = "120s"
       scale_down_factor             = 0.5
-      scale_up_factor               = 0.5
+      scale_up_factor               = 1.0
     }
   }
 }
