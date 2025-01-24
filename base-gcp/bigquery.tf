@@ -1,6 +1,6 @@
 resource "google_bigquery_reservation" "zipline_reservation" {
   project = data.google_project.zipline.project_id
-  location = "US"
+  location = var.region
   name = "bq-bt-uploads"
   slot_capacity = 0
   autoscale {
