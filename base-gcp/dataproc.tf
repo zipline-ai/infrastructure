@@ -53,7 +53,7 @@ resource "google_dataproc_autoscaling_policy" "zipline_autoscaling_policy" {
 
   worker_config {
     min_instances = 2
-    max_instances = 10
+    max_instances = 256
   }
 
   basic_algorithm {
@@ -61,7 +61,7 @@ resource "google_dataproc_autoscaling_policy" "zipline_autoscaling_policy" {
     yarn_config {
       graceful_decommission_timeout = "120s"
       scale_down_factor             = 0.5
-      scale_up_factor               = 0.5
+      scale_up_factor               = 1.0
     }
   }
 }
@@ -88,6 +88,10 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
         boot_disk_type    = "pd-standard"
         boot_disk_size_gb = 1024
       }
+    }
+
+    initialization_action {
+      script = "gs://zipline-jars/copy_java_security.sh"
     }
 
     dynamic "initialization_action" {
@@ -119,6 +123,9 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
         "FLINK",
         "JUPYTER",
       ]
+      override_properties = {
+        "flink:env.java.opts.client" = "-Djava.net.preferIPv4Stack=true -Djava.security.properties=/etc/flink/conf/java.security"
+      }
     }
     endpoint_config {
       enable_http_port_access = true
