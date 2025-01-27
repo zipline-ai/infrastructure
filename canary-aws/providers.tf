@@ -22,9 +22,5 @@ provider "aws" {
 module "base_setup" {
   source = "../base-aws"
 
-  name = "Canary"
-}
-
-output "eks_cluster_name" {
-  value = module.base_setup.eks_cluster_name
+  customer_name = var.customer_name
 }

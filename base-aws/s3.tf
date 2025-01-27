@@ -1,5 +1,5 @@
 resource "aws_s3_bucket" "zipline_canary_bucket" {
-  bucket = "${lower(var.name)}-data-bucket"
+  bucket = "${lower(var.customer_name)}-data-bucket"
 }
 
 resource "aws_iam_openid_connect_provider" "eks" {
@@ -37,7 +37,7 @@ data "aws_iam_policy_document" "s3_assume_role_policy" {
 }
 
 resource "aws_iam_role" "s3_role" {
-  name               = "${var.name}_s3_role"
+  name               = "${var.customer_name}_s3_role"
   assume_role_policy = data.aws_iam_policy_document.s3_assume_role_policy.json
 }
 
@@ -55,7 +55,7 @@ data "aws_iam_policy_document" "s3_role_policy" {
 }
 
 resource "aws_iam_policy" "s3_role_policy" {
-  name   = "${var.name}_s3_role_policy"
+  name   = "${var.customer_name}_s3_role_policy"
   policy = data.aws_iam_policy_document.s3_role_policy.json
 }
 
