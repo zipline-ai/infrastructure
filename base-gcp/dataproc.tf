@@ -90,6 +90,10 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
       }
     }
 
+    initialization_action {
+      script = "gs://zipline-jars/copy_java_security.sh"
+    }
+
     dynamic "initialization_action" {
       for_each = var.dataproc_init_actions
       content {
