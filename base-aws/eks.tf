@@ -1,5 +1,5 @@
 // Establishes an EKS cluster on AWS with 2 m6g.medium machines
-resource "aws_eks_cluster" "zipline_eks" {
+resource "aws_eks_cluster" "zipline_canary_eks" {
   name     = "Zipline-${var.name}-EKS"
   role_arn = aws_iam_role.cluster_role.arn
 
@@ -25,15 +25,15 @@ resource "aws_eks_cluster" "zipline_eks" {
   }
 }
 
-resource "aws_eks_node_group" "eks_node_group" {
-  cluster_name    = aws_eks_cluster.zipline_eks.name
-  node_group_name = "${var.name}-amd-node-group"
+resource "aws_eks_node_group" "arm_spot_node_group" {
+  cluster_name    = aws_eks_cluster.zipline_canary_eks.name
+  node_group_name = "${var.name}-arm-spot-node-group"
   node_role_arn   = aws_iam_role.ec2_role.arn
   subnet_ids      = [aws_subnet.main.id, aws_subnet.secondary.id]
 
   ami_type = "AL2_x86_64"
 
-  instance_types = ["t3.xlarge"]
+  instance_types = ["t3.large"]
 
   disk_size = 20
 
@@ -46,6 +46,8 @@ resource "aws_eks_node_group" "eks_node_group" {
   update_config {
     max_unavailable = 1
   }
+
+  capacity_type = "SPOT"
 
   # Ensure that IAM Role permissions are created before and deleted after EKS Node Group handling.
   # Otherwise, EKS will not be able to properly delete EC2 Instances and Elastic Network Interfaces.
@@ -61,25 +63,25 @@ resource "aws_eks_node_group" "eks_node_group" {
 # Addons
 
 resource "aws_eks_addon" "cni" {
-  cluster_name = aws_eks_cluster.zipline_eks.name
+  cluster_name = aws_eks_cluster.zipline_canary_eks.name
   addon_name   = "vpc-cni"
 }
 
 
 resource "aws_eks_addon" "coredns" {
-  cluster_name = aws_eks_cluster.zipline_eks.name
+  cluster_name = aws_eks_cluster.zipline_canary_eks.name
   addon_name   = "coredns"
-  depends_on = [aws_eks_node_group.eks_node_group]
+  depends_on = [aws_eks_node_group.arm_spot_node_group]
 }
 
 
 resource "aws_eks_addon" "kube_proxy" {
-  cluster_name = aws_eks_cluster.zipline_eks.name
+  cluster_name = aws_eks_cluster.zipline_canary_eks.name
   addon_name   = "kube-proxy"
 }
 
 resource "aws_eks_addon" "agent_identity" {
-  cluster_name = aws_eks_cluster.zipline_eks.name
+  cluster_name = aws_eks_cluster.zipline_canary_eks.name
   addon_name   = "eks-pod-identity-agent"
 }
 
@@ -174,9 +176,5 @@ resource "aws_iam_role_policy_attachment" "AmazonEMRFullAccessPolicy_v2" {
 }
 
 data "tls_certificate" "eks" {
-  url = aws_eks_cluster.zipline_eks.identity[0].oidc[0].issuer
-}
-
-output "eks_cluster_name" {
-  value = aws_eks_cluster.zipline_eks.name
+  url = aws_eks_cluster.zipline_canary_eks.identity[0].oidc[0].issuer
 }
