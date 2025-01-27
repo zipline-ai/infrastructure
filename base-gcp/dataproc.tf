@@ -123,6 +123,9 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
         "FLINK",
         "JUPYTER",
       ]
+      override_properties = {
+        "flink:env.java.opts.client" = "-Djava.net.preferIPv4Stack=true -Djava.security.properties=/etc/flink/conf/java.security"
+      }
     }
     endpoint_config {
       enable_http_port_access = true
