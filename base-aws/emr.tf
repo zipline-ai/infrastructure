@@ -4,14 +4,14 @@ resource "aws_emr_cluster" "emr_cluster" {
   applications  = ["Spark", "Flink", "Hadoop", "Hive", "JupyterEnterpriseGateway", "Livy", "Zeppelin"]
 
   ec2_attributes {
-    subnet_id                         = var.emr_subnetwork
-    instance_profile                  = aws_iam_instance_profile.emr_profile.arn
+    subnet_id        = var.emr_subnetwork
+    instance_profile = aws_iam_instance_profile.emr_profile.arn
   }
   dynamic "bootstrap_action" {
     for_each = var.emr_bootstrap_actions
     content {
-        path = bootstrap_action.value
-        name = bootstrap_action.key
+      path = bootstrap_action.value
+      name = bootstrap_action.key
     }
   }
   tags = var.emr_tags
@@ -19,7 +19,7 @@ resource "aws_emr_cluster" "emr_cluster" {
     instance_type = "m5.xlarge"
   }
   core_instance_group {
-    instance_type  = "m5.xlarge"
+    instance_type = "m5.xlarge"
   }
   service_role = aws_iam_role.iam_emr_service_role.arn
 }

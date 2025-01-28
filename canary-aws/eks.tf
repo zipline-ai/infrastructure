@@ -4,8 +4,8 @@ resource "aws_eks_cluster" "zipline_eks" {
   role_arn = aws_iam_role.cluster_role.arn
 
   vpc_config {
-    endpoint_private_access   = true
-    subnet_ids = [aws_subnet.main.id, aws_subnet.secondary.id]
+    endpoint_private_access = true
+    subnet_ids              = [aws_subnet.main.id, aws_subnet.secondary.id]
   }
 
   enabled_cluster_log_types = ["api", "audit"]
@@ -15,7 +15,7 @@ resource "aws_eks_cluster" "zipline_eks" {
   }
 
   access_config {
-    authentication_mode = "API_AND_CONFIG_MAP"
+    authentication_mode                         = "API_AND_CONFIG_MAP"
     bootstrap_cluster_creator_admin_permissions = true
   }
   bootstrap_self_managed_addons = false
@@ -71,7 +71,7 @@ resource "aws_eks_addon" "cni" {
 resource "aws_eks_addon" "coredns" {
   cluster_name = aws_eks_cluster.zipline_eks.name
   addon_name   = "coredns"
-  depends_on = [aws_eks_node_group.arm_spot_node_group]
+  depends_on   = [aws_eks_node_group.arm_spot_node_group]
 }
 
 
@@ -180,35 +180,35 @@ data "tls_certificate" "eks" {
 }
 
 resource "aws_iam_openid_connect_provider" "eks" {
-  url = aws_eks_cluster.zipline_eks.identity[0].oidc[0].issuer
+  url             = aws_eks_cluster.zipline_eks.identity[0].oidc[0].issuer
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
 }
 
 resource "kubernetes_service_account" "s3_service_account" {
   metadata {
-    name = "s3-sa"
+    name      = "s3-sa"
     namespace = "default"
   }
 }
 
 data "aws_iam_policy_document" "s3_assume_role_policy" {
   statement {
-    effect    = "Allow"
+    effect = "Allow"
     principals {
       identifiers = [aws_iam_openid_connect_provider.eks.arn]
-      type = "Federated"
+      type        = "Federated"
     }
     actions = ["sts:AssumeRoleWithWebIdentity"]
     condition {
       test     = "StringEquals"
       variable = "${aws_iam_openid_connect_provider.eks.url}:aud"
-      values = ["sts.amazonaws.com"]
+      values   = ["sts.amazonaws.com"]
     }
     condition {
-      test = "StringEquals"
+      test     = "StringEquals"
       variable = "${aws_iam_openid_connect_provider.eks.url}:sub"
-      values = ["system:serviceaccount:default:${kubernetes_service_account.s3_service_account.metadata[0].name}"]
+      values   = ["system:serviceaccount:default:${kubernetes_service_account.s3_service_account.metadata[0].name}"]
     }
   }
 }
