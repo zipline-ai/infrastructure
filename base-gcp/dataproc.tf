@@ -82,7 +82,7 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
       }
     }
     worker_config {
-      machine_type  = "n2-highmem-32"
+      machine_type = "n2-highmem-32"
       disk_config {
         boot_disk_type    = "pd-standard"
         boot_disk_size_gb = 1024
