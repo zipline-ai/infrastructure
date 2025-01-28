@@ -4,59 +4,35 @@ resource "aws_emr_cluster" "emr_cluster" {
   applications  = ["Spark", "Flink", "Hadoop", "Hive", "JupyterEnterpriseGateway", "Livy", "Zeppelin"]
 
   ec2_attributes {
-    subnet_id                         = aws_subnet.main.id
-    emr_managed_master_security_group = aws_security_group.allow_access.id
-    emr_managed_slave_security_group  = aws_security_group.allow_access.id
+    subnet_id                         = var.emr_subnetwork
     instance_profile                  = aws_iam_instance_profile.emr_profile.arn
   }
+  dynamic "bootstrap_action" {
+    for_each = var.emr_bootstrap_actions
+    content {
+        path = bootstrap_action.value
+        name = bootstrap_action.key
+    }
+  }
+  tags = var.emr_tags
   master_instance_group {
     instance_type = "m5.xlarge"
   }
   core_instance_group {
-    instance_count = 1
     instance_type  = "m5.xlarge"
   }
-  tags = {
-    role     = "rolename"
-    dns_zone = "env_zone"
-    env      = "env"
-    name     = "name-env"
-  }
-  bootstrap_action {
-    path = "s3://elasticmapreduce/bootstrap-actions/run-if"
-    name = "runif"
-    args = ["instance.isMaster=true", "echo running on master node"]
-  }
-  configurations_json = <<EOF
-  [
-    {
-      "Classification": "hadoop-env",
-      "Configurations": [
-        {
-          "Classification": "export",
-          "Properties": {
-            "JAVA_HOME": "/usr/lib/jvm/java-1.8.0"
-          }
-        }
-      ],
-      "Properties": {}
-    },
-    {
-      "Classification": "spark-env",
-      "Configurations": [
-        {
-          "Classification": "export",
-          "Properties": {
-            "JAVA_HOME": "/usr/lib/jvm/java-1.8.0"
-          }
-        }
-      ],
-      "Properties": {}
-    }
-  ]
-EOF
   service_role = aws_iam_role.iam_emr_service_role.arn
 }
+
+resource "aws_emr_managed_scaling_policy" "zipline_scaling" {
+  cluster_id = aws_emr_cluster.emr_cluster.id
+  compute_limits {
+    maximum_capacity_units = 256
+    minimum_capacity_units = 0
+    unit_type              = "Instances"
+  }
+}
+
 ###
 # IAM Role setups
 ###
@@ -72,7 +48,7 @@ data "aws_iam_policy_document" "emr_assume_role" {
   }
 }
 resource "aws_iam_role" "iam_emr_service_role" {
-  name               = "${var.customer_name}_emr_service_role"
+  name               = "zipline_${var.customer_name}_emr_service_role"
   assume_role_policy = data.aws_iam_policy_document.emr_assume_role.json
 }
 data "aws_iam_policy_document" "iam_emr_service_policy" {
@@ -137,7 +113,7 @@ data "aws_iam_policy_document" "iam_emr_service_policy" {
   }
 }
 resource "aws_iam_role_policy" "iam_emr_service_policy" {
-  name   = "${var.customer_name}_emr_service_policy"
+  name   = "zipline_${var.customer_name}_emr_service_policy"
   role   = aws_iam_role.iam_emr_service_role.id
   policy = data.aws_iam_policy_document.iam_emr_service_policy.json
 }
