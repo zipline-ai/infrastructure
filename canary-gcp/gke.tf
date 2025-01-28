@@ -20,6 +20,12 @@ resource "google_project_iam_member" "node_group_artifact_registry" {
   member  = "serviceAccount:${google_service_account.node_group.email}"
 }
 
+resource "google_project_iam_member" "node_group_kafka" {
+  project = data.google_project.project.project_id
+  role    = "roles/managedkafka.client"
+  member  = "serviceAccount:${google_service_account.node_group.email}"
+}
+
 resource "google_container_cluster" "dataplane" {
   name     = "dataplane-cluster"
   location = var.region
