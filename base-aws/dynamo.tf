@@ -7,7 +7,7 @@ resource "aws_dynamodb_table" "groupby_batch" {
   range_key = "cf"
   ttl {
     attribute_name = "ttl"
-    enabled = true
+    enabled        = true
   }
 }
 
@@ -20,7 +20,7 @@ resource "aws_dynamodb_table" "groupby_streaming" {
   range_key = "cf"
   ttl {
     attribute_name = "ttl"
-    enabled = true
+    enabled        = true
   }
 }
 
@@ -33,7 +33,7 @@ resource "aws_dynamodb_table" "tile_summaries" {
   range_key = "cf"
   ttl {
     attribute_name = "ttl"
-    enabled = true
+    enabled        = true
   }
 }
 
@@ -46,7 +46,7 @@ resource "aws_dynamodb_table" "chronon_metadata" {
   range_key = "cf"
   ttl {
     attribute_name = "ttl"
-    enabled = true
+    enabled        = true
   }
 }
 
@@ -59,7 +59,7 @@ resource "aws_dynamodb_table" "entity_keys_by_team" {
   range_key = "cf"
   ttl {
     attribute_name = "ttl"
-    enabled = true
+    enabled        = true
   }
 }
 
@@ -72,6 +72,6 @@ resource "aws_dynamodb_table" "groupby_ingest" {
   range_key = "cf"
   ttl {
     attribute_name = "ttl"
-    enabled = true
+    enabled        = true
   }
 }
