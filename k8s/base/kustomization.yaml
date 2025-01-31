@@ -6,3 +6,4 @@ resources:
   - frontend.yaml
   - app.yaml
   - quickstart.yaml
+  - argocd.yaml
