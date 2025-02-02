@@ -6,4 +6,5 @@ resources:
   - frontend.yaml
   - app.yaml
   - quickstart.yaml
-  - argocd.yaml
+  - argo_rollouts_namespace.yaml
+  - argo_rollouts.yaml
