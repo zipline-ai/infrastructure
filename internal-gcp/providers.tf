@@ -7,10 +7,10 @@ terraform {
   }
   backend "gcs" {
     bucket = "zipline-ai-tofu-state"
-    prefix = "canary"
+    prefix = "internal"
   }
 }
 provider "google" {
-  project = "canary-443022"
+  project = "zipline-main"
   region  = "us-central1"
 }
