@@ -4,6 +4,7 @@ kind: Kustomization
 
 resources:
   - ../base
+  - ../argo_rollouts
 
 images:
   - name: app-image
