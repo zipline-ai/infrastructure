@@ -6,7 +6,7 @@ resource "aws_dynamodb_table" "groupby_batch" {
     name = "cf"
     type = "S"
   }
-  range_key = "cf"
+  hash_key = "cf"
   ttl {
     attribute_name = "ttl"
     enabled        = true
@@ -21,7 +21,7 @@ resource "aws_dynamodb_table" "groupby_streaming" {
     name = "cf"
     type = "S"
   }
-  range_key = "cf"
+  hash_key = "cf"
   ttl {
     attribute_name = "ttl"
     enabled        = true
@@ -36,7 +36,7 @@ resource "aws_dynamodb_table" "tile_summaries" {
     name = "cf"
     type = "S"
   }
-  range_key = "cf"
+  hash_key = "cf"
   ttl {
     attribute_name = "ttl"
     enabled        = true
@@ -51,7 +51,7 @@ resource "aws_dynamodb_table" "chronon_metadata" {
     name = "cf"
     type = "S"
   }
-  range_key = "cf"
+  hash_key = "cf"
   ttl {
     attribute_name = "ttl"
     enabled        = true
@@ -66,7 +66,7 @@ resource "aws_dynamodb_table" "entity_keys_by_team" {
     name = "cf"
     type = "S"
   }
-  range_key = "cf"
+  hash_key = "cf"
   ttl {
     attribute_name = "ttl"
     enabled        = true
@@ -81,7 +81,7 @@ resource "aws_dynamodb_table" "groupby_ingest" {
     name = "cf"
     type = "S"
   }
-  range_key = "cf"
+  hash_key = "cf"
   ttl {
     attribute_name = "ttl"
     enabled        = true

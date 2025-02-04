@@ -3,7 +3,7 @@ resource "aws_vpc" "main" {
   cidr_block           = "172.31.0.0/16"
   enable_dns_hostnames = true
   tags = {
-    Name = "${var.customer_name}.vpc"
+    Name = "zipline-${var.customer_name}-vpc"
   }
 }
 
@@ -12,13 +12,6 @@ resource "aws_subnet" "main" {
   cidr_block              = "172.31.0.0/20"
   map_public_ip_on_launch = true
   availability_zone       = "${var.region}a"
-}
-
-resource "aws_subnet" "secondary" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "172.31.16.0/20"
-  map_public_ip_on_launch = true
-  availability_zone       = "${var.region}b"
 }
 
 resource "aws_security_group" "elb" {

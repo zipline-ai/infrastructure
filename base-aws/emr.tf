@@ -4,7 +4,7 @@ resource "aws_emr_cluster" "emr_cluster" {
   applications  = ["Spark", "Flink", "Hadoop", "Hive", "JupyterEnterpriseGateway", "Livy", "Zeppelin"]
 
   ec2_attributes {
-    subnet_id        = var.emr_subnetwork
+    subnet_id        = var.emr_subnetwork != "" ? var.emr_subnetwork : aws_subnet.main.id
     instance_profile = aws_iam_instance_profile.emr_profile.arn
   }
   dynamic "bootstrap_action" {
