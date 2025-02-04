@@ -4,5 +4,4 @@ module "base_setup" {
 
   customer_name = var.customer_name
   region = var.region
-  personnel_email = var.personnel_email
 }
