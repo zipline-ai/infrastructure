@@ -46,36 +46,10 @@ resource "aws_vpc_security_group_ingress_rule" "icmp" {
 }
 
 
-resource "aws_security_group" "allow_access" {
+resource "aws_security_group" "emr_sg" {
+  name        = "zipline-${var.customer_name}-sg"
   description = "Security group for Zipline"
   vpc_id      = aws_vpc.main.id
-
-  ingress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = []
-    security_groups = [
-      aws_security_group.elb.id
-    ]
-    self = true
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  depends_on = [aws_subnet.main]
-
-  lifecycle {
-    ignore_changes = [
-      ingress,
-      egress,
-    ]
-  }
 
   tags = {
     "kubernetes.io/cluster/zipline_${var.customer_name}_eks" = "owned"
@@ -83,6 +57,38 @@ resource "aws_security_group" "allow_access" {
   tags_all = {
     "kubernetes.io/cluster/zipline_${var.customer_name}_eks" = "owned"
   }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "allow_access" {
+  security_group_id = aws_security_group.emr_sg.id
+
+  ip_protocol                  = "-1"
+  from_port                    = 0
+  to_port                      = 0
+  referenced_security_group_id = aws_security_group.elb.id
+}
+
+data "aws_ec2_managed_prefix_list" "ec2_instance_connect" {
+  filter {
+    name   = "prefix-list-name"
+    values = ["com.amazonaws.${var.region}.ec2-instance-connect"]
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "instance_connect" {
+  security_group_id = aws_security_group.emr_sg.id
+  ip_protocol       = "tcp"
+  from_port         = 22
+  to_port           = 22
+  prefix_list_id    = data.aws_ec2_managed_prefix_list.ec2_instance_connect.id
+}
+
+
+resource "aws_vpc_security_group_egress_rule" "allow_access" {
+  security_group_id = aws_security_group.emr_sg.id
+
+  ip_protocol = "-1"
+  cidr_ipv4   = "0.0.0.0/0"
 }
 
 resource "aws_internet_gateway" "gw" {

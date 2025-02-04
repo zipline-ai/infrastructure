@@ -3,9 +3,20 @@ resource "aws_emr_cluster" "emr_cluster" {
   release_label = "emr-7.3.0"
   applications  = ["Spark", "Flink", "Hadoop", "Hive", "JupyterEnterpriseGateway", "Livy", "Zeppelin"]
 
+  configurations = jsonencode([
+    {
+      classification = "spark-hive-site"
+      properties = {
+        "hive.metastore.client.factory.class" = "com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory"
+      }
+    }
+  ])
+
   ec2_attributes {
-    subnet_id        = var.emr_subnetwork != "" ? var.emr_subnetwork : aws_subnet.main.id
-    instance_profile = aws_iam_instance_profile.emr_profile.arn
+    subnet_id                         = var.emr_subnetwork != "" ? var.emr_subnetwork : aws_subnet.main.id
+    instance_profile                  = aws_iam_instance_profile.emr_profile.arn
+    emr_managed_master_security_group = aws_security_group.emr_sg.id
+    emr_managed_slave_security_group  = aws_security_group.emr_sg.id
   }
   dynamic "bootstrap_action" {
     for_each = var.emr_bootstrap_actions
@@ -28,7 +39,7 @@ resource "aws_emr_managed_scaling_policy" "zipline_scaling" {
   cluster_id = aws_emr_cluster.emr_cluster.id
   compute_limits {
     maximum_capacity_units = 256
-    minimum_capacity_units = 0
+    minimum_capacity_units = 1
     unit_type              = "Instances"
   }
 }
@@ -93,6 +104,7 @@ data "aws_iam_policy_document" "iam_emr_service_policy" {
       "ec2:DescribeVolumeStatus",
       "ec2:DescribeVolumes",
       "ec2:DetachVolume",
+      "glue:*",
       "iam:GetRole",
       "iam:GetRolePolicy",
       "iam:ListInstanceProfiles",
