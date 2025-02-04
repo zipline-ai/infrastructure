@@ -163,6 +163,7 @@ data "aws_iam_policy_document" "iam_emr_profile_policy" {
       "elasticmapreduce:ListInstanceGroups",
       "elasticmapreduce:ListInstances",
       "elasticmapreduce:ListSteps",
+      "glue:*",
       "kinesis:CreateStream",
       "kinesis:DeleteStream",
       "kinesis:DescribeStream",
