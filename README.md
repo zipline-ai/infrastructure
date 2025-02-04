@@ -23,18 +23,19 @@ Enter the zipline-gcp directory and initialize the infrastructure
 * ``` cd zipline-gcp ```
 * ``` tofu init ```
 * ``` tofu apply ```
+Fill in your company name as the customer_name variable and select the region you want to deploy to.
 
 
 ## Zipline on AWS Steps
 
 Initialize to  and select the project you want to use
-* ``` gcloud auth application-default login ```
-* ``` gcloud init ```
+* ``` aws configure sso ```
 
 Enter the zipline-gcp directory and initialize the infrastructure
-* ``` cd zipline-gcp ```
+* ``` cd zipline-aws ```
 * ``` tofu init ```
 * ``` tofu apply ```
+Fill in your company name as the customer_name variable and select the region you want to deploy to.
 
 
 ## Canary Steps
