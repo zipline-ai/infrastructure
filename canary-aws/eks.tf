@@ -29,7 +29,7 @@ resource "aws_eks_node_group" "arm_spot_node_group" {
   cluster_name    = aws_eks_cluster.zipline_eks.name
   node_group_name = "${var.customer_name}-arm-spot-node-group"
   node_role_arn   = aws_iam_role.ec2_role.arn
-  subnet_ids      = [aws_subnet.main.id, aws_subnet.secondary.id]
+  subnet_ids      = [module.base_setup.main_subnet_id]
 
   ami_type = "AL2_x86_64"
 
@@ -214,7 +214,7 @@ data "aws_iam_policy_document" "s3_assume_role_policy" {
 }
 
 resource "aws_iam_role" "s3_role" {
-  name               = "${var.customer_name}_s3_role"
+  name               = "zipline_${var.customer_name}_s3_role"
   assume_role_policy = data.aws_iam_policy_document.s3_assume_role_policy.json
 }
 
@@ -232,7 +232,7 @@ data "aws_iam_policy_document" "s3_role_policy" {
 }
 
 resource "aws_iam_policy" "s3_role_policy" {
-  name   = "${var.customer_name}_s3_role_policy"
+  name   = "zipline_${var.customer_name}_s3_role_policy"
   policy = data.aws_iam_policy_document.s3_role_policy.json
 }
 
