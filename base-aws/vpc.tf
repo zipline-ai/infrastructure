@@ -14,6 +14,13 @@ resource "aws_subnet" "main" {
   availability_zone       = "${var.region}a"
 }
 
+resource "aws_subnet" "secondary" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "172.31.16.0/20"
+  map_public_ip_on_launch = true
+  availability_zone       = "${var.region}b"
+}
+
 resource "aws_security_group" "elb" {
   description = "Security group for Zipline Kubernetes ELB"
   vpc_id      = aws_vpc.main.id
@@ -63,8 +70,6 @@ resource "aws_vpc_security_group_ingress_rule" "allow_access" {
   security_group_id = aws_security_group.emr_sg.id
 
   ip_protocol                  = "-1"
-  from_port                    = 0
-  to_port                      = 0
   referenced_security_group_id = aws_security_group.elb.id
 }
 
@@ -111,4 +116,8 @@ resource "aws_main_route_table_association" "a" {
 
 output "main_subnet_id" {
   value = aws_subnet.main.id
+}
+
+output "secondary_subnet_id" {
+  value = aws_subnet.secondary.id
 }
