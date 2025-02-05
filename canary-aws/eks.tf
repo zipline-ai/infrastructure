@@ -5,7 +5,7 @@ resource "aws_eks_cluster" "zipline_eks" {
 
   vpc_config {
     endpoint_private_access = true
-    subnet_ids              = [aws_subnet.main.id, aws_subnet.secondary.id]
+    subnet_ids              = [module.base_setup.main_subnet_id, module.base_setup.secondary_subnet_id]
   }
 
   enabled_cluster_log_types = ["api", "audit"]
