@@ -4,7 +4,7 @@ resource "aws_dynamodb_table" "chronon_metadata" {
   write_capacity = 10
   attribute {
     name = "keyBytes"
-    type = "S"
+    type = "B"
   }
   hash_key = "keyBytes"
   ttl {
@@ -19,7 +19,7 @@ resource "aws_dynamodb_table" "entity_keys_by_team" {
   write_capacity = 10
   attribute {
     name = "keyBytes"
-    type = "S"
+    type = "B"
   }
   hash_key = "keyBytes"
   ttl {
