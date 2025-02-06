@@ -1,6 +1,6 @@
 resource "aws_emr_cluster" "emr_cluster" {
   name          = "zipline-${var.customer_name}-emr"
-  release_label = "emr-7.3.0"
+  release_label = "emr-7.2.0"
   applications  = ["Spark", "Flink", "Hadoop", "Hive", "JupyterEnterpriseGateway", "Livy", "Zeppelin"]
 
   configurations = jsonencode([
