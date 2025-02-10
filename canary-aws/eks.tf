@@ -1,11 +1,11 @@
 // Establishes an EKS cluster on AWS with 2 m6g.medium machines
-resource "aws_eks_cluster" "zipline_canary_eks" {
-  name     = "Zipline-${var.name}-EKS"
+resource "aws_eks_cluster" "zipline_eks" {
+  name     = "Zipline-${var.customer_name}-EKS"
   role_arn = aws_iam_role.cluster_role.arn
 
   vpc_config {
-    endpoint_private_access   = true
-    subnet_ids = [aws_subnet.main.id, aws_subnet.secondary.id]
+    endpoint_private_access = true
+    subnet_ids              = [module.base_setup.main_subnet_id, module.base_setup.secondary_subnet_id]
   }
 
   enabled_cluster_log_types = ["api", "audit"]
@@ -15,7 +15,7 @@ resource "aws_eks_cluster" "zipline_canary_eks" {
   }
 
   access_config {
-    authentication_mode = "API_AND_CONFIG_MAP"
+    authentication_mode                         = "API_AND_CONFIG_MAP"
     bootstrap_cluster_creator_admin_permissions = true
   }
   bootstrap_self_managed_addons = false
@@ -26,10 +26,10 @@ resource "aws_eks_cluster" "zipline_canary_eks" {
 }
 
 resource "aws_eks_node_group" "arm_spot_node_group" {
-  cluster_name    = aws_eks_cluster.zipline_canary_eks.name
-  node_group_name = "${var.name}-arm-spot-node-group"
+  cluster_name    = aws_eks_cluster.zipline_eks.name
+  node_group_name = "${var.customer_name}-arm-spot-node-group"
   node_role_arn   = aws_iam_role.ec2_role.arn
-  subnet_ids      = [aws_subnet.main.id, aws_subnet.secondary.id]
+  subnet_ids      = [module.base_setup.main_subnet_id]
 
   ami_type = "AL2_x86_64"
 
@@ -63,25 +63,25 @@ resource "aws_eks_node_group" "arm_spot_node_group" {
 # Addons
 
 resource "aws_eks_addon" "cni" {
-  cluster_name = aws_eks_cluster.zipline_canary_eks.name
+  cluster_name = aws_eks_cluster.zipline_eks.name
   addon_name   = "vpc-cni"
 }
 
 
 resource "aws_eks_addon" "coredns" {
-  cluster_name = aws_eks_cluster.zipline_canary_eks.name
+  cluster_name = aws_eks_cluster.zipline_eks.name
   addon_name   = "coredns"
-  depends_on = [aws_eks_node_group.arm_spot_node_group]
+  depends_on   = [aws_eks_node_group.arm_spot_node_group]
 }
 
 
 resource "aws_eks_addon" "kube_proxy" {
-  cluster_name = aws_eks_cluster.zipline_canary_eks.name
+  cluster_name = aws_eks_cluster.zipline_eks.name
   addon_name   = "kube-proxy"
 }
 
 resource "aws_eks_addon" "agent_identity" {
-  cluster_name = aws_eks_cluster.zipline_canary_eks.name
+  cluster_name = aws_eks_cluster.zipline_eks.name
   addon_name   = "eks-pod-identity-agent"
 }
 
@@ -102,7 +102,7 @@ data "aws_iam_policy_document" "eks_assume_role" {
 }
 
 resource "aws_iam_role" "cluster_role" {
-  name               = "Zipline-${var.name}-Role"
+  name               = "zipline-${var.customer_name}-cluster-role"
   description        = "Allows the cluster Kubernetes control plane to manage AWS resources on your behalf."
   assume_role_policy = data.aws_iam_policy_document.eks_assume_role.json
 }
@@ -150,7 +150,7 @@ data "aws_iam_policy_document" "ec2_assume_role" {
 }
 
 resource "aws_iam_role" "ec2_role" {
-  name               = "${var.name}-ec2-role"
+  name               = "zipline-${var.customer_name}-ec2-role"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
 }
 
@@ -176,5 +176,68 @@ resource "aws_iam_role_policy_attachment" "AmazonEMRFullAccessPolicy_v2" {
 }
 
 data "tls_certificate" "eks" {
-  url = aws_eks_cluster.zipline_canary_eks.identity[0].oidc[0].issuer
+  url = aws_eks_cluster.zipline_eks.identity[0].oidc[0].issuer
 }
+
+resource "aws_iam_openid_connect_provider" "eks" {
+  url             = aws_eks_cluster.zipline_eks.identity[0].oidc[0].issuer
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
+}
+
+resource "kubernetes_service_account" "s3_service_account" {
+  metadata {
+    name      = "s3-sa"
+    namespace = "default"
+  }
+}
+
+data "aws_iam_policy_document" "s3_assume_role_policy" {
+  statement {
+    effect = "Allow"
+    principals {
+      identifiers = [aws_iam_openid_connect_provider.eks.arn]
+      type        = "Federated"
+    }
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    condition {
+      test     = "StringEquals"
+      variable = "${aws_iam_openid_connect_provider.eks.url}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "${aws_iam_openid_connect_provider.eks.url}:sub"
+      values   = ["system:serviceaccount:default:${kubernetes_service_account.s3_service_account.metadata[0].name}"]
+    }
+  }
+}
+
+resource "aws_iam_role" "s3_role" {
+  name               = "zipline_${var.customer_name}_s3_role"
+  assume_role_policy = data.aws_iam_policy_document.s3_assume_role_policy.json
+}
+
+data "aws_iam_policy_document" "s3_role_policy" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject"
+    ]
+
+    resources = [module.base_setup.aws_s3_bucket_arn]
+  }
+}
+
+resource "aws_iam_policy" "s3_role_policy" {
+  name   = "zipline_${var.customer_name}_s3_role_policy"
+  policy = data.aws_iam_policy_document.s3_role_policy.json
+}
+
+resource "aws_iam_role_policy_attachment" "s3_role_policy_attachment" {
+  role       = aws_iam_role.s3_role.name
+  policy_arn = aws_iam_policy.s3_role_policy.arn
+}
+
