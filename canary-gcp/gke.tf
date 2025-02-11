@@ -36,6 +36,7 @@ resource "google_container_cluster" "dataplane" {
   remove_default_node_pool = true
   initial_node_count       = 1
 
+  network = var.network
   service_external_ips_config {
     enabled = false
   }
@@ -65,7 +66,7 @@ resource "google_container_node_pool" "control_plane_node_pool" {
 
 resource "google_compute_router" "dataplane_router" {
   name    = "zipline-dataplane-router"
-  network = "default"
+  network = var.network
   region = var.region
 }
 
@@ -73,6 +74,14 @@ resource "google_compute_router_nat" "dataplane_nat" {
   name         = "zipline-dataplane-nat"
   router       = google_compute_router.dataplane_router.name
   region = var.region
-  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+  source_subnetwork_ip_ranges_to_nat = length(var.subnetworks) == 0 ? "ALL_SUBNETWORKS_ALL_IP_RANGES" : "LIST_OF_SUBNETWORKS"
   nat_ip_allocate_option = "AUTO_ONLY"
+
+  dynamic "subnetwork" {
+    for_each = var.subnetworks
+    content {
+      name = subnetwork.value
+      source_ip_ranges_to_nat = ["ALL_IP_RANGES"]
+    }
+  }
 }
