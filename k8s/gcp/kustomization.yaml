@@ -1,0 +1,15 @@
+# kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../base
+  - ../argo_rollouts
+
+images:
+  - name: app-image
+    newName: us-central1-docker.pkg.dev/canary-443022/canary-images/app
+  - name: frontend-image
+    newName: us-central1-docker.pkg.dev/canary-443022/canary-images/frontend
+  - name: quickstart-image
+    newName: us-central1-docker.pkg.dev/canary-443022/canary-images/quickstart

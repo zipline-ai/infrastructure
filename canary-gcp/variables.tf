@@ -5,3 +5,11 @@ variable "region" {
 variable "name" {
   default = "canary"
 }
+
+variable "network" {
+    default = "default"
+}
+
+variable "subnetworks" {
+    default = {}
+}
