@@ -14,8 +14,6 @@ resource "google_project_iam_member" "dataproc_worker" {
   member  = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
-
-
 # BigQuery Roles
 
 resource "google_project_iam_member" "dataproc_bigquery_admin" {
@@ -41,6 +39,14 @@ resource "google_project_iam_member" "dataproc_bigquery_data_owner" {
 resource "google_project_iam_member" "dataproc_bigtable_user" {
   project = data.google_project.zipline.project_id
   role    = "roles/bigtable.user"
+  member  = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+# Storage Roles
+
+resource "google_project_iam_member" "dataproc_storage_object_admin" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/storage.objectAdmin"
   member  = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
