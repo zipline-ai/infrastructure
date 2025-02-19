@@ -12,18 +12,3 @@ resource "aws_dynamodb_table" "chronon_metadata" {
     enabled        = true
   }
 }
-
-resource "aws_dynamodb_table" "entity_keys_by_team" {
-  name           = "CHRONON_ENTITY_BY_TEAM"
-  read_capacity  = 10
-  write_capacity = 10
-  attribute {
-    name = "keyBytes"
-    type = "B"
-  }
-  hash_key = "keyBytes"
-  ttl {
-    attribute_name = "ttl"
-    enabled        = true
-  }
-}
