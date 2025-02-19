@@ -103,7 +103,7 @@ resource "google_bigtable_gc_policy" "chronon_metadata_gc_policy" {
 
 resource "google_bigtable_table" "entity_keys_by_team" {
   instance_name = google_bigtable_instance.zipline_bigtable_instance.name
-  name          = "ENTITY_KEYS_BY_TEAM"
+  name          = "CHRONON_ENTITY_BY_TEAM"
   column_family {
     family = "cf"
   }

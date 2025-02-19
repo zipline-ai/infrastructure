@@ -14,7 +14,7 @@ resource "aws_dynamodb_table" "chronon_metadata" {
 }
 
 resource "aws_dynamodb_table" "entity_keys_by_team" {
-  name           = "ENTITY_KEYS_BY_TEAM"
+  name           = "CHRONON_ENTITY_BY_TEAM"
   read_capacity  = 10
   write_capacity = 10
   attribute {
