@@ -94,6 +94,12 @@ data "aws_iam_policy_document" "iam_emr_profile_policy" {
     actions = [
       "cloudwatch:PutMetricData",
       "dynamodb:DescribeTable",
+      "dynamodb:ListTables",
+      "dynamodb:Scan",
+      "dynamodb:Query",
+      "dynamodb:BatchGetItem",
+      "dynamodb:BatchWriteItem",
+      "dynamodb:CreateTable",
       "dynamodb:GetRecords",
       "dynamodb:GetItem",
       "dynamodb:PutItem",
