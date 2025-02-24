@@ -93,6 +93,7 @@ data "aws_iam_policy_document" "iam_emr_profile_policy" {
     effect = "Allow"
     actions = [
       "cloudwatch:PutMetricData",
+      // DynamoDB
       "dynamodb:DescribeTable",
       "dynamodb:ListTables",
       "dynamodb:Scan",
@@ -104,6 +105,10 @@ data "aws_iam_policy_document" "iam_emr_profile_policy" {
       "dynamodb:GetItem",
       "dynamodb:PutItem",
       "dynamodb:UpdateItem",
+      // Glue
+      "glue:CreateTable",
+      "glue:CreateDatabase",
+      "glue:CreatePartition",
       "glue:GetTable",
       "glue:GetTables",
       "glue:GetPartitions",
@@ -111,6 +116,11 @@ data "aws_iam_policy_document" "iam_emr_profile_policy" {
       "glue:GetTableVersions",
       "glue:GetDatabases",
       "glue:GetDatabase",
+      "glue:GetPartition",
+      "glue:GetSchema",
+      "glue:UpdateTable",
+      "glue:UpdateDatabase",
+      // s3
       "s3:ListBucket",
       "s3:ListObjects",
       "s3:GetObject",
