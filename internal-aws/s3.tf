@@ -18,7 +18,7 @@ data "aws_iam_policy_document" "allow_access_from_emr" {
     principals {
       type = "AWS"
       identifiers = [
-        "arn:aws:iam::${each.value}:role/zipline-${each.key}-ec2-role",
+        "arn:aws:iam::${each.value}:role/zipline_${each.key}_emr_profile_role",
       ]
     }
   }
