@@ -114,9 +114,14 @@ data "aws_iam_policy_document" "iam_emr_profile_policy" {
       "dynamodb:PutItem",
       "dynamodb:UpdateItem",
       // Glue
+      "glue:BatchCreatePartition",
+      "glue:BatchDeletePartition",
+      "glue:BatchGetPartition",
       "glue:CreateTable",
       "glue:CreateDatabase",
       "glue:CreatePartition",
+      "glue:DeleteTable",
+      "glue:DeleteDatabase",
       "glue:GetTable",
       "glue:GetTables",
       "glue:GetPartitions",
@@ -129,9 +134,11 @@ data "aws_iam_policy_document" "iam_emr_profile_policy" {
       "glue:UpdateTable",
       "glue:UpdateDatabase",
       // s3
+      "s3:DeleteObject",
+      "s3:DeleteObjectVersion",
+      "s3:GetObject",
       "s3:ListBucket",
       "s3:ListObjects",
-      "s3:GetObject",
       "s3:PutObject",
       "s3:UpdateObject",
     ]
