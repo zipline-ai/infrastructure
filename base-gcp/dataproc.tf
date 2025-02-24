@@ -117,7 +117,7 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
       subnetwork = var.dataproc_subnetwork
       tags       = var.dataproc_tags
       metadata = {
-        hive-version           = "3.1.2",
+        hive-version = "3.1.2",
       }
       internal_ip_only = true
     }
