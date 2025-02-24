@@ -92,6 +92,14 @@ data "aws_iam_policy_document" "iam_emr_profile_policy" {
   statement {
     effect = "Allow"
     actions = [
+      // EMR
+      "elasticmapreduce:Describe*",
+      "elasticmapreduce:ListBootstrapActions",
+      "elasticmapreduce:ListClusters",
+      "elasticmapreduce:ListInstanceGroups",
+      "elasticmapreduce:ListInstances",
+      "elasticmapreduce:ListSteps",
+      // CloudWatch
       "cloudwatch:PutMetricData",
       // DynamoDB
       "dynamodb:DescribeTable",
