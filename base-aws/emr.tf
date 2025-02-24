@@ -1,6 +1,6 @@
 resource "aws_emr_cluster" "emr_cluster" {
   name          = "zipline-${var.customer_name}-emr"
-  release_label = "emr-7.3.0"
+  release_label = "emr-7.2.0"
   applications  = ["Spark", "Flink", "Hadoop", "Hive", "JupyterEnterpriseGateway", "Livy", "Zeppelin"]
 
   configurations = jsonencode([
@@ -32,7 +32,8 @@ resource "aws_emr_cluster" "emr_cluster" {
   core_instance_group {
     instance_type = "m5.xlarge"
   }
-  service_role = aws_iam_role.iam_emr_service_role.arn
+  service_role     = aws_iam_role.iam_emr_service_role.arn
+  autoscaling_role = aws_iam_role.iam_emr_service_role.arn
 }
 
 resource "aws_emr_managed_scaling_policy" "zipline_scaling" {
@@ -104,22 +105,11 @@ data "aws_iam_policy_document" "iam_emr_service_policy" {
       "ec2:DescribeVolumeStatus",
       "ec2:DescribeVolumes",
       "ec2:DetachVolume",
-      "glue:*",
       "iam:GetRole",
       "iam:GetRolePolicy",
       "iam:ListInstanceProfiles",
       "iam:ListRolePolicies",
       "iam:PassRole",
-      "s3:CreateBucket",
-      "s3:Get*",
-      "s3:List*",
-      "sdb:BatchPutAttributes",
-      "sdb:Select",
-      "sqs:CreateQueue",
-      "sqs:Delete*",
-      "sqs:GetQueue*",
-      "sqs:PurgeQueue",
-      "sqs:ReceiveMessage",
     ]
     resources = ["*"]
   }
@@ -154,29 +144,55 @@ data "aws_iam_policy_document" "iam_emr_profile_policy" {
   statement {
     effect = "Allow"
     actions = [
-      "cloudwatch:*",
-      "dynamodb:*",
-      "ec2:Describe*",
+      // EMR
       "elasticmapreduce:Describe*",
       "elasticmapreduce:ListBootstrapActions",
       "elasticmapreduce:ListClusters",
       "elasticmapreduce:ListInstanceGroups",
       "elasticmapreduce:ListInstances",
       "elasticmapreduce:ListSteps",
-      "glue:*",
-      "kinesis:CreateStream",
-      "kinesis:DeleteStream",
-      "kinesis:DescribeStream",
-      "kinesis:GetRecords",
-      "kinesis:GetShardIterator",
-      "kinesis:MergeShards",
-      "kinesis:PutRecord",
-      "kinesis:SplitShard",
-      "rds:Describe*",
-      "s3:*",
-      "sdb:*",
-      "sns:*",
-      "sqs:*",
+      // CloudWatch
+      "cloudwatch:PutMetricData",
+      // DynamoDB
+      "dynamodb:DescribeTable",
+      "dynamodb:ListTables",
+      "dynamodb:Scan",
+      "dynamodb:Query",
+      "dynamodb:BatchGetItem",
+      "dynamodb:BatchWriteItem",
+      "dynamodb:CreateTable",
+      "dynamodb:GetRecords",
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem",
+      // Glue
+      "glue:BatchCreatePartition",
+      "glue:BatchDeletePartition",
+      "glue:BatchGetPartition",
+      "glue:CreateTable",
+      "glue:CreateDatabase",
+      "glue:CreatePartition",
+      "glue:DeleteTable",
+      "glue:DeleteDatabase",
+      "glue:GetTable",
+      "glue:GetTables",
+      "glue:GetPartitions",
+      "glue:GetTableVersion",
+      "glue:GetTableVersions",
+      "glue:GetDatabases",
+      "glue:GetDatabase",
+      "glue:GetPartition",
+      "glue:GetSchema",
+      "glue:UpdateTable",
+      "glue:UpdateDatabase",
+      // s3
+      "s3:DeleteObject",
+      "s3:DeleteObjectVersion",
+      "s3:GetObject",
+      "s3:ListBucket",
+      "s3:ListObjects",
+      "s3:PutObject",
+      "s3:UpdateObject",
     ]
     resources = ["*"]
   }
