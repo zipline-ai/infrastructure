@@ -18,6 +18,10 @@ resource "aws_emr_cluster" "emr_cluster" {
     emr_managed_master_security_group = aws_security_group.emr_sg.id
     emr_managed_slave_security_group  = aws_security_group.emr_sg.id
   }
+  bootstrap_action {
+    name = "Install application files"
+    path = "s3://zipline-artifacts-${var.customer_name}/copy_files.sh"
+  }
   dynamic "bootstrap_action" {
     for_each = var.emr_bootstrap_actions
     content {
@@ -28,9 +32,19 @@ resource "aws_emr_cluster" "emr_cluster" {
   tags = var.emr_tags
   master_instance_group {
     instance_type = "m5.xlarge"
+    ebs_config {
+      size                 = 32
+      type                 = "gp2"
+      volumes_per_instance = 2
+    }
   }
   core_instance_group {
     instance_type = "m5.xlarge"
+    ebs_config {
+      size                 = 32
+      type                 = "gp2"
+      volumes_per_instance = 2
+    }
   }
   service_role     = aws_iam_role.iam_emr_service_role.arn
   autoscaling_role = aws_iam_role.iam_emr_service_role.arn
@@ -76,6 +90,7 @@ data "aws_iam_policy_document" "iam_emr_service_policy" {
       "ec2:DeleteNetworkInterface",
       "ec2:DeleteSecurityGroup",
       "ec2:DeleteTags",
+      "ec2:DeleteVolume",
       "ec2:DescribeAvailabilityZones",
       "ec2:DescribeAccountAttributes",
       "ec2:DescribeDhcpOptions",
@@ -90,21 +105,20 @@ data "aws_iam_policy_document" "iam_emr_service_policy" {
       "ec2:DescribeSpotInstanceRequests",
       "ec2:DescribeSpotPriceHistory",
       "ec2:DescribeSubnets",
+      "ec2:DescribeVolumeStatus",
+      "ec2:DescribeVolumes",
       "ec2:DescribeVpcAttribute",
       "ec2:DescribeVpcEndpoints",
       "ec2:DescribeVpcEndpointServices",
       "ec2:DescribeVpcs",
       "ec2:DetachNetworkInterface",
+      "ec2:DetachVolume",
       "ec2:ModifyImageAttribute",
       "ec2:ModifyInstanceAttribute",
       "ec2:RequestSpotInstances",
       "ec2:RevokeSecurityGroupEgress",
       "ec2:RunInstances",
       "ec2:TerminateInstances",
-      "ec2:DeleteVolume",
-      "ec2:DescribeVolumeStatus",
-      "ec2:DescribeVolumes",
-      "ec2:DetachVolume",
       "iam:GetRole",
       "iam:GetRolePolicy",
       "iam:ListInstanceProfiles",
@@ -176,12 +190,12 @@ data "aws_iam_policy_document" "iam_emr_profile_policy" {
       "glue:DeleteDatabase",
       "glue:GetTable",
       "glue:GetTables",
+      "glue:GetPartition",
       "glue:GetPartitions",
       "glue:GetTableVersion",
       "glue:GetTableVersions",
       "glue:GetDatabases",
       "glue:GetDatabase",
-      "glue:GetPartition",
       "glue:GetSchema",
       "glue:UpdateTable",
       "glue:UpdateDatabase",
@@ -190,9 +204,7 @@ data "aws_iam_policy_document" "iam_emr_profile_policy" {
       "s3:DeleteObjectVersion",
       "s3:GetObject",
       "s3:ListBucket",
-      "s3:ListObjects",
       "s3:PutObject",
-      "s3:UpdateObject",
     ]
     resources = ["*"]
   }
