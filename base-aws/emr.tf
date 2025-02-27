@@ -18,10 +18,6 @@ resource "aws_emr_cluster" "emr_cluster" {
     emr_managed_master_security_group = aws_security_group.emr_sg.id
     emr_managed_slave_security_group  = aws_security_group.emr_sg.id
   }
-  bootstrap_action {
-    name = "Install application files"
-    path = "s3://zipline-artifacts-${var.customer_name}/copy_files.sh"
-  }
   dynamic "bootstrap_action" {
     for_each = var.emr_bootstrap_actions
     content {
