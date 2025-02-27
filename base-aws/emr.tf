@@ -44,6 +44,7 @@ resource "aws_emr_cluster" "emr_cluster" {
   }
   service_role     = aws_iam_role.iam_emr_service_role.arn
   autoscaling_role = aws_iam_role.iam_emr_service_role.arn
+  log_uri          = "s3://zipline-warehouse-${var.customer_name}/emr/"
 }
 
 resource "aws_emr_managed_scaling_policy" "zipline_scaling" {
