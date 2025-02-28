@@ -19,8 +19,21 @@ resource "google_storage_bucket_iam_member" "dataproc-bucket-binding" {
   member   = "serviceAccount:dataproc@${each.value}.iam.gserviceaccount.com"
 }
 
+resource "google_storage_bucket_iam_member" "github-bucket-binding" {
+  for_each = var.customer_projects
+  bucket   = google_storage_bucket.artifacts[each.key].name
+  role     = "roles/storage.objectUser"
+  member   = "serviceAccount:${google_service_account.github.email}"
+}
+
 data "google_storage_bucket" "base_artifacts" {
   name = "zipline-artifacts-base"
+}
+
+resource "google_storage_bucket_iam_member" "github-base-bucket-binding" {
+  bucket = data.google_storage_bucket.base_artifacts.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.github.email}"
 }
 
 data "google_project" "internal_project" {

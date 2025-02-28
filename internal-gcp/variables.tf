@@ -14,9 +14,9 @@ variable "customer_accts" {
 variable "customer_projects" {
 
   default = {
-    canary    = "canary-443022"
-    dev       = "canary-443022"
-    etsy      = "etsy-zipline-dev"
+    canary = "canary-443022"
+    dev    = "canary-443022"
+    etsy   = "etsy-zipline-dev"
 
   }
 }
