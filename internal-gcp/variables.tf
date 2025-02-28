@@ -15,6 +15,7 @@ variable "customer_projects" {
 
   default = {
     canary = "canary-443022"
+    canary-ci = "canary-443022"
     etsy   = "etsy-zipline-dev"
 
   }
