@@ -12,6 +12,9 @@ resource "aws_subnet" "main" {
   cidr_block              = "172.31.0.0/20"
   map_public_ip_on_launch = true
   availability_zone       = "${var.region}a"
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_subnet" "secondary" {
@@ -63,6 +66,9 @@ resource "aws_security_group" "emr_sg" {
   }
   tags_all = {
     "kubernetes.io/cluster/zipline_${var.customer_name}_eks" = "owned"
+  }
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
