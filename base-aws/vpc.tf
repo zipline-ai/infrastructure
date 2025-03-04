@@ -12,6 +12,12 @@ resource "aws_subnet" "main" {
   cidr_block              = "172.31.0.0/20"
   map_public_ip_on_launch = true
   availability_zone       = "${var.region}a"
+  tags = {
+    Name = "zipline-${var.customer_name}-subnet-main"
+  }
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_subnet" "secondary" {
@@ -19,6 +25,12 @@ resource "aws_subnet" "secondary" {
   cidr_block              = "172.31.16.0/20"
   map_public_ip_on_launch = true
   availability_zone       = "${var.region}b"
+  tags = {
+    Name = "zipline-${var.customer_name}-subnet-secondary"
+  }
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_security_group" "elb" {
@@ -32,6 +44,9 @@ resource "aws_security_group" "elb" {
     "kubernetes.io/cluster/zipline_${var.customer_name}_eks" = "owned"
   }
 
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_vpc_security_group_ingress_rule" "tcp" {
@@ -63,6 +78,9 @@ resource "aws_security_group" "emr_sg" {
   }
   tags_all = {
     "kubernetes.io/cluster/zipline_${var.customer_name}_eks" = "owned"
+  }
+  lifecycle {
+    prevent_destroy = true
   }
 }
 
@@ -120,4 +138,8 @@ output "main_subnet_id" {
 
 output "secondary_subnet_id" {
   value = aws_subnet.secondary.id
+}
+
+output "security_group_id" {
+  value = aws_security_group.emr_sg.id
 }

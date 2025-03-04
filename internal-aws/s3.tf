@@ -1,10 +1,10 @@
 resource "aws_s3_bucket" "artifacts" {
-  for_each = var.customer_projects
+  for_each = var.customer_accounts
   bucket   = "zipline-artifacts-${lower(each.key)}"
 }
 
 data "aws_iam_policy_document" "allow_access_from_emr" {
-  for_each = var.customer_projects
+  for_each = var.customer_accounts
   statement {
     effect = "Allow"
 
@@ -28,7 +28,7 @@ data "aws_iam_policy_document" "allow_access_from_emr" {
 }
 
 resource "aws_s3_bucket_policy" "allow_access_from_emr" {
-  for_each = var.customer_projects
+  for_each = var.customer_accounts
   bucket   = aws_s3_bucket.artifacts[each.key].id
   policy   = data.aws_iam_policy_document.allow_access_from_emr[each.key].json
 }
