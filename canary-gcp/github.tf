@@ -1,5 +1,8 @@
 # This file is used to create a workload identity pool for Github Actions
 
+data "google_project" "internal_project" {
+}
+
 # This allows Github Actions to authenticate to GCP and perform actions
 resource "google_iam_workload_identity_pool" "github" {
   workload_identity_pool_id = "github-actions"
@@ -29,20 +32,13 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   ]
 }
 
-# This creates a service account for Github Actions
 resource "google_service_account" "github" {
   account_id   = "github-actions"
   display_name = "Zipline Github Actions"
 }
 
-data "google_project" "internal_project" {
-}
-
-resource "google_service_account_iam_member" "github_actions" {
-  service_account_id = google_service_account.github.id
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/zipline-ai/chronon"
-  depends_on = [
-    google_iam_workload_identity_pool_provider.github
-  ]
+resource "google_project_iam_member" "service_account_big_query" {
+  project = data.google_project.internal_project.project_id
+  role    = "roles/bigquery.dataEditor"
+  member  = "serviceAccount:${google_service_account.github.email}"
 }
