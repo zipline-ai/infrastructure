@@ -34,5 +34,5 @@ resource "aws_s3_bucket_policy" "allow_access_from_emr" {
 }
 
 resource "aws_s3_bucket" "dev_artifacts" {
-  bucket   = "zipline-artifacts-dev"
+  bucket = "zipline-artifacts-dev"
 }
