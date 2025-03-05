@@ -17,6 +17,10 @@ resource "google_storage_bucket_iam_member" "dataproc-bucket-binding" {
   bucket   = google_storage_bucket.artifacts[each.key].name
   role     = "roles/storage.objectViewer"
   member   = "serviceAccount:dataproc@${each.value}.iam.gserviceaccount.com"
+
+  depends_on = [
+    google_storage_bucket.artifacts
+  ]
 }
 
 resource "google_storage_bucket_iam_member" "github-bucket-binding" {
@@ -24,17 +28,27 @@ resource "google_storage_bucket_iam_member" "github-bucket-binding" {
   bucket   = google_storage_bucket.artifacts[each.key].name
   role     = "roles/storage.objectUser"
   member   = "serviceAccount:${google_service_account.github.email}"
+  depends_on = [
+    google_storage_bucket.artifacts
+  ]
 }
 
-data "google_storage_bucket" "base_artifacts" {
-  name = "zipline-artifacts-base"
+resource "google_storage_bucket" "dev_artifacts" {
+  name                        = "zipline-artifacts-dev"
+  location                    = var.region
+  uniform_bucket_level_access = true
 }
+
+
+resource "google_storage_bucket" "base_artifacts" {
+  name                        = "zipline-artifacts-base"
+  location                    = var.region
+  uniform_bucket_level_access = true
+}
+
 
 resource "google_storage_bucket_iam_member" "github-base-bucket-binding" {
-  bucket = data.google_storage_bucket.base_artifacts.name
+  bucket = google_storage_bucket.base_artifacts.name
   role   = "roles/storage.objectUser"
   member = "serviceAccount:${google_service_account.github.email}"
-}
-
-data "google_project" "internal_project" {
 }
