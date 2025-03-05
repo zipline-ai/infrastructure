@@ -46,3 +46,14 @@ resource "google_service_account_iam_member" "github_actions" {
     google_iam_workload_identity_pool_provider.github
   ]
 }
+
+data "google_service_account" "canary_github" {
+  project    = "canary-443022"
+  account_id = "github-actions"
+}
+
+resource "google_project_iam_member" "service_account_storage" {
+  project = data.google_project.internal_project.project_id
+  role    = "roles/storage.objectViewer"
+  member  = "serviceAccount:${data.google_service_account.canary_github.email}"
+}

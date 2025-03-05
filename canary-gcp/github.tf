@@ -37,12 +37,6 @@ resource "google_service_account" "github" {
   display_name = "Zipline Github Actions"
 }
 
-resource "google_project_iam_member" "service_account_big_query" {
-  project = data.google_project.internal_project.project_id
-  role    = "roles/bigquery.dataEditor"
-  member  = "serviceAccount:${google_service_account.github.email}"
-}
-
 resource "google_service_account_iam_member" "github_actions" {
   service_account_id = google_service_account.github.id
   role               = "roles/iam.workloadIdentityUser"
@@ -50,4 +44,18 @@ resource "google_service_account_iam_member" "github_actions" {
   depends_on = [
     google_iam_workload_identity_pool_provider.github
   ]
+}
+
+# Permissions for service account to run integration tests
+
+resource "google_project_iam_member" "service_account_big_query" {
+  project = data.google_project.internal_project.project_id
+  role    = "roles/bigquery.dataEditor"
+  member  = "serviceAccount:${google_service_account.github.email}"
+}
+
+resource "google_project_iam_member" "service_account_storage" {
+  project = data.google_project.internal_project.project_id
+  role    = "roles/storage.objectUser"
+  member  = "serviceAccount:${google_service_account.github.email}"
 }
