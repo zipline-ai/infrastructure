@@ -46,3 +46,9 @@ resource "google_service_account_iam_member" "github_actions" {
     google_iam_workload_identity_pool_provider.github
   ]
 }
+
+resource "google_project_iam_member" "service_account_big_query" {
+  project = data.google_project.internal_project.project_id
+  role    = "roles/bigquery.dataEditor"
+  member  = "serviceAccount:${google_service_account.github.email}"
+}
