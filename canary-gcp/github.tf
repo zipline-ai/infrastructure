@@ -42,3 +42,12 @@ resource "google_project_iam_member" "service_account_big_query" {
   role    = "roles/bigquery.dataEditor"
   member  = "serviceAccount:${google_service_account.github.email}"
 }
+
+resource "google_service_account_iam_member" "github_actions" {
+  service_account_id = google_service_account.github.id
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/zipline-ai/chronon"
+  depends_on = [
+    google_iam_workload_identity_pool_provider.github
+  ]
+}
