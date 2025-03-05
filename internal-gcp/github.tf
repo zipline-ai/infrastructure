@@ -1,7 +1,11 @@
+# This file is used to create a workload identity pool for Github Actions
+
+# This allows Github Actions to authenticate to GCP and perform actions
 resource "google_iam_workload_identity_pool" "github" {
   workload_identity_pool_id = "github-actions"
 }
 
+# This creates a workload identity pool provider for Github Actions
 resource "google_iam_workload_identity_pool_provider" "github" {
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.id
   workload_identity_pool_provider_id = "github"
@@ -20,6 +24,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
   }
 }
 
+# This creates a service account for Github Actions
 resource "google_service_account" "github" {
   account_id   = "github-actions"
   display_name = "Zipline Github Actions"
