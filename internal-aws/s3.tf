@@ -32,3 +32,7 @@ resource "aws_s3_bucket_policy" "allow_access_from_emr" {
   bucket   = aws_s3_bucket.artifacts[each.key].id
   policy   = data.aws_iam_policy_document.allow_access_from_emr[each.key].json
 }
+
+resource "aws_s3_bucket" "dev_artifacts" {
+  bucket   = "zipline-artifacts-dev"
+}
