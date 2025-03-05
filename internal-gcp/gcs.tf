@@ -1,5 +1,5 @@
 resource "google_storage_bucket" "artifacts" {
-  for_each                    = var.customer_accts
+  for_each                    = var.customer_projects
   name                        = "zipline-artifacts-${lower(each.key)}"
   location                    = var.region
   uniform_bucket_level_access = true
@@ -31,12 +31,6 @@ resource "google_storage_bucket_iam_member" "github-bucket-binding" {
   depends_on = [
     google_storage_bucket.artifacts
   ]
-}
-
-resource "google_storage_bucket" "dev_artifacts" {
-  name                        = "zipline-artifacts-dev"
-  location                    = var.region
-  uniform_bucket_level_access = true
 }
 
 
