@@ -55,7 +55,7 @@ data "google_service_account" "canary_github" {
 resource "google_project_iam_member" "service_account_storage" {
   project = data.google_project.internal_project.project_id
   role    = "roles/storage.objectUser"
-  member  = "serviceAccount:${data.google_service_account.canary_github.email}"
+  member  = "serviceAccount:${google_service_account.github.email}"
 }
 
 # Enable IAM credentials API so that the service account can impersonate other service accounts
