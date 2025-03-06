@@ -1,4 +1,6 @@
 # Necessary permissions for GitHub Actions to access the S3 buckets
+# Github workloads are authenticated using OIDC tokens. The following policy allows the GitHub Actions to assume the
+# role and access the S3 buckets.
 resource "aws_iam_openid_connect_provider" "github-actions" {
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
