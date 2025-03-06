@@ -1,3 +1,4 @@
+# Necessary permissions for GitHub Actions to access the S3 buckets
 resource "aws_iam_openid_connect_provider" "github-actions" {
   url             = "https://token.actions.githubusercontent.com"
   client_id_list  = ["sts.amazonaws.com"]
@@ -35,29 +36,13 @@ resource "aws_iam_role" "github-actions" {
 
 
 
-data "aws_iam_policy_document" "github-actions" {
-  for_each = var.customer_accounts
-  statement {
-    effect = "Allow"
-    principals {
-      type        = "AWS"
-      identifiers = [aws_iam_role.github-actions.arn]
-    }
-    actions = [
-      "s3:GetObject",
-      "s3:PutObject",
-      "s3:ListBucket",
-      "s3:DeleteObject",
-    ]
-    resources = [
-      "${aws_s3_bucket.artifacts[each.key].arn}/*",
-      "${aws_s3_bucket.artifacts[each.key].arn}",
-    ]
-  }
+
+
+data "aws_iam_policy_document" "base-github-actions" {
+
 }
 
-resource "aws_s3_bucket_policy" "github-actions" {
-  for_each = var.customer_accounts
-  bucket   = aws_s3_bucket.artifacts[each.key].id
-  policy   = data.aws_iam_policy_document.github-actions[each.key].json
+resource "aws_s3_bucket_policy" "github-actions-base" {
+  bucket   = aws_s3_bucket.base_artifacts.id
+  policy   = data.aws_iam_policy_document.base-github-actions.json
 }
