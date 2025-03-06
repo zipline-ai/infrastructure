@@ -52,6 +52,13 @@ data "google_service_account" "canary_github" {
   account_id = "github-actions"
 }
 
+resource "google_project_iam_member" "canary_service_account_storage" {
+  project = data.google_project.internal_project.project_id
+  role    = "roles/storage.objectUser"
+  member  = "serviceAccount:${data.google_service_account.canary_github.email}"
+}
+
+
 resource "google_project_iam_member" "service_account_storage" {
   project = data.google_project.internal_project.project_id
   role    = "roles/storage.objectUser"
