@@ -52,6 +52,7 @@ data "google_service_account" "canary_github" {
   account_id = "github-actions"
 }
 
+# Permissions for canary service account to run integration tests
 resource "google_project_iam_member" "canary_service_account_storage" {
   project = data.google_project.internal_project.project_id
   role    = "roles/storage.objectUser"
@@ -62,6 +63,19 @@ resource "google_project_iam_member" "canary_service_account_storage" {
 resource "google_project_iam_member" "service_account_storage" {
   project = data.google_project.internal_project.project_id
   role    = "roles/storage.objectUser"
+  member  = "serviceAccount:${google_service_account.github.email}"
+}
+
+resource "google_project_iam_member" "canary_service_account_storage_bucket" {
+  project = data.google_project.internal_project.project_id
+  role    = "roles/storage.legacyBucketWriter"
+  member  = "serviceAccount:${data.google_service_account.canary_github.email}"
+}
+
+
+resource "google_project_iam_member" "service_account_storage_bucket" {
+  project = data.google_project.internal_project.project_id
+  role    = "roles/storage.legacyBucketWriter"
   member  = "serviceAccount:${google_service_account.github.email}"
 }
 
