@@ -52,7 +52,7 @@ data "google_service_account" "canary_github" {
   account_id = "github-actions"
 }
 
-# Permissions for canary service account to run integration tests
+# Permissions for service accounts to run integration tests and upload artifacts
 resource "google_project_iam_member" "canary_service_account_storage" {
   project = data.google_project.internal_project.project_id
   role    = "roles/storage.objectUser"
@@ -66,17 +66,32 @@ resource "google_project_iam_member" "service_account_storage" {
   member  = "serviceAccount:${google_service_account.github.email}"
 }
 
-resource "google_project_iam_member" "canary_service_account_storage_bucket" {
-  project = data.google_project.internal_project.project_id
-  role    = "roles/storage.legacyBucketWriter"
-  member  = "serviceAccount:${data.google_service_account.canary_github.email}"
+resource "google_storage_bucket_iam_member" "canary_service_account_storage_bucket" {
+  for_each = var.customer_projects
+  bucket   = google_storage_bucket.artifacts[each.key].name
+  role     = "roles/storage.legacyBucketWriter"
+  member   = "serviceAccount:${data.google_service_account.canary_github.email}"
 }
 
 
-resource "google_project_iam_member" "service_account_storage_bucket" {
-  project = data.google_project.internal_project.project_id
-  role    = "roles/storage.legacyBucketWriter"
-  member  = "serviceAccount:${google_service_account.github.email}"
+resource "google_storage_bucket_iam_member" "service_account_storage_bucket" {
+  for_each = var.customer_projects
+  bucket   = google_storage_bucket.artifacts[each.key].name
+  role     = "roles/storage.legacyBucketWriter"
+  member   = "serviceAccount:${google_service_account.github.email}"
+}
+
+resource "google_storage_bucket_iam_member" "canary_service_account_base_storage_bucket" {
+  bucket = google_storage_bucket.base_artifacts.name
+  role   = "roles/storage.legacyBucketWriter"
+  member = "serviceAccount:${data.google_service_account.canary_github.email}"
+}
+
+
+resource "google_storage_bucket_iam_member" "service_account_base_storage_bucket" {
+  bucket = google_storage_bucket.base_artifacts.name
+  role   = "roles/storage.legacyBucketWriter"
+  member = "serviceAccount:${google_service_account.github.email}"
 }
 
 # Enable IAM credentials API so that the service account can impersonate other service accounts
