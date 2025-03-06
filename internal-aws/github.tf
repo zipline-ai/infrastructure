@@ -33,10 +33,16 @@ resource "aws_iam_role" "github-actions" {
   })
 }
 
+
+
 data "aws_iam_policy_document" "github-actions" {
   for_each = var.customer_accounts
   statement {
     effect = "Allow"
+    principals {
+      type        = "AWS"
+      identifiers = [aws_iam_role.github-actions.arn]
+    }
     actions = [
       "s3:GetObject",
       "s3:PutObject",
@@ -50,9 +56,8 @@ data "aws_iam_policy_document" "github-actions" {
   }
 }
 
-resource "aws_iam_role_policy" "github-actions" {
+resource "aws_s3_bucket_policy" "github-actions" {
   for_each = var.customer_accounts
-  name     = "github_actions"
-  role     = aws_iam_role.github-actions.id
+  bucket   = aws_s3_bucket.artifacts[each.key].id
   policy   = data.aws_iam_policy_document.github-actions[each.key].json
 }
