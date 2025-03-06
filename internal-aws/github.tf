@@ -33,16 +33,3 @@ resource "aws_iam_role" "github-actions" {
     ]
   })
 }
-
-
-
-
-
-data "aws_iam_policy_document" "base-github-actions" {
-
-}
-
-resource "aws_s3_bucket_policy" "github-actions-base" {
-  bucket   = aws_s3_bucket.base_artifacts.id
-  policy   = data.aws_iam_policy_document.base-github-actions.json
-}

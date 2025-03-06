@@ -3,7 +3,7 @@ resource "aws_s3_bucket" "artifacts" {
   bucket   = "zipline-artifacts-${lower(each.key)}"
 }
 
-data "aws_iam_policy_document" "allow_access_from_emr" {
+data "aws_iam_policy_document" "allow_access_from_emr_and_github" {
   for_each = var.customer_accounts
   statement {
     effect = "Allow"
@@ -46,7 +46,7 @@ data "aws_iam_policy_document" "allow_access_from_emr" {
 resource "aws_s3_bucket_policy" "allow_access_from_emr_and_github" {
   for_each = var.customer_accounts
   bucket   = aws_s3_bucket.artifacts[each.key].id
-  policy   = data.aws_iam_policy_document.allow_access_from_emr[each.key].json
+  policy   = data.aws_iam_policy_document.allow_access_from_emr_and_github[each.key].json
 }
 
 resource "aws_s3_bucket" "dev_artifacts" {
@@ -111,7 +111,7 @@ data "aws_iam_policy_document" "base_allow_access_from_emr_and_github" {
     ]
 
     resources = [
-      "${aws_s3_bucket.dev_artifacts.arn}/*",
+      "${aws_s3_bucket.base_artifacts.arn}/*",
     ]
     principals {
       type = "AWS"
@@ -133,8 +133,8 @@ data "aws_iam_policy_document" "base_allow_access_from_emr_and_github" {
       "s3:DeleteObject",
     ]
     resources = [
-      "${aws_s3_bucket.dev_artifacts.arn}/*",
-      "${aws_s3_bucket.dev_artifacts.arn}",
+      "${aws_s3_bucket.base_artifacts.arn}/*",
+      "${aws_s3_bucket.base_artifacts.arn}",
     ]
   }
   depends_on = [
@@ -143,6 +143,6 @@ data "aws_iam_policy_document" "base_allow_access_from_emr_and_github" {
 }
 
 resource "aws_s3_bucket_policy" "base_allow_access_from_emr_and_github" {
-  bucket = aws_s3_bucket.dev_artifacts.id
-  policy = data.aws_iam_policy_document.dev_allow_access_from_emr_and_github.json
+  bucket = aws_s3_bucket.base_artifacts.id
+  policy = data.aws_iam_policy_document.base_allow_access_from_emr_and_github.json
 }
