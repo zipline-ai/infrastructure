@@ -34,6 +34,7 @@ resource "aws_iam_role" "github-actions" {
 }
 
 data "aws_iam_policy_document" "github-actions" {
+  for_each = var.customer_accounts
   statement {
     effect = "Allow"
     actions = [
@@ -43,14 +44,15 @@ data "aws_iam_policy_document" "github-actions" {
       "s3:DeleteObject",
     ]
     resources = [
-      "${aws_s3_bucket.artifacts["canary"].arn}/*",
-      "${aws_s3_bucket.artifacts["canary"].arn}",
+      "${aws_s3_bucket.artifacts[each.key].arn}/*",
+      "${aws_s3_bucket.artifacts[each.key].arn}",
     ]
   }
 }
 
 resource "aws_iam_role_policy" "github-actions" {
-  name   = "github_actions"
-  role   = aws_iam_role.github-actions.id
-  policy = data.aws_iam_policy_document.github-actions.json
+  for_each = var.customer_accounts
+  name     = "github_actions"
+  role     = aws_iam_role.github-actions.id
+  policy   = data.aws_iam_policy_document.github-actions[each.key].json
 }
