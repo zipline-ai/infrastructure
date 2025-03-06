@@ -36,3 +36,31 @@ resource "aws_s3_bucket_policy" "allow_access_from_emr" {
 resource "aws_s3_bucket" "dev_artifacts" {
   bucket = "zipline-artifacts-dev"
 }
+
+data "aws_iam_policy_document" "dev_allow_access_from_emr" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "s3:GetObject"
+    ]
+
+    resources = [
+      "${aws_s3_bucket.dev_artifacts.arn}/*",
+    ]
+    principals {
+      type = "AWS"
+      identifiers = [
+        "arn:aws:iam::345594603419:role/zipline_canary_emr_profile_role",
+      ]
+    }
+  }
+  depends_on = [
+    aws_s3_bucket.artifacts
+  ]
+}
+
+resource "aws_s3_bucket_policy" "dev_allow_access_from_emr" {
+  bucket = aws_s3_bucket.dev_artifacts.id
+  policy = data.aws_iam_policy_document.dev_allow_access_from_emr.json
+}
