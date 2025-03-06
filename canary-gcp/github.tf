@@ -65,3 +65,9 @@ resource "google_project_iam_member" "service_account_dataproc" {
   role    = "roles/dataproc.editor"
   member  = "serviceAccount:${google_service_account.github.email}"
 }
+
+resource "google_project_iam_member" "service_account_big_table" {
+  project = data.google_project.internal_project.project_id
+  role    = "roles/bigtable.user"
+  member  = "serviceAccount:${google_service_account.github.email}"
+}
