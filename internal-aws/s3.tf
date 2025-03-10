@@ -9,15 +9,15 @@ data "aws_iam_policy_document" "allow_access_from_emr_and_github" {
     effect = "Allow"
     principals {
       type = "AWS"
-      identifiers = [
-        "arn:aws:iam::${each.value}:role/*",
-      ]
+      identifiers = [ "${each.value}" ]
     }
     actions = [
-      "s3:GetObject"
+      "s3:GetObject",
+      "s3:ListBucket"
     ]
 
     resources = [
+      "${aws_s3_bucket.artifacts[each.key].arn}",
       "${aws_s3_bucket.artifacts[each.key].arn}/*",
     ]
   }
