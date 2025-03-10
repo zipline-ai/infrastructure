@@ -8,8 +8,8 @@ data "aws_iam_policy_document" "allow_access_from_emr_and_github" {
   statement {
     effect = "Allow"
     principals {
-      type = "AWS"
-      identifiers = [ "${each.value}" ]
+      type        = "AWS"
+      identifiers = ["${each.value}"]
     }
     actions = [
       "s3:GetObject",
