@@ -10,7 +10,7 @@ data "aws_iam_policy_document" "allow_access_from_emr_and_github" {
     principals {
       type = "AWS"
       identifiers = [
-        "arn:aws:iam::${each.value}:role/zipline_${each.key}_emr_profile_role",
+        "arn:aws:iam::${each.value}:role/*",
       ]
     }
     actions = [
