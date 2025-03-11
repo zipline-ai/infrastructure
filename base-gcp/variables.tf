@@ -26,3 +26,7 @@ variable "dataproc_tags" {
 variable "dataproc_init_actions" {
   default = []
 }
+
+variable "control_plane_service_account" {
+  default = "logs-viewer@zipline-main.iam.gserviceaccount.com"
+}

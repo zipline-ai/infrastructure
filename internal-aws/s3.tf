@@ -8,8 +8,8 @@ data "aws_iam_policy_document" "allow_access_from_emr_and_github" {
   statement {
     effect = "Allow"
     principals {
-      type = "AWS"
-      identifiers = [ "${each.value}" ]
+      type        = "AWS"
+      identifiers = ["${each.value}"]
     }
     actions = [
       "s3:GetObject",
@@ -145,4 +145,21 @@ data "aws_iam_policy_document" "base_allow_access_from_emr_and_github" {
 resource "aws_s3_bucket_policy" "base_allow_access_from_emr_and_github" {
   bucket = aws_s3_bucket.base_artifacts.id
   policy = data.aws_iam_policy_document.base_allow_access_from_emr_and_github.json
+}
+
+data "aws_iam_policy_document" "logs-viewer-assume" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "AWS"
+      identifiers = [data.aws_caller_identity.internal.account_id]
+    }
+  }
+}
+
+# A role for viewing customer logs output
+resource "aws_iam_role" "logs-viewer" {
+  name               = "zipline-logs-viewer"
+  assume_role_policy = data.aws_iam_policy_document.logs-viewer-assume.json
 }
