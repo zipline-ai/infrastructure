@@ -148,21 +148,21 @@ resource "aws_s3_bucket_policy" "base_allow_access_from_emr_and_github" {
 }
 
 data "aws_iam_policy_document" "logs-viewer-assume" {
-    statement {
-        effect = "Allow"
-        actions = ["sts:AssumeRole"]
-      principals {
-        type = "AWS"
-        identifiers = [ data.aws_caller_identity.internal.account_id ]
-      }
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "AWS"
+      identifiers = [data.aws_caller_identity.internal.account_id]
     }
+  }
 }
 
 # A role for viewing customer logs output
 resource "aws_iam_role" "logs-viewer" {
-    name = "zipline-logs-viewer"
-    assume_role_policy = data.aws_iam_policy_document.logs-viewer-assume.json
-    tags = {
-        Name = "zipline-logs-viewer"
-    }
+  name               = "zipline-logs-viewer"
+  assume_role_policy = data.aws_iam_policy_document.logs-viewer-assume.json
+  tags = {
+    Name = "zipline-logs-viewer"
+  }
 }

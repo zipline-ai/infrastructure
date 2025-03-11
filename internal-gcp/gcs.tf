@@ -48,9 +48,9 @@ resource "google_storage_bucket_iam_member" "github-base-bucket-binding" {
 }
 
 resource "google_service_account" "logs-viewer" {
-    account_id   = "logs-viewer"
-    display_name = "Logs Viewer"
-    lifecycle {
-        prevent_destroy = true
-    }
+  account_id   = "logs-viewer"
+  display_name = "Logs Viewer"
+  lifecycle {
+    prevent_destroy = true
+  }
 }
