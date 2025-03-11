@@ -162,7 +162,4 @@ data "aws_iam_policy_document" "logs-viewer-assume" {
 resource "aws_iam_role" "logs-viewer" {
   name               = "zipline-logs-viewer"
   assume_role_policy = data.aws_iam_policy_document.logs-viewer-assume.json
-  tags = {
-    Name = "zipline-logs-viewer"
-  }
 }
