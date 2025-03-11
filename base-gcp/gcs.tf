@@ -17,7 +17,7 @@ resource "google_storage_bucket" "zipline-logs" {
 }
 
 resource "google_storage_bucket_iam_member" "zipline-logs-bucket-binding" {
-  bucket = "${google_storage_bucket.zipline-logs.name}"
+  bucket = google_storage_bucket.zipline-logs.name
   member = "serviceAccount:${var.control_plane_service_account}"
   role   = "roles/storage.objectViewer"
 }
