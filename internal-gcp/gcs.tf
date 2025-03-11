@@ -46,3 +46,11 @@ resource "google_storage_bucket_iam_member" "github-base-bucket-binding" {
   role   = "roles/storage.objectUser"
   member = "serviceAccount:${google_service_account.github.email}"
 }
+
+resource "google_service_account" "logs-viewer" {
+    account_id   = "logs-viewer"
+    display_name = "Logs Viewer"
+    lifecycle {
+        prevent_destroy = true
+    }
+}

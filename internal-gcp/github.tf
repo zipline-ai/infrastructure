@@ -33,6 +33,9 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 resource "google_service_account" "github" {
   account_id   = "github-actions"
   display_name = "Zipline Github Actions"
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 data "google_project" "internal_project" {
