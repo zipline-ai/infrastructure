@@ -24,6 +24,7 @@ data "aws_iam_policy_document" "github_actions_access" {
     effect = "Allow"
     actions = [
       "elasticmapreduce:AddJobFlowSteps",
+      "elasticmapreduce:Describe*",
       "glue:GetTable",
       "glue:DeleteTable",
     ]
@@ -32,6 +33,6 @@ data "aws_iam_policy_document" "github_actions_access" {
 }
 
 resource "aws_iam_role_policy" "github_actions_access" {
-  role       = data.aws_iam_role.iam_github_actions_role.name
+  role   = data.aws_iam_role.iam_github_actions_role.name
   policy = data.aws_iam_policy_document.github_actions_access.json
 }
