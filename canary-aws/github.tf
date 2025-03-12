@@ -24,6 +24,18 @@ data "aws_iam_policy_document" "github_actions_s3_access" {
       "${data.aws_s3_bucket.zipline_warehouse_bucket.arn}/*",
     ]
   }
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "AWS"
+      identifiers = [data.aws_iam_role.iam_github_actions_role.arn]
+    }
+    actions = [
+      "glue:GetTable",
+      "glue:DeleteTable",
+    ]
+
+  }
 }
 
 resource "aws_s3_bucket_policy" "github_actions_s3_access" {
