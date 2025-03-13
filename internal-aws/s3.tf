@@ -49,13 +49,37 @@ resource "aws_s3_bucket_policy" "allow_access_from_emr_and_github" {
   policy   = data.aws_iam_policy_document.allow_access_from_emr_and_github[each.key].json
 }
 
+resource "aws_s3_bucket_versioning" "artifacts_versioning" {
+  for_each = var.customer_accounts
+  bucket   = aws_s3_bucket.artifacts[each.key].id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
 resource "aws_s3_bucket" "dev_artifacts" {
   bucket = "zipline-artifacts-dev"
 }
 
+resource "aws_s3_bucket_versioning" "dev_artifacts_versioning" {
+  bucket = aws_s3_bucket.dev_artifacts.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+
 resource "aws_s3_bucket" "base_artifacts" {
   bucket = "zipline-artifacts-base"
 }
+
+resource "aws_s3_bucket_versioning" "base_artifacts_versioning" {
+  bucket = aws_s3_bucket.base_artifacts.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
 
 data "aws_iam_policy_document" "dev_allow_access_from_emr_and_github" {
   statement {
