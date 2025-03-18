@@ -117,8 +117,7 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
       subnetwork = var.dataproc_subnetwork
       tags       = var.dataproc_tags
       metadata = {
-        hive-version           = "3.1.2",
-        SPARK_BQ_CONNECTOR_URL = "gs://spark-lib/bigquery/spark-bigquery-with-dependencies_2.12-0.41.1.jar"
+        hive-version = "3.1.2",
       }
       internal_ip_only = true
     }
