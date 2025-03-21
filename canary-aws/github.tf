@@ -28,6 +28,8 @@ data "aws_iam_policy_document" "github_actions_access" {
       "elasticmapreduce:Describe*",
       "glue:GetTable",
       "glue:DeleteTable",
+      "s3:GetObjectTagging",
+      "s3:PutObjectTagging",
     ]
     resources = ["*"]
   }
