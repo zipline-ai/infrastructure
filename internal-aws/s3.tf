@@ -57,6 +57,41 @@ resource "aws_s3_bucket_versioning" "artifacts_versioning" {
   }
 }
 
+resource "aws_s3_bucket_lifecycle_configuration" "canary_artifacts_lifecycle" {
+  bucket   = aws_s3_bucket.artifacts["canary"].id
+  rule {
+    id     = "delete-old-jars"
+    status = "Enabled"
+    filter {
+      prefix = "release/candidate/jars/"
+    }
+    noncurrent_version_expiration {
+      noncurrent_days = 90
+    }
+  }
+  rule {
+      id     = "delete-old-wheel-candidates"
+      status = "Enabled"
+      filter {
+          prefix = "release/candidate/wheels/"
+      }
+      expiration {
+      days = 90
+      }
+  }
+  rule {
+      id     = "delete-old-wheel-passing-candidates"
+      status = "Enabled"
+      filter {
+          prefix = "release/passing-candidate/wheels/"
+      }
+      expiration {
+      days = 90
+      }
+  }
+}
+
+
 resource "aws_s3_bucket" "dev_artifacts" {
   bucket = "zipline-artifacts-dev"
 }
