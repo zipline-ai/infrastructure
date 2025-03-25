@@ -1,6 +1,9 @@
 resource "aws_s3_bucket" "artifacts" {
   for_each = var.customer_accounts
   bucket   = "zipline-artifacts-${lower(each.key)}"
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 data "aws_iam_policy_document" "allow_access_from_emr_and_github" {
