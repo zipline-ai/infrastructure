@@ -23,6 +23,12 @@ resource "google_storage_bucket_iam_member" "dataproc-bucket-binding" {
   ]
 }
 
+resource "google_storage_bucket_iam_member" "airflow-bucket-binding" {
+  bucket = google_storage_bucket.artifacts["etsy"].name
+  member = "serviceAccount:gke-mirror-sa-airflow@etsy-batchjobs-prod.iam.gserviceaccount.com"
+  role   = "roles/storage.objectViewer"
+}
+
 resource "google_storage_bucket_iam_member" "github-bucket-binding" {
   for_each = var.customer_projects
   bucket   = google_storage_bucket.artifacts[each.key].name
