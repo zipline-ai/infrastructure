@@ -29,6 +29,13 @@ resource "google_storage_bucket_iam_member" "airflow-bucket-binding" {
   role   = "roles/storage.objectViewer"
 }
 
+resource "google_storage_bucket_iam_member" "buildkite-bucket-binding" {
+  bucket = google_storage_bucket.artifacts["etsy"].name
+  member = "serviceAccount:buildkite-default@etsy-buildkite-prod.iam.gserviceaccount.com"
+  role   = "roles/storage.objectViewer"
+}
+
+
 resource "google_storage_bucket_iam_member" "github-bucket-binding" {
   for_each = var.customer_projects
   bucket   = google_storage_bucket.artifacts[each.key].name
