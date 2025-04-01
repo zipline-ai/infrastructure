@@ -11,6 +11,16 @@ variable "customer_accts" {
   }
 }
 
+variable "service_accts" {
+  default = {
+    canary = []
+    etsy = [
+      "gke-mirror-sa-airflow@etsy-batchjobs-prod.iam.gserviceaccount.com",
+      "buildkite-default@etsy-buildkite-prod.iam.gserviceaccount.com",
+    ]
+  }
+}
+
 variable "customer_projects" {
 
   default = {
