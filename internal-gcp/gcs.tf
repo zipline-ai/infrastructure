@@ -23,17 +23,31 @@ resource "google_storage_bucket_iam_member" "dataproc-bucket-binding" {
   ]
 }
 
-resource "google_storage_bucket_iam_member" "airflow-bucket-binding" {
-  bucket = google_storage_bucket.artifacts["etsy"].name
-  member = "serviceAccount:gke-mirror-sa-airflow@etsy-batchjobs-prod.iam.gserviceaccount.com"
+// Grant access to the service accounts to read from artifacts bucket
+locals {
+  # Flatten the map into a list of objects for easier use
+  customer_service_accts = flatten([
+    for customer, accts in var.service_accts : [
+      for acct in accts : {
+        customer = customer
+        acct = acct
+      }
+    ]
+  ])
+}
+
+resource "google_storage_bucket_iam_member" "service-acct-bucket-binding" {
+  for_each = { for service_acct in local.customer_service_accts :
+    "${service_acct.customer}:${service_acct.acct}" => {
+      customer = service_acct.customer
+      acct     = service_acct.acct
+    }
+  }
+  bucket = google_storage_bucket.artifacts[each.value.customer].name
+  member = "serviceAccount:${each.value.acct}"
   role   = "roles/storage.objectViewer"
 }
 
-resource "google_storage_bucket_iam_member" "buildkite-bucket-binding" {
-  bucket = google_storage_bucket.artifacts["etsy"].name
-  member = "serviceAccount:buildkite-default@etsy-buildkite-prod.iam.gserviceaccount.com"
-  role   = "roles/storage.objectViewer"
-}
 
 
 resource "google_storage_bucket_iam_member" "github-bucket-binding" {
