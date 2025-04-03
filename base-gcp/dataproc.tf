@@ -128,7 +128,8 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
         "JUPYTER",
       ]
       override_properties = {
-        "flink:env.java.opts.client" = "-Djava.net.preferIPv4Stack=true -Djava.security.properties=/etc/flink/conf/java.security"
+        "flink:env.java.opts.client"           = "-Djava.net.preferIPv4Stack=true -Djava.security.properties=/etc/flink/conf/java.security"
+        "dataproc:dataproc.components.exclude" = "bigquery"
       }
     }
     endpoint_config {
