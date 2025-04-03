@@ -117,7 +117,8 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
       subnetwork = var.dataproc_subnetwork
       tags       = var.dataproc_tags
       metadata = {
-        hive-version = "3.1.2",
+        hive-version           = "3.1.2",
+        SPARK_BQ_CONNECTOR_URL = "gs://spark-lib/bigquery/spark-3.5-bigquery-0.42.1.jar",
       }
       internal_ip_only = true
     }
@@ -128,8 +129,7 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
         "JUPYTER",
       ]
       override_properties = {
-        "flink:env.java.opts.client"           = "-Djava.net.preferIPv4Stack=true -Djava.security.properties=/etc/flink/conf/java.security"
-        "dataproc:dataproc.components.exclude" = "bigquery"
+        "flink:env.java.opts.client" = "-Djava.net.preferIPv4Stack=true -Djava.security.properties=/etc/flink/conf/java.security"
       }
     }
     endpoint_config {
