@@ -90,9 +90,9 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
     worker_config {
       machine_type = "n1-highmem-8"
       disk_config {
-        boot_disk_type: "pd-standard",
-        boot_disk_size_gb: 64,
-        num_local_ssds: 2,
+        boot_disk_type    =  "pd-standard"
+        boot_disk_size_gb =  64
+        num_local_ssds    =  2
       }
     }
 
