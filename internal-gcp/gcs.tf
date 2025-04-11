@@ -3,19 +3,9 @@ resource "google_storage_bucket" "artifacts" {
   name                        = "zipline-artifacts-${lower(each.key)}"
   location                    = var.region
   uniform_bucket_level_access = true
-  versioning {
-    enabled = true
-  }
-  lifecycle_rule {
-    condition {
-      days_since_noncurrent_time = 90
-    }
-    action {
-      type = "Delete"
-    }
-  }
   lifecycle {
     prevent_destroy = true
+    ignore_changes  = [lifecycle_rule]
   }
 }
 
