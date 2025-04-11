@@ -3,6 +3,10 @@ resource "google_storage_bucket" "artifacts" {
   name                        = "zipline-artifacts-${lower(each.key)}"
   location                    = var.region
   uniform_bucket_level_access = true
+
+  lifecycle {
+    ignore_changes = [lifecycle_rule]
+  }
 }
 
 resource "google_storage_bucket_iam_member" "personnel-artifacts-bucket-binding" {
