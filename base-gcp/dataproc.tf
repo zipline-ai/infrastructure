@@ -100,6 +100,11 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
       script = "gs://zipline-jars/copy_java_security.sh"
     }
 
+    # Add initialization action to install ops agent for Flink metrics
+    initialization_action {
+      script = "gs://zipline-jars/opsagent_flink_install.sh"
+    }
+
     dynamic "initialization_action" {
       for_each = var.dataproc_init_actions
       content {
