@@ -1,6 +1,9 @@
 resource "aws_s3_bucket" "artifacts" {
   for_each = var.customer_accounts
   bucket   = "zipline-artifacts-${lower(each.key)}"
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 data "aws_iam_policy_document" "allow_access_from_emr_and_github" {
@@ -56,6 +59,41 @@ resource "aws_s3_bucket_versioning" "artifacts_versioning" {
     status = "Enabled"
   }
 }
+
+resource "aws_s3_bucket_lifecycle_configuration" "canary_artifacts_lifecycle" {
+  bucket   = aws_s3_bucket.artifacts["canary"].id
+  rule {
+    id     = "delete-old-jars"
+    status = "Enabled"
+    filter {
+      prefix = "release/candidate/jars/"
+    }
+    noncurrent_version_expiration {
+      noncurrent_days = 90
+    }
+  }
+  rule {
+      id     = "delete-old-wheel-candidates"
+      status = "Enabled"
+      filter {
+          prefix = "release/candidate/wheels/"
+      }
+      expiration {
+      days = 90
+      }
+  }
+  rule {
+      id     = "delete-old-wheel-passing-candidates"
+      status = "Enabled"
+      filter {
+          prefix = "release/passing-candidate/wheels/"
+      }
+      expiration {
+      days = 90
+      }
+  }
+}
+
 
 resource "aws_s3_bucket" "dev_artifacts" {
   bucket = "zipline-artifacts-dev"
