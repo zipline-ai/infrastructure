@@ -65,7 +65,7 @@ resource "google_dataproc_autoscaling_policy" "zipline_autoscaling_policy" {
   basic_algorithm {
     cooldown_period = "120s"
     yarn_config {
-      graceful_decommission_timeout = "120s"
+      graceful_decommission_timeout = "600s"
       scale_down_factor             = 0.5
       scale_up_factor               = 1.0
     }
