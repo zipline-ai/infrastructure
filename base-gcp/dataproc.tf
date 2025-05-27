@@ -50,6 +50,14 @@ resource "google_project_iam_member" "dataproc_storage_object_admin" {
   member  = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
+# Cloud Profiler Roles
+
+resource "google_project_iam_member" "dataproc_cloud_profiler_agent" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/cloudprofiler.agent"
+  member  = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
 # Autoscailing Policy
 
 resource "google_dataproc_autoscaling_policy" "zipline_autoscaling_policy" {
@@ -116,6 +124,7 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
       service_account = google_service_account.dataproc_sa.email
       service_account_scopes = [
         "cloud-platform",
+        "monitoring",
         "https://www.googleapis.com/auth/cloud.useraccounts.readonly",
         "https://www.googleapis.com/auth/devstorage.read_write",
         "https://www.googleapis.com/auth/logging.write",
