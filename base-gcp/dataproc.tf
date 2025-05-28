@@ -1,3 +1,11 @@
+terraform {
+  required_providers {
+    google = {
+      source  = "hashicorp/google"
+      version = "5.34.0"
+    }
+  }
+}
 resource "google_service_account" "dataproc_sa" {
   account_id   = "dataproc"
   display_name = "Dataproc SA"
@@ -81,10 +89,10 @@ resource "google_dataproc_autoscaling_policy" "zipline_autoscaling_policy" {
 }
 
 # Grant access to the service account to allow personnel users to create a dataproc cluster
-resource "google_service_account_iam_binding" "personnel_dataproc_access" {
+resource "google_service_account_iam_member" "personnel_dataproc_access" {
     service_account_id = google_service_account.dataproc_sa.id
     role               = "roles/iam.serviceAccountUser"
-    members            = ["group::${var.personnel_email}"]
+    member             = "group::${var.personnel_email}"
 
     depends_on = [
         google_service_account.dataproc_sa
