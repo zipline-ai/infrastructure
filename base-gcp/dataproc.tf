@@ -1,11 +1,3 @@
-terraform {
-  required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "5.34.0"
-    }
-  }
-}
 resource "google_service_account" "dataproc_sa" {
   account_id   = "dataproc"
   display_name = "Dataproc SA"
