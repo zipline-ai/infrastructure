@@ -84,7 +84,7 @@ resource "google_dataproc_autoscaling_policy" "zipline_autoscaling_policy" {
 resource "google_service_account_iam_member" "personnel_dataproc_access" {
     service_account_id = google_service_account.dataproc_sa.id
     role               = "roles/iam.serviceAccountUser"
-    member             = "group::${var.personnel_email}"
+    member             = "group:${var.personnel_email}"
 
     depends_on = [
         google_service_account.dataproc_sa
