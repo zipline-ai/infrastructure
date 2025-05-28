@@ -80,6 +80,17 @@ resource "google_dataproc_autoscaling_policy" "zipline_autoscaling_policy" {
   }
 }
 
+# Grant access to the service account to allow personnel users to create a dataproc cluster
+resource "google_service_account_iam_member" "personnel_dataproc_access" {
+    service_account_id = google_service_account.dataproc_sa.id
+    role               = "roles/iam.serviceAccountUser"
+    member             = "group:${var.personnel_email}"
+
+    depends_on = [
+        google_service_account.dataproc_sa
+    ]
+}
+
 # Dataproc Cluster
 
 resource "google_dataproc_cluster" "zipline_dataproc" {
@@ -158,4 +169,8 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
     google_project_iam_member.dataproc_worker
   ]
 
+}
+
+output "dataproc_service_account_id" {
+  value = "${google_service_account.dataproc_sa.id}"
 }

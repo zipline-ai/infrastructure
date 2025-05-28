@@ -71,3 +71,9 @@ resource "google_project_iam_member" "service_account_big_table" {
   role    = "roles/bigtable.user"
   member  = "serviceAccount:${google_service_account.github.email}"
 }
+
+resource "google_service_account_iam_member" "github_dataproc_access" {
+  service_account_id = "${module.base_setup.dataproc_service_account_id}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.github.email}"
+}
