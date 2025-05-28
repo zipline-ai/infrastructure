@@ -80,11 +80,11 @@ resource "google_dataproc_autoscaling_policy" "zipline_autoscaling_policy" {
   }
 }
 
-# Grant access to the service account to allow any user to create a dataproc
+# Grant access to the service account to allow any user to create a dataproc cluster
 resource "google_service_account_iam_binding" "dataproc_access" {
     service_account_id = google_service_account.dataproc_sa.id
     role               = "roles/iam.serviceAccountUser"
-    members            = ["allUsers"]
+    members            = ["group::allUsers@${data.google_project.zipline.project_id}"]
 
     depends_on = [
         google_service_account.dataproc_sa
