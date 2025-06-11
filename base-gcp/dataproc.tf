@@ -50,6 +50,14 @@ resource "google_project_iam_member" "dataproc_storage_object_admin" {
   member  = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
+# PubSub Roles
+
+resource "google_project_iam_member" "dataproc_pubsub_editor" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/pubsub.editor"
+  member  = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
 # Cloud Profiler Roles
 
 resource "google_project_iam_member" "dataproc_cloud_profiler_agent" {
@@ -58,7 +66,7 @@ resource "google_project_iam_member" "dataproc_cloud_profiler_agent" {
   member  = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
-# Autoscailing Policy
+# Autoscaling Policy
 
 resource "google_dataproc_autoscaling_policy" "zipline_autoscaling_policy" {
   project   = data.google_project.zipline.project_id
