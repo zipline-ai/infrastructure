@@ -28,6 +28,26 @@ resource "google_compute_firewall" "deny_other_ingress_to_dataproc" {
   }
 }
 
+resource "google_compute_firewall" "allow_access_from_dataproc_instances" {
+    name          = "allow-access-from-dataproc-instances"
+    network       = "default"
+    direction     = "INGRESS"
+    source_ranges = ["10.128.0.0/9"]
+    allow {
+        protocol = "tcp"
+        ports    = ["0-65535"]
+    }
+    allow {
+        protocol = "udp"
+        ports    = ["0-65535"]
+    }
+    allow {
+        protocol = "icmp"
+    }
+    target_tags = ["dataproc-node"]
+    priority = 999
+}
+
 # IAM binding for IAP access
 resource "google_project_iam_member" "iap_tunnel_access" {
   project = data.google_project.zipline.id
