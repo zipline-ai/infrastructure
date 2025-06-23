@@ -90,13 +90,13 @@ resource "google_dataproc_autoscaling_policy" "zipline_autoscaling_policy" {
 
 # Grant access to the service account to allow personnel users to create a dataproc cluster
 resource "google_service_account_iam_member" "personnel_dataproc_access" {
-    service_account_id = google_service_account.dataproc_sa.id
-    role               = "roles/iam.serviceAccountUser"
-    member             = "group:${var.personnel_email}"
+  service_account_id = google_service_account.dataproc_sa.id
+  role               = "roles/iam.serviceAccountUser"
+  member             = "group:${var.personnel_email}"
 
-    depends_on = [
-        google_service_account.dataproc_sa
-    ]
+  depends_on = [
+    google_service_account.dataproc_sa
+  ]
 }
 
 # Dataproc Cluster
@@ -117,9 +117,9 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
     worker_config {
       machine_type = "n1-highmem-16"
       disk_config {
-        boot_disk_type    =  "pd-standard"
-        boot_disk_size_gb =  64
-        num_local_ssds    =  2
+        boot_disk_type    = "pd-standard"
+        boot_disk_size_gb = 64
+        num_local_ssds    = 2
       }
     }
 
@@ -180,43 +180,5 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
 }
 
 output "dataproc_service_account_id" {
-  value = "${google_service_account.dataproc_sa.id}"
-}
-
-resource "local_file" "dataproc_access_script" {
-  filename = "${path.module}/access_dataproc_ui.sh"
-  content = <<-EOT
-#!/bin/bash
-# Auto-generated script for accessing Dataproc Web UIs
-# Cluster: ${google_dataproc_cluster.zipline_dataproc.name}
-
-PROJECT_ID="${data.google_project.zipline.project_id}"
-MASTER_NODE="${google_dataproc_cluster.zipline_dataproc.cluster_config.0.master_config.0.instance_names[0]}"
-ZONE="${google_dataproc_cluster.zipline_dataproc.cluster_config.0.gce_cluster_config.0.zone}"
-
-echo "Setting up SSH tunnel to Dataproc master node..."
-echo "Web UIs will be available at:"
-echo " - YARN ResourceManager: http://localhost:8088"
-echo " - HDFS NameNode: http://localhost:9870"
-echo " - Spark History Server: http://localhost:18080"
-echo " - Jupyter: http://localhost:8123 (if enabled)"
-echo ""
-echo "Press Ctrl+C to stop the tunnel when done."
-
-gcloud compute ssh $MASTER_NODE \
-  --project $PROJECT_ID \
-  --zone $ZONE \
-  --tunnel-through-iap \
-  -- -L 8088:localhost:8088 \
-     -L 9870:localhost:9870 \
-     -L 18080:localhost:18080 \
-     -L 8123:localhost:8123 \
-     -L 8888:localhost:8888
-EOT
-
-  file_permission = "0755" # Make the script executable
-}
-
-output "access_script_path" {
-  value = local_file.dataproc_access_script.filename
+  value = google_service_account.dataproc_sa.id
 }
