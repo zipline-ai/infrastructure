@@ -13,6 +13,11 @@ resource "google_project_service" "cloud_profiler" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "monitoring" {
+  project = data.google_project.zipline.project_id
+  service = "monitoring.googleapis.com"
+}
+
 # Personnel Roles
 
 resource "google_project_iam_member" "personnel_bigtable" {

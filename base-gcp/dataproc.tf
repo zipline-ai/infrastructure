@@ -90,13 +90,13 @@ resource "google_dataproc_autoscaling_policy" "zipline_autoscaling_policy" {
 
 # Grant access to the service account to allow personnel users to create a dataproc cluster
 resource "google_service_account_iam_member" "personnel_dataproc_access" {
-    service_account_id = google_service_account.dataproc_sa.id
-    role               = "roles/iam.serviceAccountUser"
-    member             = "group:${var.personnel_email}"
+  service_account_id = google_service_account.dataproc_sa.id
+  role               = "roles/iam.serviceAccountUser"
+  member             = "group:${var.personnel_email}"
 
-    depends_on = [
-        google_service_account.dataproc_sa
-    ]
+  depends_on = [
+    google_service_account.dataproc_sa
+  ]
 }
 
 # Dataproc Cluster
@@ -117,9 +117,9 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
     worker_config {
       machine_type = "n1-highmem-16"
       disk_config {
-        boot_disk_type    =  "pd-standard"
-        boot_disk_size_gb =  64
-        num_local_ssds    =  2
+        boot_disk_type    = "pd-standard"
+        boot_disk_size_gb = 64
+        num_local_ssds    = 2
       }
     }
 
@@ -149,7 +149,7 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
         "https://www.googleapis.com/auth/logging.write",
       ]
       subnetwork = var.dataproc_subnetwork
-      tags       = var.dataproc_tags
+      tags       = concat(var.dataproc_tags, ["dataproc-node"])
       metadata = {
         hive-version           = "3.1.2",
         SPARK_BQ_CONNECTOR_URL = "gs://spark-lib/bigquery/spark-3.5-bigquery-0.42.1.jar",
@@ -180,5 +180,5 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
 }
 
 output "dataproc_service_account_id" {
-  value = "${google_service_account.dataproc_sa.id}"
+  value = google_service_account.dataproc_sa.id
 }

@@ -1,1 +1,5 @@
 .idea
+
+# Terraform/OpenTofu directories
+**/.terraform/
+**/.terraform.lock.hcl
