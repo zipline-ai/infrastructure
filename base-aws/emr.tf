@@ -196,6 +196,7 @@ data "aws_iam_policy_document" "iam_emr_profile_policy" {
       "glue:GetSchema",
       "glue:UpdateTable",
       "glue:UpdateDatabase",
+      "glue:UpdatePartition",
       // s3
       "s3:DeleteObject",
       "s3:DeleteObjectVersion",
