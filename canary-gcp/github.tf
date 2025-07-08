@@ -77,3 +77,9 @@ resource "google_service_account_iam_member" "github_dataproc_access" {
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${google_service_account.github.email}"
 }
+
+resource "google_project_iam_member" "service_account_cloudrun" {
+  project = data.google_project.internal_project.project_id
+  role    = "roles/run.admin"
+  member  = "serviceAccount:${google_service_account.github.email}"
+}
