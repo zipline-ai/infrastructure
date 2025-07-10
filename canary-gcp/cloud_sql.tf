@@ -6,10 +6,10 @@ resource "google_project_service" "cloud_sql" {
 }
 
 resource "google_project_service" "secrets" {
-    service = "secretmanager.googleapis.com"
+  service = "secretmanager.googleapis.com"
 
-    disable_dependent_services = false
-    disable_on_destroy         = false
+  disable_dependent_services = false
+  disable_on_destroy         = false
 }
 
 resource "google_sql_database_instance" "orchestration-instance" {
@@ -17,7 +17,7 @@ resource "google_sql_database_instance" "orchestration-instance" {
   name             = "orchestration-instance"
   region           = var.region
   settings {
-    tier = "db-g1-small"
+    tier    = "db-g1-small"
     edition = "ENTERPRISE"
 
   }

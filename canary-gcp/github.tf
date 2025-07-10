@@ -73,7 +73,7 @@ resource "google_project_iam_member" "service_account_big_table" {
 }
 
 resource "google_service_account_iam_member" "github_dataproc_access" {
-  service_account_id = "${module.base_setup.dataproc_service_account_id}"
+  service_account_id = module.base_setup.dataproc_service_account_id
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${google_service_account.github.email}"
 }
@@ -81,5 +81,17 @@ resource "google_service_account_iam_member" "github_dataproc_access" {
 resource "google_project_iam_member" "service_account_cloudrun" {
   project = data.google_project.internal_project.project_id
   role    = "roles/run.admin"
+  member  = "serviceAccount:${google_service_account.github.email}"
+}
+
+resource "google_service_account_iam_member" "github_cloudrun_access" {
+  service_account_id = google_service_account.cloud_run_service_account.id
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.github.email}"
+}
+
+resource "google_project_iam_member" "github_artifact_registry" {
+  project = data.google_project.internal_project.project_id
+  role    = "roles/artifactregistry.reader"
   member  = "serviceAccount:${google_service_account.github.email}"
 }
