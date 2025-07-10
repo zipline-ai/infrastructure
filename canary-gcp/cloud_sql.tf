@@ -21,11 +21,17 @@ resource "google_sql_database_instance" "orchestration-instance" {
     edition = "ENTERPRISE"
 
   }
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "google_sql_database" "orchestration-database" {
   name     = "execution-info"
   instance = google_sql_database_instance.orchestration-instance.name
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # Create secrets for database credentials
