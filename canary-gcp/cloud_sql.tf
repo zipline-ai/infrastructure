@@ -20,6 +20,10 @@ resource "google_sql_database_instance" "orchestration-instance" {
     tier    = "db-g1-small"
     edition = "ENTERPRISE"
 
+    database_flags {
+      name  = "max_connections"
+      value = "200" # Temporal needs at least 100 connections
+    }
   }
   lifecycle {
     prevent_destroy = true

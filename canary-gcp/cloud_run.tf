@@ -55,7 +55,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
       resources {
         limits = {
           cpu    = "1000m"
-          memory = "512Mi"
+          memory = "1Gi"
         }
       }
     }
@@ -64,19 +64,19 @@ resource "google_cloud_run_v2_service" "orchestration" {
       name  = "orchestration-temporal"
       image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/orchestration-temporal:v0.0.0"
       env {
-        name  = "DB_INSTANCE"
-        value = google_sql_database_instance.orchestration-instance.name
+        name  = "DB"
+        value = "postgres12"
       }
       env {
-        name  = "DB_URL"
-        value = "jdbc:postgresql://localhost:5432/${google_sql_database.orchestration-database.name}"
+        name  = "DB_PORT"
+        value = "5432"
       }
       env {
-        name  = "DB_USERNAME"
+        name  = "POSTGRES_USER"
         value = google_sql_user.locker.name
       }
       env {
-        name = "DB_PASSWORD"
+        name = "POSTGRES_PWD"
         value_source {
           secret_key_ref {
             secret  = google_secret_manager_secret.db_password.secret_id
@@ -85,37 +85,22 @@ resource "google_cloud_run_v2_service" "orchestration" {
         }
       }
       env {
-        name  = "GCP_REGION"
-        value = var.region
+        name  = "POSTGRES_SEEDS"
+        value = "localhost"
       }
       env {
-        name  = "GCP_PROJECT_ID"
-        value = data.google_project.zipline.project_id
+        name  = "DBNAME"
+        value = google_sql_database.orchestration-database.name
       }
       env {
-        name  = "CUSTOMER_ID"
-        value = var.name
+        name  = "SKIP_DEFAULT_NAMESPACE_CREATION"
+        value = "false"
       }
-      env {
-        name  = "ARTIFACT_PREFIX"
-        value = "gs://zipline-artifacts-${var.name}"
-      }
-      env {
-        name  = "TOPIC_ID"
-        value = "canary-testing"
-      }
-      env {
-        name  = "ORCHESTRATION_PORT"
-        value = 3903
-      }
-      startup_probe {
-        http_get {
-          path = "/health"
-          port = 8233
+      resources {
+        limits = {
+          cpu    = "4000m" # Increased from 2000m
+          memory = "4Gi"   # Increased from 2Gi
         }
-        period_seconds    = 10
-        timeout_seconds   = 5
-        failure_threshold = 5
       }
     }
 
@@ -175,6 +160,12 @@ resource "google_cloud_run_v2_service" "orchestration" {
       ports {
         container_port = 3903
       }
+      resources {
+        limits = {
+          cpu    = "1000m"
+          memory = "1Gi"
+        }
+      }
     }
 
     service_account = google_service_account.cloud_run_service_account.email
@@ -188,6 +179,9 @@ resource "google_cloud_run_v2_service" "orchestration" {
 
   lifecycle {
     ignore_changes = [
+      template[0].containers[0].resources[0].cpu_idle,
+      template[0].containers[1].resources[0].cpu_idle,
+      template[0].containers[2].resources[0].cpu_idle,
       template[0].containers[1].image,
       template[0].containers[2].image
     ]
