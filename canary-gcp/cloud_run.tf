@@ -45,7 +45,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
     # Cloud SQL Auth Proxy sidecar container
     containers {
       name  = "cloud-sql-proxy"
-      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/cloud-sql-connectors/cloud-sql-proxy:2.8.0"
+      image = "gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0"
       args = [
         "--structured-logs",
         "--port=5432",
