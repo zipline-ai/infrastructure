@@ -93,6 +93,10 @@ resource "google_cloud_run_v2_service" "orchestration" {
         value = google_sql_database.orchestration-database.name
       }
       env {
+        name  = "LOG_LEVEL"
+        value = "info"
+      }
+      env {
         name  = "SKIP_DEFAULT_NAMESPACE_CREATION"
         value = "false"
       }
