@@ -62,7 +62,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
 
     containers {
       name  = "orchestration-temporal"
-      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/orchestration-temporal:v0.0.0"
+      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/temporalio/auto-setup:1.24.2"
       env {
         name  = "DB"
         value = "postgres12"
@@ -182,7 +182,6 @@ resource "google_cloud_run_v2_service" "orchestration" {
       template[0].containers[0].resources[0].cpu_idle,
       template[0].containers[1].resources[0].cpu_idle,
       template[0].containers[2].resources[0].cpu_idle,
-      template[0].containers[1].image,
       template[0].containers[2].image
     ]
   }
