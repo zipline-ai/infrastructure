@@ -42,27 +42,12 @@ resource "google_cloud_run_v2_service" "orchestration" {
 
   template {
 
-    # Cloud SQL Auth Proxy sidecar container
+    # Temporal auto-setup container
     containers {
-      name  = "cloud-sql-proxy"
-      image = "gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0"
-      args = [
-        "--structured-logs",
-        "--port=5432",
-        google_sql_database_instance.orchestration-instance.connection_name
-      ]
-
-      resources {
-        limits = {
-          cpu    = "1000m"
-          memory = "1Gi"
-        }
-      }
-    }
-
-    containers {
-      name  = "orchestration-temporal"
+      name  = "zipline-temporal"
       image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/temporalio/auto-setup:1.24.2"
+
+      # Environment variables for PostgreSQL connection
       env {
         name  = "DB"
         value = "postgres12"
@@ -86,24 +71,34 @@ resource "google_cloud_run_v2_service" "orchestration" {
       }
       env {
         name  = "POSTGRES_SEEDS"
-        value = "localhost"
+        value = google_sql_database_instance.orchestration-instance.ip_address[0].ip_address
       }
       env {
         name  = "DBNAME"
         value = google_sql_database.orchestration-database.name
       }
       env {
-        name  = "LOG_LEVEL"
-        value = "info"
-      }
-      env {
         name  = "SKIP_DEFAULT_NAMESPACE_CREATION"
         value = "false"
       }
+      # Add additional environment variables for better debugging
+      env {
+        name  = "LOG_LEVEL"
+        value = "warn"
+      }
+      env {
+        name  = "SKIP_SCHEMA_SETUP"
+        value = "false"
+      }
+      env {
+        name  = "POSTGRES_CONNECT_TIMEOUT"
+        value = "30"
+      }
+
       resources {
         limits = {
-          cpu    = "4000m" # Increased from 2000m
-          memory = "4Gi"   # Increased from 2Gi
+          cpu    = "2000m"
+          memory = "2Gi"
         }
       }
     }
@@ -114,7 +109,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
       image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/orchestration-hub:v0.0.0"
       env {
         name  = "DB_URL"
-        value = "jdbc:postgresql://localhost:5432/${google_sql_database.orchestration-database.name}"
+        value = "jdbc:postgresql://${google_sql_database_instance.orchestration-instance.ip_address[0].ip_address}:5432/${google_sql_database.orchestration-database.name}"
       }
       env {
         name  = "DB_USERNAME"
@@ -178,15 +173,15 @@ resource "google_cloud_run_v2_service" "orchestration" {
   depends_on = [
     google_artifact_registry_repository.docker_hub_remote_repository,
     google_service_account.cloud_run_service_account,
-    google_project_iam_member.cloud_run_service_account_cloudsql
+    google_project_iam_member.cloud_run_service_account_cloudsql,
+    google_sql_database.orchestration-database
   ]
 
   lifecycle {
     ignore_changes = [
       template[0].containers[0].resources[0].cpu_idle,
       template[0].containers[1].resources[0].cpu_idle,
-      template[0].containers[2].resources[0].cpu_idle,
-      template[0].containers[2].image
+      template[0].containers[1].image
     ]
   }
 }
