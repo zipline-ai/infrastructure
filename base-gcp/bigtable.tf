@@ -114,3 +114,7 @@ resource "google_bigtable_app_profile" "groupby_ingest" {
   }
   ignore_warnings = true
 }
+
+output "bigtable_instance_name" {
+  value = google_bigtable_instance.zipline_bigtable_instance.name
+}

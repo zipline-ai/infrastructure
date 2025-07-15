@@ -133,6 +133,10 @@ resource "google_cloud_run_v2_service" "orchestration" {
         value = data.google_project.zipline.project_id
       }
       env {
+        name  = "GCP_BIGTABLE_INSTANCE_ID"
+        value = module.base_setup.bigtable_instance_name
+      }
+      env {
         name  = "CUSTOMER_ID"
         value = var.name
       }
