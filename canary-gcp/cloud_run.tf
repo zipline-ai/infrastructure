@@ -41,7 +41,6 @@ resource "google_cloud_run_v2_service" "orchestration" {
   location = var.region
 
   template {
-
     # Temporal auto-setup container
     containers {
       name  = "zipline-temporal"
@@ -170,6 +169,9 @@ resource "google_cloud_run_v2_service" "orchestration" {
         }
       }
     }
+    scaling {
+      max_instance_count = 1
+    }
 
     service_account = google_service_account.cloud_run_service_account.email
   }
@@ -186,6 +188,63 @@ resource "google_cloud_run_v2_service" "orchestration" {
       template[0].containers[0].resources[0].cpu_idle,
       template[0].containers[1].resources[0].cpu_idle,
       template[0].containers[1].image
+    ]
+  }
+}
+
+resource "google_cloud_run_service_iam_member" "cloud_run_invoker" {
+  service  = google_cloud_run_v2_service.orchestration.name
+  location = var.region
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.cloud_run_service_account.email}"
+
+  depends_on = [
+    google_cloud_run_v2_service.orchestration
+  ]
+}
+
+resource "google_cloud_run_v2_service" "zipline_ui" {
+  name     = "zipline-ui"
+  location = var.region
+
+  template {
+    containers {
+      name  = "zipline-ui"
+      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/web-ui:dev"
+
+      env {
+        name  = "API_BASE_URL"
+        value = "${google_cloud_run_v2_service.orchestration.uri}:3903"
+      }
+
+      resources {
+        limits = {
+          cpu    = "1000m"
+          memory = "1Gi"
+        }
+      }
+      ports {
+        container_port = 3000
+      }
+    }
+
+
+    service_account = google_service_account.cloud_run_service_account.email
+  }
+
+  annotations = {
+    "run.googleapis.com/invoker-iam-disabled" = "true"
+  }
+
+  depends_on = [
+    google_artifact_registry_repository.docker_hub_remote_repository,
+    google_service_account.cloud_run_service_account
+  ]
+
+  lifecycle {
+    ignore_changes = [
+      template[0].containers[0].resources[0].cpu_idle,
+      template[0].containers[0].image
     ]
   }
 }
