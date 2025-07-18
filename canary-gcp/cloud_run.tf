@@ -44,7 +44,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
     # Temporal auto-setup container
     containers {
       name  = "zipline-temporal"
-      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/temporalio/auto-setup:1.24.2"
+      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/temporalio/auto-setup:1.28.0"
 
       # Environment variables for PostgreSQL connection
       env {
@@ -209,8 +209,8 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
 
   template {
     containers {
-      name  = "zipline-ui"
-      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/web-ui:dev"
+      name  = "web-ui"
+      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/web-ui:v0.0.0"
 
       env {
         name  = "API_BASE_URL"
@@ -228,12 +228,7 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
       }
     }
 
-
     service_account = google_service_account.cloud_run_service_account.email
-  }
-
-  annotations = {
-    "run.googleapis.com/invoker-iam-disabled" = "true"
   }
 
   depends_on = [
@@ -244,7 +239,18 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
   lifecycle {
     ignore_changes = [
       template[0].containers[0].resources[0].cpu_idle,
-      template[0].containers[0].image
+      template[0].containers[0].image,
+      client,
+      client_version,
     ]
   }
+}
+
+# Allow unauthenticated requests to the Web UI
+resource "google_cloud_run_service_iam_binding" "ui_allow_access" {
+  service = google_cloud_run_v2_service.zipline_ui.name
+  role    = "roles/run.invoker"
+  members = [
+    "allUsers"
+  ]
 }
