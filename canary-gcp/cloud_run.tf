@@ -188,16 +188,25 @@ resource "google_cloud_run_v2_service" "orchestration" {
     ignore_changes = [
       template[0].containers[0].resources[0].cpu_idle,
       template[0].containers[1].resources[0].cpu_idle,
-      template[0].containers[1].image
+      template[0].containers[1].image,
+      client,
+      client_version,
     ]
   }
 }
+
+resource "google_service_account" "ui_cloud_run_service_account" {
+  account_id   = "zipline-ui-cloud-run-sa"
+  display_name = "Zipline UI Cloud Run Service Account"
+  project      = data.google_project.zipline.project_id
+}
+
 
 resource "google_cloud_run_service_iam_member" "cloud_run_invoker" {
   service  = google_cloud_run_v2_service.orchestration.name
   location = var.region
   role     = "roles/run.invoker"
-  member   = "serviceAccount:${google_service_account.cloud_run_service_account.email}"
+  member   = "serviceAccount:${google_service_account.ui_cloud_run_service_account.email}"
 
   depends_on = [
     google_cloud_run_v2_service.orchestration
@@ -215,7 +224,7 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
 
       env {
         name  = "API_BASE_URL"
-        value = "${google_cloud_run_v2_service.orchestration.uri}:3903"
+        value = google_cloud_run_v2_service.orchestration.uri
       }
 
       resources {
@@ -229,7 +238,7 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
       }
     }
 
-    service_account = google_service_account.cloud_run_service_account.email
+    service_account = google_service_account.ui_cloud_run_service_account.email
   }
 
   depends_on = [
