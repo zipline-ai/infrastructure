@@ -90,6 +90,13 @@ resource "google_service_account_iam_member" "github_cloudrun_access" {
   member             = "serviceAccount:${google_service_account.github.email}"
 }
 
+resource "google_service_account_iam_member" "github_ui_cloudrun_access" {
+  service_account_id = google_service_account.ui_cloud_run_service_account.id
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.github.email}"
+}
+
+
 resource "google_project_iam_member" "github_artifact_registry" {
   project = data.google_project.internal_project.project_id
   role    = "roles/artifactregistry.reader"
