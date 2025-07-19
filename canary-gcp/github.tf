@@ -95,3 +95,14 @@ resource "google_project_iam_member" "github_artifact_registry" {
   role    = "roles/artifactregistry.reader"
   member  = "serviceAccount:${google_service_account.github.email}"
 }
+
+resource "google_cloud_run_service_iam_member" "github_cloud_run_invoker" {
+  service  = google_cloud_run_v2_service.orchestration.name
+  location = var.region
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.github.email}"
+
+  depends_on = [
+    google_cloud_run_v2_service.orchestration
+  ]
+}
