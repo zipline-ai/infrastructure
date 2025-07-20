@@ -101,6 +101,28 @@ resource "google_bigtable_gc_policy" "chronon_metadata_gc_policy" {
   }
 }
 
+resource "google_bigtable_table" "table_partitions" {
+  instance_name = google_bigtable_instance.zipline_bigtable_instance.name
+  name          = "TABLE_PARTITIONS"
+  column_family {
+    family = "cf"
+  }
+}
+
+resource "google_bigtable_gc_policy" "table_partitions_gc_policy" {
+  instance_name = google_bigtable_instance.zipline_bigtable_instance.name
+  table         = google_bigtable_table.table_partitions.name
+  column_family = "cf"
+
+  mode = "UNION"
+  max_age {
+    duration = "120h"
+  }
+  max_version {
+    number = 10000
+  }
+}
+
 resource "google_bigtable_app_profile" "groupby_ingest" {
   instance       = google_bigtable_instance.zipline_bigtable_instance.name
   app_profile_id = "GROUPBY_INGEST"
