@@ -114,12 +114,8 @@ resource "google_bigtable_gc_policy" "table_partitions_gc_policy" {
   table         = google_bigtable_table.table_partitions.name
   column_family = "cf"
 
-  mode = "UNION"
   max_age {
     duration = "120h"
-  }
-  max_version {
-    number = 10000
   }
 }
 
