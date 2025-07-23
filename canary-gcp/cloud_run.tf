@@ -164,8 +164,8 @@ resource "google_cloud_run_v2_service" "orchestration" {
       }
       resources {
         limits = {
-          cpu    = "1000m"
-          memory = "1Gi"
+          cpu    = "2"
+          memory = "8Gi"
         }
       }
     }
