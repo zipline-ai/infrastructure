@@ -38,6 +38,12 @@ resource "google_project_iam_member" "cloud_run_service_account_cloudsql" {
   role    = "roles/cloudsql.client"
 }
 
+resource "google_project_iam_member" "cloud_run_service_account_bigtable" {
+  project = data.google_project.zipline.project_id
+  member  = "serviceAccount:${google_service_account.orchestration_cloud_run_service_account.email}"
+  role    = "roles/bigtable.user"
+}
+
 resource "google_service_account" "temporal_cloud_run_service_account" {
   account_id   = "zipline-temporal-cloud-run-sa"
   display_name = "Zipline Temporal Cloud Run Service Account"
