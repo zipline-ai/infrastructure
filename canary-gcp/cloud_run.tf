@@ -151,7 +151,9 @@ resource "google_cloud_run_v2_service" "orchestration" {
     google_service_account.orchestration_cloud_run_service_account,
     google_project_iam_member.cloud_run_service_account_cloudsql,
     google_sql_database.orchestration-database,
-    google_cloud_run_v2_service.zipline_temporal
+    google_cloud_run_v2_service.zipline_temporal,
+    google_cloud_run_service_iam_member.orchestration_to_temporal,
+    google_secret_manager_secret_iam_member.db_password_access
   ]
 
   lifecycle {
@@ -204,7 +206,9 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
 
   depends_on = [
     google_artifact_registry_repository.docker_hub_remote_repository,
-    google_service_account.ui_cloud_run_service_account
+    google_service_account.ui_cloud_run_service_account,
+    google_cloud_run_v2_service.orchestration,
+    google_cloud_run_service_iam_member.ui_to_orchestration
   ]
 
   lifecycle {
@@ -263,16 +267,11 @@ resource "google_cloud_run_v2_service" "zipline_temporal" {
       }
       env {
         name  = "DBNAME"
-        value = google_sql_database.orchestration-database.name
+        value = google_sql_database.temporal_database.name
       }
       env {
         name  = "SKIP_DEFAULT_NAMESPACE_CREATION"
         value = "false"
-      }
-      # Add additional environment variables for better debugging
-      env {
-        name  = "LOG_LEVEL"
-        value = "warn"
       }
       env {
         name  = "SKIP_SCHEMA_SETUP"
@@ -281,6 +280,10 @@ resource "google_cloud_run_v2_service" "zipline_temporal" {
       env {
         name  = "POSTGRES_CONNECT_TIMEOUT"
         value = "30"
+      }
+      env {
+        name = "BIND_ON_IP"
+        value = "0.0.0.0"
       }
       ports {
         container_port = 7233
@@ -301,7 +304,8 @@ resource "google_cloud_run_v2_service" "zipline_temporal" {
 
   depends_on = [
     google_artifact_registry_repository.docker_hub_remote_repository,
-    google_service_account.temporal_cloud_run_service_account
+    google_service_account.temporal_cloud_run_service_account,
+    google_sql_database.temporal_database
   ]
 
   lifecycle {
@@ -354,7 +358,9 @@ resource "google_cloud_run_v2_service" "zipline_temporal_ui" {
 
   depends_on = [
     google_artifact_registry_repository.docker_hub_remote_repository,
-    google_service_account.temporal_cloud_run_service_account
+    google_service_account.temporal_cloud_run_service_account,
+    google_cloud_run_v2_service.zipline_temporal,
+    google_cloud_run_service_iam_member.temporal_ui_to_temporal
   ]
 
   lifecycle {

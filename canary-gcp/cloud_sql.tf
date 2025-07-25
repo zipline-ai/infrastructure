@@ -38,6 +38,14 @@ resource "google_sql_database" "orchestration-database" {
   }
 }
 
+resource "google_sql_database" "temporal_database" {
+    name     = "temporal"
+    instance = google_sql_database_instance.orchestration-instance.name
+    lifecycle {
+        prevent_destroy = true
+    }
+}
+
 # Create secrets for database credentials
 resource "google_secret_manager_secret" "db_password" {
   secret_id = "zipline-db-password"
@@ -61,6 +69,13 @@ resource "google_secret_manager_secret_iam_member" "db_password_access" {
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.orchestration_cloud_run_service_account.email}"
 }
+
+resource "google_secret_manager_secret_iam_member" "temporal_db_password_access" {
+  secret_id = google_secret_manager_secret.db_password.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.temporal_cloud_run_service_account.email}"
+}
+
 
 resource "google_sql_user" "locker" {
   instance = google_sql_database_instance.orchestration-instance.name
