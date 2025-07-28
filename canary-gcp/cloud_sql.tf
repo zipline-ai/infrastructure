@@ -38,9 +38,39 @@ resource "google_sql_database" "orchestration-database" {
   }
 }
 
+resource "google_sql_database_instance" "temporal-instance" {
+  database_version = "POSTGRES_16"
+  name             = "temporal-instance"
+  region           = var.region
+
+  settings {
+    tier    = "db-g1-small"
+    edition = "ENTERPRISE"
+
+    ip_configuration {
+      ipv4_enabled    = false
+      private_network = google_compute_network.zipline_vpc.id
+    }
+
+    database_flags {
+      name  = "max_connections"
+      value = "200"
+    }
+  }
+
+  depends_on = [
+    google_project_service.cloud_sql,
+    google_service_networking_connection.private_vpc_connection
+  ]
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 resource "google_sql_database" "temporal_database" {
     name     = "temporal"
-    instance = google_sql_database_instance.orchestration-instance.name
+    instance = google_sql_database_instance.temporal-instance.name
     lifecycle {
         prevent_destroy = true
     }
@@ -81,4 +111,10 @@ resource "google_sql_user" "locker" {
   instance = google_sql_database_instance.orchestration-instance.name
   name     = "locker_user"
   password = random_password.db_password.result
+}
+
+resource "google_sql_user" "temporal_locker" {
+  instance = google_sql_database_instance.temporal-instance.name
+  name     = "locker_user"
+  password = google_secret_manager_secret_version.db_password.secret_data
 }
