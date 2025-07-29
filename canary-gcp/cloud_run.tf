@@ -41,66 +41,6 @@ resource "google_cloud_run_v2_service" "orchestration" {
   location = var.region
 
   template {
-    # Temporal auto-setup container
-    containers {
-      name  = "zipline-temporal"
-      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/temporalio/auto-setup:1.28.0"
-
-      # Environment variables for PostgreSQL connection
-      env {
-        name  = "DB"
-        value = "postgres12"
-      }
-      env {
-        name  = "DB_PORT"
-        value = "5432"
-      }
-      env {
-        name  = "POSTGRES_USER"
-        value = google_sql_user.locker.name
-      }
-      env {
-        name = "POSTGRES_PWD"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.db_password.secret_id
-            version = "latest"
-          }
-        }
-      }
-      env {
-        name  = "POSTGRES_SEEDS"
-        value = google_sql_database_instance.orchestration-instance.ip_address[0].ip_address
-      }
-      env {
-        name  = "DBNAME"
-        value = google_sql_database.orchestration-database.name
-      }
-      env {
-        name  = "SKIP_DEFAULT_NAMESPACE_CREATION"
-        value = "false"
-      }
-      # Add additional environment variables for better debugging
-      env {
-        name  = "LOG_LEVEL"
-        value = "warn"
-      }
-      env {
-        name  = "SKIP_SCHEMA_SETUP"
-        value = "false"
-      }
-      env {
-        name  = "POSTGRES_CONNECT_TIMEOUT"
-        value = "30"
-      }
-
-      resources {
-        limits = {
-          cpu    = "2000m"
-          memory = "2Gi"
-        }
-      }
-    }
 
     # Main orchestration container
     containers {
@@ -178,6 +118,67 @@ resource "google_cloud_run_v2_service" "orchestration" {
       max_instance_count = 1
     }
 
+    # Temporal auto-setup container
+    containers {
+      name  = "zipline-temporal"
+      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/temporalio/auto-setup:1.28.0"
+
+      # Environment variables for PostgreSQL connection
+      env {
+        name  = "DB"
+        value = "postgres12"
+      }
+      env {
+        name  = "DB_PORT"
+        value = "5432"
+      }
+      env {
+        name  = "POSTGRES_USER"
+        value = google_sql_user.locker.name
+      }
+      env {
+        name = "POSTGRES_PWD"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.db_password.secret_id
+            version = "latest"
+          }
+        }
+      }
+      env {
+        name  = "POSTGRES_SEEDS"
+        value = google_sql_database_instance.orchestration-instance.ip_address[0].ip_address
+      }
+      env {
+        name  = "DBNAME"
+        value = google_sql_database.orchestration-database.name
+      }
+      env {
+        name  = "SKIP_DEFAULT_NAMESPACE_CREATION"
+        value = "false"
+      }
+      # Add additional environment variables for better debugging
+      env {
+        name  = "LOG_LEVEL"
+        value = "warn"
+      }
+      env {
+        name  = "SKIP_SCHEMA_SETUP"
+        value = "false"
+      }
+      env {
+        name  = "POSTGRES_CONNECT_TIMEOUT"
+        value = "30"
+      }
+
+      resources {
+        limits = {
+          cpu    = "2000m"
+          memory = "2Gi"
+        }
+      }
+    }
+
     service_account = google_service_account.cloud_run_service_account.email
   }
 
@@ -192,7 +193,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
     ignore_changes = [
       template[0].containers[0].resources[0].cpu_idle,
       template[0].containers[1].resources[0].cpu_idle,
-      template[0].containers[1].image,
+      template[0].containers[0].image,
       client,
       client_version,
     ]
