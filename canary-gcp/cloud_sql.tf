@@ -76,6 +76,33 @@ resource "google_sql_database" "temporal_database" {
     }
 }
 
+resource "google_sql_database_instance" "orchestration_gke_instance" {
+  database_version = "POSTGRES_16"
+  name             = "orchestration-gke-instance"
+  region           = var.region
+  settings {
+    tier    = "db-g1-small"
+    edition = "ENTERPRISE"
+
+    database_flags {
+      name  = "max_connections"
+      value = "200" # Temporal needs at least 100 connections
+    }
+  }
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_sql_database" "orchestration_gke_database" {
+  name     = "execution-info"
+  instance = google_sql_database_instance.orchestration_gke_instance.name
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+
 # Create secrets for database credentials
 resource "google_secret_manager_secret" "db_password" {
   secret_id = "zipline-db-password"
@@ -116,5 +143,11 @@ resource "google_sql_user" "locker" {
 resource "google_sql_user" "temporal_locker" {
   instance = google_sql_database_instance.temporal-instance.name
   name     = "locker_user"
-  password = google_secret_manager_secret_version.db_password.secret_data
+  password = random_password.db_password.result
+}
+
+resource "google_sql_user" "orchestration_gke_locker" {
+  instance = google_sql_database_instance.orchestration_gke_instance.name
+  name     = "locker_user"
+  password = random_password.db_password.result
 }

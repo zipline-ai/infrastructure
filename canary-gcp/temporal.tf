@@ -82,8 +82,8 @@ resource "kubernetes_secret" "temporal_db_secret" {
   data = {
     host     = google_sql_database_instance.temporal-instance.private_ip_address
     password = google_secret_manager_secret_version.db_password.secret_data
-    username = "locker_user"
-    database = "temporal"
+    username = google_sql_user.temporal_locker.name
+    database = google_sql_database.temporal_database.name
   }
 
   type = "Opaque"
@@ -131,7 +131,12 @@ resource "kubernetes_deployment" "temporal_server" {
           }
           env {
             name  = "POSTGRES_USER"
-            value = google_sql_user.locker.name
+            value_from {
+                secret_key_ref {
+                  name = kubernetes_secret.temporal_db_secret.metadata[0].name
+                  key  = "username"
+                }
+            }
           }
           env {
             name = "POSTGRES_PWD"
@@ -144,11 +149,21 @@ resource "kubernetes_deployment" "temporal_server" {
           }
           env {
             name  = "POSTGRES_SEEDS"
-            value = google_sql_database_instance.temporal-instance.private_ip_address
+            value_from {
+                secret_key_ref {
+                    name  = kubernetes_secret.temporal_db_secret.metadata[0].name
+                    key   = "host"
+                }
+            }
           }
           env {
             name  = "DBNAME"
-            value = google_sql_database.temporal_database.name
+            value_from {
+                secret_key_ref {
+                    name  = kubernetes_secret.temporal_db_secret.metadata[0].name
+                    key   = "database"
+                }
+            }
           }
           env {
             name  = "SKIP_DEFAULT_NAMESPACE_CREATION"
@@ -252,9 +267,6 @@ resource "kubernetes_service" "temporal_service" {
     name      = "temporal-service"
     namespace = kubernetes_namespace.temporal.metadata[0].name
 
-    annotations = {
-      "cloud.google.com/load-balancer-type" = "External"
-    }
   }
 
   spec {
@@ -276,7 +288,6 @@ resource "kubernetes_service" "temporal_service" {
       protocol    = "TCP"
     }
 
-    type = "LoadBalancer"
   }
 
   depends_on = [kubernetes_deployment.temporal_server]
@@ -394,4 +405,281 @@ resource "kubernetes_service" "temporal_web_service" {
   }
 
   depends_on = [kubernetes_deployment.temporal_web]
+}
+
+resource "google_service_account" "orchestration_gke_sa" {
+  account_id   = "orchestration-gke-sa"
+  display_name = "Orchestration Service Account"
+  project      = data.google_project.zipline.project_id
+}
+
+resource "google_project_iam_member" "orchestration_hub_artifact_registry" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${google_service_account.orchestration_gke_sa.email}"
+}
+
+resource "kubernetes_service_account" "orchestration_sa" {
+  metadata {
+    name      = "orchestration-gke-sa"
+    namespace = kubernetes_namespace.temporal.metadata[0].name
+    annotations = {
+      "iam.gke.io/gcp-service-account" = google_service_account.orchestration_gke_sa.email
+    }
+  }
+}
+
+resource "google_service_account_iam_member" "orchestration_workload_identity" {
+  service_account_id = google_service_account.orchestration_gke_sa.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${data.google_project.zipline.project_id}.svc.id.goog[${kubernetes_namespace.temporal.metadata[0].name}/orchestration-gke-sa]"
+}
+
+resource "kubernetes_pod" "test_workload_identity" {
+  metadata {
+    name      = "test-workload-identity"
+    namespace = kubernetes_namespace.temporal.metadata[0].name
+  }
+
+  spec {
+    service_account_name = kubernetes_service_account.orchestration_sa.metadata[0].name
+
+    container {
+      name    = "test"
+      image   = "google/cloud-sdk:slim"
+      command = ["sleep", "3600"]
+    }
+  }
+
+  depends_on = [google_service_account_iam_member.orchestration_workload_identity]
+}
+
+resource "kubernetes_deployment" "orchestration_hub" {
+    metadata {
+        name      = "orchestration-hub"
+        namespace = kubernetes_namespace.temporal.metadata[0].name
+
+        labels = {
+        app = "orchestration-hub"
+        }
+    }
+
+    spec {
+        replicas = 1
+        selector {
+        match_labels = {
+            app = "orchestration-hub"
+        }
+        }
+
+        template {
+        metadata {
+            labels = {
+            app = "orchestration-hub"
+            }
+        }
+
+        spec {
+          service_account_name = kubernetes_service_account.orchestration_sa.metadata[0].name
+            container {
+              name  = "orchestration-hub"
+              image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/orchestration-hub:v0.0.0"
+              image_pull_policy = "Always"
+              env {
+                name  = "DB_URL"
+                value = "jdbc:postgresql://${google_sql_database_instance.orchestration_gke_instance.ip_address[0].ip_address}:5432/${google_sql_database.orchestration-database.name}"
+              }
+              env {
+                name  = "DB_USERNAME"
+                value = google_sql_user.locker.name
+              }
+              env {
+                name = "DB_PASSWORD"
+                value_from {
+                  secret_key_ref {
+                    name  = kubernetes_secret.temporal_db_secret.metadata[0].name
+                    key   = "password"
+                  }
+                }
+              }
+              env {
+                name  = "GCP_REGION"
+                value = var.region
+              }
+              env {
+                name  = "GCP_PROJECT_ID"
+                value = data.google_project.zipline.project_id
+              }
+              env {
+                name  = "GCP_BIGTABLE_INSTANCE_ID"
+                value = module.base_setup.bigtable_instance_name
+              }
+              env {
+                name  = "CUSTOMER_ID"
+                value = var.name
+              }
+              env {
+                name  = "ARTIFACT_PREFIX"
+                value = "gs://zipline-artifacts-${var.name}"
+              }
+              env {
+                name  = "TOPIC_ID"
+                value = "canary-testing"
+              }
+              env {
+                name  = "TEMPORAL_SERVICE_ADDRESS"
+                value = "temporal-service:7233"
+              }
+              env {
+                name  = "TEMPORAL_NAMESPACE"
+                value = "default"
+              }
+              env {
+                name  = "ORCHESTRATION_PORT"
+                value = 3903
+              }
+              port {
+                container_port = 3903
+              }
+              resources {
+                limits = {
+                  cpu    = "2"
+                  memory = "8Gi"
+                }
+              }
+            }
+        }
+        }
+    }
+
+    depends_on = [kubernetes_service.temporal_service,
+                  google_sql_database.orchestration_gke_database,
+                  google_sql_user.locker,
+                  google_service_account_iam_member.orchestration_workload_identity,
+                  google_project_iam_member.orchestration_hub_artifact_registry,
+                  kubernetes_pod.test_workload_identity]
+
+    lifecycle {
+        ignore_changes = [
+        metadata,
+        spec[0].template[0].spec[0].container[0].resources,
+        spec[0].template[0].spec[0].container[0].security_context,
+        spec[0].template[0].spec[0].security_context,
+        spec[0].template[0].spec[0].toleration,
+        ]
+    }
+}
+
+# Service for Orchestration Hub
+resource "kubernetes_service" "orchestration_hub_service" {
+    metadata {
+        name      = "orchestration-hub-service"
+        namespace = kubernetes_namespace.temporal.metadata[0].name
+    }
+
+    spec {
+        selector = {
+            app = "orchestration-hub"
+        }
+
+        port {
+            name        = "http"
+            port        = 3903
+            target_port = 3903
+            protocol    = "TCP"
+        }
+
+        type = "LoadBalancer"
+    }
+
+    depends_on = [kubernetes_deployment.orchestration_hub]
+}
+
+# Deployment for Orchestration UI
+resource "kubernetes_deployment" "orchestration_ui" {
+    metadata {
+        name      = "orchestration-ui"
+        namespace = kubernetes_namespace.temporal.metadata[0].name
+
+        labels = {
+            app = "orchestration-ui"
+        }
+    }
+
+    spec {
+        replicas = 1
+        selector {
+            match_labels = {
+                app = "orchestration-ui"
+            }
+        }
+
+        template {
+            metadata {
+                labels = {
+                    app = "orchestration-ui"
+                }
+            }
+
+            spec {
+                service_account_name = kubernetes_service_account.orchestration_sa.metadata[0].name
+                container {
+                  name  = "web-ui"
+                  image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/web-ui:v0.0.0"
+
+                  env {
+                    name  = "API_BASE_URL"
+                    value = "orchestration-hub-service:3903"
+                  }
+
+                  resources {
+                    limits = {
+                      cpu    = "1000m"
+                      memory = "1Gi"
+                    }
+                  }
+                  port {
+                    container_port = 3000
+                  }
+                }
+            }
+        }
+    }
+
+    depends_on = [kubernetes_service.orchestration_hub_service]
+
+    lifecycle {
+        ignore_changes = [
+            metadata,
+            spec[0].template[0].spec[0].container[0].resources,
+            spec[0].template[0].spec[0].container[0].security_context,
+            spec[0].template[0].spec[0].security_context,
+            spec[0].template[0].spec[0].toleration,
+        ]
+    }
+}
+
+# Service for Orchestration UI
+resource "kubernetes_service" "orchestration_ui_service" {
+    metadata {
+        name      = "orchestration-ui-service"
+        namespace = kubernetes_namespace.temporal.metadata[0].name
+    }
+
+    spec {
+        selector = {
+            app = "orchestration-ui"
+        }
+
+        port {
+            name        = "http"
+            port        = 80
+            target_port = 3000
+            protocol    = "TCP"
+        }
+
+        type = "LoadBalancer"
+    }
+
+    depends_on = [kubernetes_deployment.orchestration_ui]
 }
