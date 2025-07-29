@@ -159,6 +159,10 @@ resource "google_cloud_run_v2_service" "orchestration" {
         name  = "ORCHESTRATION_PORT"
         value = 3903
       }
+      env {
+        name  = "TABLE_PARTITIONS_DATASET"
+        value = "TABLE_PARTITIONS_CI"
+      }
       ports {
         container_port = 3903
       }
