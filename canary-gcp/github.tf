@@ -113,3 +113,9 @@ resource "google_cloud_run_service_iam_member" "github_cloud_run_invoker" {
     google_cloud_run_v2_service.orchestration
   ]
 }
+
+resource "google_project_iam_member" "github_bigtable_admin" {
+  project = data.google_project.internal_project.project_id
+  role    = "roles/bigtable.admin"
+  member  = "serviceAccount:${google_service_account.github.email}"
+}
