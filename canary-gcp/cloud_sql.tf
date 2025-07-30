@@ -38,9 +38,9 @@ resource "google_sql_database" "orchestration-database" {
   }
 }
 
-resource "google_sql_database_instance" "temporal-instance" {
+resource "google_sql_database_instance" "temporal_gke_instance" {
   database_version = "POSTGRES_16"
-  name             = "temporal-instance"
+  name             = "temporal-gke-instance"
   region           = var.region
 
   settings {
@@ -68,12 +68,12 @@ resource "google_sql_database_instance" "temporal-instance" {
   }
 }
 
-resource "google_sql_database" "temporal_database" {
-    name     = "temporal"
-    instance = google_sql_database_instance.temporal-instance.name
-    lifecycle {
-        prevent_destroy = true
-    }
+resource "google_sql_database" "temporal_gke_database" {
+  name     = "temporal"
+  instance = google_sql_database_instance.temporal_gke_instance.name
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "google_sql_database_instance" "orchestration_gke_instance" {
@@ -145,8 +145,8 @@ resource "google_sql_user" "locker" {
   password = random_password.db_password.result
 }
 
-resource "google_sql_user" "temporal_locker" {
-  instance = google_sql_database_instance.temporal-instance.name
+resource "google_sql_user" "temporal_gke_locker" {
+  instance = google_sql_database_instance.temporal_gke_instance.name
   name     = "locker_user"
   password = random_password.db_password.result
 }

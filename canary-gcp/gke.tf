@@ -1,6 +1,6 @@
 # Enable additional APIs needed for GKE
 resource "google_project_service" "container_api" {
-  service = "container.googleapis.com"
+  service                    = "container.googleapis.com"
   disable_dependent_services = false
   disable_on_destroy         = false
 }
@@ -27,7 +27,7 @@ resource "google_container_cluster" "orchestration_cluster" {
   # Private cluster configuration
   private_cluster_config {
     enable_private_nodes    = true
-    enable_private_endpoint = false  # Set to true if you want private endpoint
+    enable_private_endpoint = false # Set to true if you want private endpoint
     master_ipv4_cidr_block  = "172.16.0.0/28"
   }
 
@@ -56,7 +56,7 @@ data "google_container_cluster" "orchestration_cluster" {
   location = var.region
   project  = data.google_project.zipline.project_id
 
-   depends_on = [google_container_cluster.orchestration_cluster]
+  depends_on = [google_container_cluster.orchestration_cluster]
 }
 
 # Configure Kubernetes provider
@@ -86,10 +86,10 @@ resource "kubernetes_secret" "temporal_db_secret" {
   }
 
   data = {
-    host     = google_sql_database_instance.temporal-instance.private_ip_address
+    host     = google_sql_database_instance.temporal_gke_instance.private_ip_address
     password = google_secret_manager_secret_version.db_password.secret_data
-    username = google_sql_user.temporal_locker.name
-    database = google_sql_database.temporal_database.name
+    username = google_sql_user.temporal_gke_locker.name
+    database = google_sql_database.temporal_gke_database.name
   }
 
   type = "Opaque"
@@ -136,7 +136,7 @@ resource "kubernetes_deployment" "temporal_server" {
             value = "5432"
           }
           env {
-            name  = "POSTGRES_USER"
+            name = "POSTGRES_USER"
             value_from {
               secret_key_ref {
                 name = kubernetes_secret.temporal_db_secret.metadata[0].name
@@ -148,26 +148,26 @@ resource "kubernetes_deployment" "temporal_server" {
             name = "POSTGRES_PWD"
             value_from {
               secret_key_ref {
-                name  = kubernetes_secret.temporal_db_secret.metadata[0].name
-                key   = "password"
+                name = kubernetes_secret.temporal_db_secret.metadata[0].name
+                key  = "password"
               }
             }
           }
           env {
-            name  = "POSTGRES_SEEDS"
+            name = "POSTGRES_SEEDS"
             value_from {
               secret_key_ref {
-                name  = kubernetes_secret.temporal_db_secret.metadata[0].name
-                key   = "host"
+                name = kubernetes_secret.temporal_db_secret.metadata[0].name
+                key  = "host"
               }
             }
           }
           env {
-            name  = "DBNAME"
+            name = "DBNAME"
             value_from {
               secret_key_ref {
-                name  = kubernetes_secret.temporal_db_secret.metadata[0].name
-                key   = "database"
+                name = kubernetes_secret.temporal_db_secret.metadata[0].name
+                key  = "database"
               }
             }
           }
@@ -216,7 +216,7 @@ resource "kubernetes_deployment" "temporal_server" {
   }
 
   depends_on = [
-    google_sql_database.temporal_database
+    google_sql_database.temporal_gke_database
   ]
 
   lifecycle {
@@ -297,6 +297,10 @@ resource "kubernetes_service" "temporal_service" {
   }
 
   depends_on = [kubernetes_deployment.temporal_server]
+
+  lifecycle {
+    ignore_changes = [metadata]
+  }
 }
 
 # Temporal Web UI Deployment
@@ -333,8 +337,8 @@ resource "kubernetes_deployment" "temporal_web" {
 
           port {
             container_port = 8080
-            name          = "http"
-            protocol      = "TCP"
+            name           = "http"
+            protocol       = "TCP"
           }
 
           env {
@@ -411,6 +415,10 @@ resource "kubernetes_service" "temporal_web_service" {
   }
 
   depends_on = [kubernetes_deployment.temporal_web]
+
+  lifecycle {
+    ignore_changes = [metadata]
+  }
 }
 
 resource "google_service_account" "orchestration_gke_sa" {
@@ -436,27 +444,6 @@ resource "google_service_account_iam_member" "orchestration_workload_identity" {
   member             = "serviceAccount:${data.google_project.zipline.project_id}.svc.id.goog[${kubernetes_namespace.orchestration.metadata[0].name}/orchestration-gke-sa]"
 }
 
-resource "kubernetes_secret" "artifact_registry_key" {
-  metadata {
-    name      = "artifact-registry-key"
-    namespace = kubernetes_namespace.orchestration.metadata[0].name
-  }
-
-  type = "kubernetes.io/dockerconfigjson"
-
-  data = {
-    ".dockerconfigjson" = jsonencode({
-      auths = {
-        "us-central1-docker.pkg.dev" = {
-          username = "_token"
-          password = ""
-          auth     = base64encode("_token:")
-        }
-      }
-    })
-  }
-}
-
 # Grant Cloud SQL access to the service account
 resource "google_project_iam_member" "orchestration_gke_cloudsql" {
   project = data.google_project.zipline.project_id
@@ -470,6 +457,19 @@ resource "google_project_iam_member" "orchestration_gke_bigtable" {
   role    = "roles/bigtable.user"
   member  = "serviceAccount:${google_service_account.orchestration_gke_sa.email}"
 }
+
+resource "google_project_iam_member" "orchestration_gke_dataproc" {
+  project = data.google_project.zipline.project_id
+  member  = "serviceAccount:${google_service_account.orchestration_gke_sa.email}"
+  role    = "roles/dataproc.editor"
+}
+
+resource "google_project_iam_member" "orchestration_gke_storage" {
+  project = data.google_project.zipline.project_id
+  member  = "serviceAccount:${google_service_account.orchestration_gke_sa.email}"
+  role    = "roles/storage.objectAdmin"
+}
+
 
 resource "kubernetes_deployment" "orchestration_hub" {
   metadata {
@@ -498,12 +498,9 @@ resource "kubernetes_deployment" "orchestration_hub" {
 
       spec {
         service_account_name = kubernetes_service_account.orchestration_sa.metadata[0].name
-        image_pull_secrets {
-          name = kubernetes_secret.artifact_registry_key.metadata[0].name
-        }
         container {
-          name  = "orchestration-hub"
-          image = "ziplineai/orchestration-hub:v0.0.0"
+          name              = "orchestration-hub"
+          image             = "ziplineai/orchestration-hub:v0.0.0"
           image_pull_policy = "Always"
           env {
             name  = "DB_URL"
@@ -517,8 +514,8 @@ resource "kubernetes_deployment" "orchestration_hub" {
             name = "DB_PASSWORD"
             value_from {
               secret_key_ref {
-                name  = kubernetes_secret.temporal_db_secret.metadata[0].name
-                key   = "password"
+                name = kubernetes_secret.temporal_db_secret.metadata[0].name
+                key  = "password"
               }
             }
           }
@@ -579,7 +576,7 @@ resource "kubernetes_deployment" "orchestration_hub" {
   depends_on = [kubernetes_service.temporal_service,
     google_sql_database.orchestration_gke_database,
     google_sql_user.locker,
-    google_service_account_iam_member.orchestration_workload_identity]
+  google_service_account_iam_member.orchestration_workload_identity]
 
   lifecycle {
     ignore_changes = [
@@ -616,6 +613,10 @@ resource "kubernetes_service" "orchestration_hub_service" {
   }
 
   depends_on = [kubernetes_deployment.orchestration_hub]
+
+  lifecycle {
+    ignore_changes = [metadata]
+  }
 }
 
 # Deployment for Orchestration UI
@@ -707,4 +708,8 @@ resource "kubernetes_service" "orchestration_ui_service" {
   }
 
   depends_on = [kubernetes_deployment.orchestration_ui]
+
+  lifecycle {
+    ignore_changes = [metadata]
+  }
 }
