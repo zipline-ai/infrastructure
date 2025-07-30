@@ -119,3 +119,9 @@ resource "google_project_iam_member" "github_bigtable_admin" {
   role    = "roles/bigtable.admin"
   member  = "serviceAccount:${google_service_account.github.email}"
 }
+
+resource "google_project_iam_member" "github_cloudsql_client" {
+  project = data.google_project.internal_project.project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.github.email}"
+}
