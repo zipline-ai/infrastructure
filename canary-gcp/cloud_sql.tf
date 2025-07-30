@@ -84,6 +84,11 @@ resource "google_sql_database_instance" "orchestration_gke_instance" {
     tier    = "db-g1-small"
     edition = "ENTERPRISE"
 
+    ip_configuration {
+      ipv4_enabled    = false
+      private_network = google_compute_network.zipline_vpc.id
+    }
+
     database_flags {
       name  = "max_connections"
       value = "200" # Temporal needs at least 100 connections
