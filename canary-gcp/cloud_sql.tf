@@ -27,6 +27,7 @@ resource "google_sql_database_instance" "orchestration-instance" {
   }
   lifecycle {
     prevent_destroy = true
+    ignore_changes = [settings]
   }
 }
 
@@ -64,6 +65,36 @@ resource "google_secret_manager_secret_iam_member" "db_password_access" {
 
 resource "google_sql_user" "locker" {
   instance = google_sql_database_instance.orchestration-instance.name
+  name     = "locker_user"
+  password = random_password.db_password.result
+}
+
+resource "google_sql_database_instance" "temporal-instance" {
+  database_version = "POSTGRES_16"
+  name             = "temporal-instance"
+  region           = var.region
+  settings {
+    tier    = "db-g1-small"
+    edition = "ENTERPRISE"
+
+    database_flags {
+      name  = "max_connections"
+      value = "200" # Temporal needs at least 100 connections
+    }
+  }
+  lifecycle {
+    prevent_destroy = true
+    ignore_changes = [settings]
+  }
+}
+
+resource "google_sql_database" "temporal-database" {
+  instance = google_sql_database_instance.temporal-instance.name
+  name     = "temporal"
+}
+
+resource "google_sql_user" "temporal_locker" {
+  instance = google_sql_database_instance.temporal-instance.name
   name     = "locker_user"
   password = random_password.db_password.result
 }
