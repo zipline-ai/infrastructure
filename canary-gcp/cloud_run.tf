@@ -147,11 +147,11 @@ resource "google_cloud_run_v2_service" "orchestration" {
       }
       env {
         name  = "POSTGRES_SEEDS"
-        value = google_sql_database_instance.temporal-instance.ip_address[0].ip_address
+        value = google_sql_database_instance.temporal_instance.ip_address[0].ip_address
       }
       env {
         name  = "DBNAME"
-        value = google_sql_database.temporal-database.name
+        value = google_sql_database.temporal_database.name
       }
       env {
         name  = "SKIP_DEFAULT_NAMESPACE_CREATION"
