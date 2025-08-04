@@ -20,6 +20,17 @@ resource "google_sql_database_instance" "orchestration-instance" {
     tier    = "db-g1-small"
     edition = "ENTERPRISE"
 
+    ip_configuration {
+      # Enable public IP
+      ipv4_enabled = true
+
+      # Allow all networks (0.0.0.0/0)
+      authorized_networks {
+        name  = "allow-all"
+        value = "0.0.0.0/0"
+      }
+    }
+
     database_flags {
       name  = "max_connections"
       value = "200" # Temporal needs at least 100 connections
@@ -27,6 +38,7 @@ resource "google_sql_database_instance" "orchestration-instance" {
   }
   lifecycle {
     prevent_destroy = true
+    ignore_changes = [settings]
   }
 }
 
@@ -138,9 +150,48 @@ resource "google_secret_manager_secret_iam_member" "temporal_db_password_access"
   member    = "serviceAccount:${google_service_account.temporal_cloud_run_service_account.email}"
 }
 
-
 resource "google_sql_user" "locker" {
   instance = google_sql_database_instance.orchestration-instance.name
+  name     = "locker_user"
+  password = random_password.db_password.result
+}
+
+resource "google_sql_database_instance" "temporal_instance" {
+  database_version = "POSTGRES_16"
+  name             = "temporal-instance"
+  region           = var.region
+  settings {
+    tier    = "db-g1-small"
+    edition = "ENTERPRISE"
+
+    ip_configuration {
+      # Enable public IP
+      ipv4_enabled = true
+
+      # Allow all networks (0.0.0.0/0)
+      authorized_networks {
+        name  = "allow-all"
+        value = "0.0.0.0/0"
+      }
+    }
+
+    database_flags {
+      name  = "max_connections"
+      value = "200" # Temporal needs at least 100 connections
+    }
+  }
+  lifecycle {
+    ignore_changes = [settings]
+  }
+}
+
+resource "google_sql_database" "temporal_database" {
+  instance = google_sql_database_instance.temporal_instance.name
+  name     = "temporal"
+}
+
+resource "google_sql_user" "temporal_locker" {
+  instance = google_sql_database_instance.temporal_instance.name
   name     = "locker_user"
   password = random_password.db_password.result
 }
