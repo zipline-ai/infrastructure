@@ -45,7 +45,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
     # Main orchestration container
     containers {
       name  = "orchestration-hub"
-      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/orchestration-hub:f9488f504b6ac041353ed29b9574930406813745"
+      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/orchestration-hub:v0.0.0"
       env {
         name  = "DB_URL"
         value = "jdbc:postgresql://${google_sql_database_instance.orchestration-instance.ip_address[0].ip_address}:5432/${google_sql_database.orchestration-database.name}"
