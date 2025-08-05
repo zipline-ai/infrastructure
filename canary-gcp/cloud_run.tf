@@ -20,7 +20,7 @@ resource "google_service_account" "orchestration_cloud_run_service_account" {
   project      = data.google_project.zipline.project_id
 }
 
-resource "google_project_iam_member" "cloud_run_service_account_role" {
+resource "google_project_iam_member" "cloud_run_service_account_dataproc" {
   project = data.google_project.zipline.project_id
   member  = "serviceAccount:${google_service_account.orchestration_cloud_run_service_account.email}"
   role    = "roles/dataproc.editor"
