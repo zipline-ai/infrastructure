@@ -47,6 +47,78 @@ resource "google_cloud_run_v2_service" "orchestration" {
       name  = "orchestration-hub"
       image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/orchestration-hub:v0.0.0"
       env {
+        name  = "TEMPORAL_SERVICE_ADDRESS"
+        value = "localhost:7233"
+      }
+      env {
+        name  = "TEMPORAL_NAMESPACE"
+        value = "default"
+      }
+      env {
+        name  = "DB_URL"
+        value = "jdbc:postgresql://${google_sql_database_instance.orchestration-instance.ip_address[0].ip_address}:5432/${google_sql_database.orchestration-database.name}"
+      }
+      env {
+        name  = "DB_USERNAME"
+        value = google_sql_user.locker.name
+      }
+      env {
+        name = "DB_PASSWORD"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.db_password.secret_id
+            version = "latest"
+          }
+        }
+      }
+      env {
+        name  = "GCP_REGION"
+        value = var.region
+      }
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = data.google_project.zipline.project_id
+      }
+      env {
+        name  = "GCP_BIGTABLE_INSTANCE_ID"
+        value = module.base_setup.bigtable_instance_name
+      }
+      env {
+        name  = "CUSTOMER_ID"
+        value = var.name
+      }
+      env {
+        name  = "ARTIFACT_PREFIX"
+        value = "gs://zipline-artifacts-${var.name}"
+      }
+      env {
+        name  = "TOPIC_ID"
+        value = "canary-testing"
+      }
+      env {
+        name  = "TABLE_PARTITIONS_DATASET"
+        value = "TABLE_PARTITIONS_CI"
+      }
+      ports {
+        container_port = 3903
+      }
+      resources {
+        limits = {
+          cpu    = "6"
+          memory = "24Gi"
+        }
+      }
+    }
+    scaling {
+      min_instance_count = 1
+      max_instance_count = 1
+    }
+
+    # Main orchestration container
+    containers {
+      name  = "orchestration-temporal-worker"
+      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/orchestration-temporal-worker:v0.0.0"
+      env {
         name  = "DB_URL"
         value = "jdbc:postgresql://${google_sql_database_instance.orchestration-instance.ip_address[0].ip_address}:5432/${google_sql_database.orchestration-database.name}"
       }
@@ -112,10 +184,6 @@ resource "google_cloud_run_v2_service" "orchestration" {
           memory = "24Gi"
         }
       }
-    }
-    scaling {
-      min_instance_count = 1
-      max_instance_count = 1
     }
 
     # Temporal auto-setup container
