@@ -108,8 +108,8 @@ resource "google_cloud_run_v2_service" "orchestration" {
       }
       resources {
         limits = {
-          cpu    = "2"
-          memory = "8Gi"
+          cpu    = "6"
+          memory = "24Gi"
         }
       }
     }
@@ -134,7 +134,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
       }
       env {
         name  = "POSTGRES_USER"
-        value = google_sql_user.locker.name
+        value = google_sql_user.temporal_locker.name
       }
       env {
         name = "POSTGRES_PWD"
@@ -147,11 +147,11 @@ resource "google_cloud_run_v2_service" "orchestration" {
       }
       env {
         name  = "POSTGRES_SEEDS"
-        value = google_sql_database_instance.orchestration-instance.ip_address[0].ip_address
+        value = google_sql_database_instance.temporal_instance.ip_address[0].ip_address
       }
       env {
         name  = "DBNAME"
-        value = google_sql_database.orchestration-database.name
+        value = google_sql_database.temporal_database.name
       }
       env {
         name  = "SKIP_DEFAULT_NAMESPACE_CREATION"
