@@ -231,6 +231,19 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
         name  = "API_BASE_URL"
         value = google_cloud_run_v2_service.orchestration.uri
       }
+      env {
+        name  = "DATABASE_URL"
+        value = "postgres://${google_sql_user.locker.name}@${google_sql_database_instance.orchestration-instance.ip_address[0].ip_address}:5432/${google_sql_database.orchestration-database.name}"
+      }
+      env {
+        name  = "PGPASSWORD"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.db_password.secret_id
+            version = "latest"
+          }
+        }
+      }
 
       resources {
         limits = {
@@ -248,7 +261,8 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
 
   depends_on = [
     google_artifact_registry_repository.docker_hub_remote_repository,
-    google_service_account.cloud_run_service_account
+    google_service_account.cloud_run_service_account,
+    google_secret_manager_secret_iam_member.ui_db_password_access
   ]
 
   lifecycle {
