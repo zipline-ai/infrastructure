@@ -150,6 +150,12 @@ resource "google_secret_manager_secret_iam_member" "temporal_db_password_access"
   member    = "serviceAccount:${google_service_account.temporal_cloud_run_service_account.email}"
 }
 
+resource "google_secret_manager_secret_iam_member" "ui_db_password_access" {
+  secret_id = google_secret_manager_secret.db_password.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.ui_cloud_run_service_account.email}"
+}
+
 resource "google_sql_user" "locker" {
   instance = google_sql_database_instance.orchestration-instance.name
   name     = "locker_user"
