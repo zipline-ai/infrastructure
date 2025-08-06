@@ -109,6 +109,7 @@ resource "google_sql_database_instance" "orchestration_gke_instance" {
   lifecycle {
     prevent_destroy = true
   }
+  depends_on = [google_service_networking_connection.private_vpc_connection]
 }
 
 resource "google_sql_database" "orchestration_gke_database" {
