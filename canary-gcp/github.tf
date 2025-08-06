@@ -85,7 +85,7 @@ resource "google_project_iam_member" "service_account_cloudrun" {
 }
 
 resource "google_service_account_iam_member" "github_cloudrun_access" {
-  service_account_id = google_service_account.orchestration_cloud_run_service_account.id
+  service_account_id = google_service_account.cloud_run_service_account.id
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${google_service_account.github.email}"
 }

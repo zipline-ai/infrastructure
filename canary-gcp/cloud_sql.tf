@@ -142,14 +142,9 @@ resource "random_password" "db_password" {
 resource "google_secret_manager_secret_iam_member" "db_password_access" {
   secret_id = google_secret_manager_secret.db_password.secret_id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.orchestration_cloud_run_service_account.email}"
+  member    = "serviceAccount:${google_service_account.cloud_run_service_account.email}"
 }
 
-resource "google_secret_manager_secret_iam_member" "temporal_db_password_access" {
-  secret_id = google_secret_manager_secret.db_password.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.temporal_cloud_run_service_account.email}"
-}
 
 resource "google_secret_manager_secret_iam_member" "ui_db_password_access" {
   secret_id = google_secret_manager_secret.db_password.secret_id
