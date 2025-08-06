@@ -12,57 +12,36 @@ resource "google_artifact_registry_repository" "docker_hub_remote_repository" {
   }
 }
 
-
-# Service Accounts for Cloud Run Services
-resource "google_service_account" "orchestration_cloud_run_service_account" {
+resource "google_service_account" "cloud_run_service_account" {
   account_id   = "zipline-cloud-run-sa"
   display_name = "Zipline Cloud Run Service Account"
   project      = data.google_project.zipline.project_id
 }
 
-resource "google_project_iam_member" "cloud_run_service_account_dataproc" {
+resource "google_project_iam_member" "cloud_run_service_account_role" {
   project = data.google_project.zipline.project_id
-  member  = "serviceAccount:${google_service_account.orchestration_cloud_run_service_account.email}"
+  member  = "serviceAccount:${google_service_account.cloud_run_service_account.email}"
   role    = "roles/dataproc.editor"
 }
 
 resource "google_project_iam_member" "cloud_run_service_account_storage" {
   project = data.google_project.zipline.project_id
-  member  = "serviceAccount:${google_service_account.orchestration_cloud_run_service_account.email}"
+  member  = "serviceAccount:${google_service_account.cloud_run_service_account.email}"
   role    = "roles/storage.objectAdmin"
 }
 
 resource "google_project_iam_member" "cloud_run_service_account_cloudsql" {
   project = data.google_project.zipline.project_id
-  member  = "serviceAccount:${google_service_account.orchestration_cloud_run_service_account.email}"
+  member  = "serviceAccount:${google_service_account.cloud_run_service_account.email}"
   role    = "roles/cloudsql.client"
 }
 
-resource "google_project_iam_member" "cloud_run_service_account_bigtable" {
-  project = data.google_project.zipline.project_id
-  member  = "serviceAccount:${google_service_account.orchestration_cloud_run_service_account.email}"
-  role    = "roles/bigtable.user"
-}
-
-resource "google_service_account" "temporal_cloud_run_service_account" {
-  account_id   = "zipline-temporal-cloud-run-sa"
-  display_name = "Zipline Temporal Cloud Run Service Account"
-  project      = data.google_project.zipline.project_id
-}
-
-resource "google_service_account" "ui_cloud_run_service_account" {
-  account_id   = "zipline-ui-cloud-run-sa"
-  display_name = "Zipline UI Cloud Run Service Account"
-  project      = data.google_project.zipline.project_id
-}
-
-
-# Cloud Run Services
 resource "google_cloud_run_v2_service" "orchestration" {
   name     = "zipline-orchestration"
   location = var.region
 
   template {
+
     # Main orchestration container
     containers {
       name  = "orchestration-hub"
@@ -200,11 +179,12 @@ resource "google_cloud_run_v2_service" "orchestration" {
       }
     }
 
-    service_account = google_service_account.orchestration_cloud_run_service_account.email
+    service_account = google_service_account.cloud_run_service_account.email
   }
+
   depends_on = [
     google_artifact_registry_repository.docker_hub_remote_repository,
-    google_service_account.orchestration_cloud_run_service_account,
+    google_service_account.cloud_run_service_account,
     google_project_iam_member.cloud_run_service_account_cloudsql,
     google_sql_database.orchestration-database
   ]
@@ -218,6 +198,24 @@ resource "google_cloud_run_v2_service" "orchestration" {
       client_version,
     ]
   }
+}
+
+resource "google_service_account" "ui_cloud_run_service_account" {
+  account_id   = "zipline-ui-cloud-run-sa"
+  display_name = "Zipline UI Cloud Run Service Account"
+  project      = data.google_project.zipline.project_id
+}
+
+
+resource "google_cloud_run_service_iam_member" "cloud_run_invoker" {
+  service  = google_cloud_run_v2_service.orchestration.name
+  location = var.region
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.ui_cloud_run_service_account.email}"
+
+  depends_on = [
+    google_cloud_run_v2_service.orchestration
+  ]
 }
 
 resource "google_cloud_run_v2_service" "zipline_ui" {
@@ -263,7 +261,7 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
 
   depends_on = [
     google_artifact_registry_repository.docker_hub_remote_repository,
-    google_service_account.ui_cloud_run_service_account,
+    google_service_account.cloud_run_service_account,
     google_secret_manager_secret_iam_member.ui_db_password_access
   ]
 
@@ -275,19 +273,6 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
       client_version,
     ]
   }
-}
-
-
-# IAM bindings for service-to-service communication
-resource "google_cloud_run_service_iam_member" "ui_to_orchestration" {
-  service  = google_cloud_run_v2_service.orchestration.name
-  location = var.region
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:${google_service_account.ui_cloud_run_service_account.email}"
-
-  depends_on = [
-    google_cloud_run_v2_service.orchestration
-  ]
 }
 
 # Allow unauthenticated requests to the Web UI
