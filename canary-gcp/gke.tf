@@ -590,7 +590,15 @@ resource "kubernetes_deployment" "temporal_worker" {
         }
     }
 
-    depends_on = [kubernetes_service.temporal_service]
+    depends_on = [kubernetes_service.temporal_service,
+      google_sql_database.orchestration_gke_database,
+      google_sql_user.locker,
+      google_service_account_iam_member.orchestration_workload_identity,
+      google_project_iam_member.orchestration_gke_cloudsql,
+      google_project_iam_member.orchestration_gke_dataproc,
+      google_project_iam_member.orchestration_gke_bigtable,
+      google_project_iam_member.orchestration_gke_monitoring,
+      google_project_iam_member.orchestration_gke_storage]
 
     lifecycle {
         ignore_changes = [
