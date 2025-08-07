@@ -38,7 +38,7 @@ resource "google_sql_database_instance" "orchestration-instance" {
   }
   lifecycle {
     prevent_destroy = true
-    ignore_changes = [settings]
+    ignore_changes  = [settings]
   }
 }
 

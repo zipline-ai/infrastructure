@@ -111,6 +111,101 @@ resource "kubernetes_secret" "orchestration_db_secret" {
   type = "Opaque"
 }
 
+# Service Account for Temporal
+resource "kubernetes_service_account" "temporal_sa" {
+  metadata {
+    name      = "temporal-server"
+    namespace = kubernetes_namespace.orchestration.metadata[0].name
+
+    annotations = {
+      "iam.gke.io/gcp-service-account" = google_service_account.temporal_gsa.email
+    }
+  }
+}
+
+# Google Service Account for Workload Identity
+resource "google_service_account" "temporal_gsa" {
+  account_id   = "temporal-server"
+  display_name = "Temporal Server Service Account"
+  project      = data.google_project.zipline.project_id
+}
+
+# Bind Kubernetes SA to Google SA
+resource "google_service_account_iam_binding" "temporal_workload_identity" {
+  service_account_id = google_service_account.temporal_gsa.name
+  role               = "roles/iam.workloadIdentityUser"
+
+  members = [
+    "serviceAccount:${data.google_project.zipline.project_id}.svc.id.goog[${kubernetes_namespace.orchestration.metadata[0].name}/${kubernetes_service_account.temporal_sa.metadata[0].name}]"
+  ]
+}
+
+# Grant Cloud SQL access to the service account
+resource "google_project_iam_member" "temporal_cloudsql" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.temporal_gsa.email}"
+}
+
+# Service Account for Orchestration Hub and Worker
+resource "google_service_account" "orchestration_gke_sa" {
+  account_id   = "orchestration-gke-sa"
+  display_name = "Orchestration Service Account"
+  project      = data.google_project.zipline.project_id
+}
+
+
+resource "kubernetes_service_account" "orchestration_sa" {
+  metadata {
+    name      = "orchestration-gke-sa"
+    namespace = kubernetes_namespace.orchestration.metadata[0].name
+    annotations = {
+      "iam.gke.io/gcp-service-account" = google_service_account.orchestration_gke_sa.email
+    }
+  }
+}
+
+resource "google_service_account_iam_member" "orchestration_workload_identity" {
+  service_account_id = google_service_account.orchestration_gke_sa.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${data.google_project.zipline.project_id}.svc.id.goog[${kubernetes_namespace.orchestration.metadata[0].name}/orchestration-gke-sa]"
+}
+
+# Grant Cloud SQL access to the service account
+resource "google_project_iam_member" "orchestration_gke_cloudsql" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.orchestration_gke_sa.email}"
+}
+
+# Grant Bigtable access to the service account
+resource "google_project_iam_member" "orchestration_gke_bigtable" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/bigtable.user"
+  member  = "serviceAccount:${google_service_account.orchestration_gke_sa.email}"
+}
+
+# Grant Dataproc access to the service account
+resource "google_project_iam_member" "orchestration_gke_dataproc" {
+  project = data.google_project.zipline.project_id
+  member  = "serviceAccount:${google_service_account.orchestration_gke_sa.email}"
+  role    = "roles/dataproc.editor"
+}
+
+# Grant Storage access to the service account
+resource "google_project_iam_member" "orchestration_gke_storage" {
+  project = data.google_project.zipline.project_id
+  member  = "serviceAccount:${google_service_account.orchestration_gke_sa.email}"
+  role    = "roles/storage.objectAdmin"
+}
+
+# Grant Monitoring access to the service account
+resource "google_project_iam_member" "orchestration_gke_monitoring" {
+  project = data.google_project.zipline.project_id
+  member  = "serviceAccount:${google_service_account.orchestration_gke_sa.email}"
+  role    = "roles/monitoring.editor"
+}
+
 # Temporal Server Deployment
 resource "kubernetes_deployment" "temporal_server" {
   metadata {
@@ -234,6 +329,7 @@ resource "kubernetes_deployment" "temporal_server" {
   depends_on = [
     google_service_account_iam_member.orchestration_workload_identity,
     google_sql_database.temporal_gke_database,
+    google_sql_user.temporal_gke_locker
   ]
 
   lifecycle {
@@ -245,43 +341,6 @@ resource "kubernetes_deployment" "temporal_server" {
       spec[0].template[0].spec[0].toleration,
     ]
   }
-}
-
-
-# Service Account for Temporal
-resource "kubernetes_service_account" "temporal_sa" {
-  metadata {
-    name      = "temporal-server"
-    namespace = kubernetes_namespace.orchestration.metadata[0].name
-
-    annotations = {
-      "iam.gke.io/gcp-service-account" = google_service_account.temporal_gsa.email
-    }
-  }
-}
-
-# Google Service Account for Workload Identity
-resource "google_service_account" "temporal_gsa" {
-  account_id   = "temporal-server"
-  display_name = "Temporal Server Service Account"
-  project      = data.google_project.zipline.project_id
-}
-
-# Bind Kubernetes SA to Google SA
-resource "google_service_account_iam_binding" "temporal_workload_identity" {
-  service_account_id = google_service_account.temporal_gsa.name
-  role               = "roles/iam.workloadIdentityUser"
-
-  members = [
-    "serviceAccount:${data.google_project.zipline.project_id}.svc.id.goog[${kubernetes_namespace.orchestration.metadata[0].name}/${kubernetes_service_account.temporal_sa.metadata[0].name}]"
-  ]
-}
-
-# Grant Cloud SQL access to the service account
-resource "google_project_iam_member" "temporal_cloudsql" {
-  project = data.google_project.zipline.project_id
-  role    = "roles/cloudsql.client"
-  member  = "serviceAccount:${google_service_account.temporal_gsa.email}"
 }
 
 # LoadBalancer Service for Temporal Server
@@ -438,178 +497,123 @@ resource "kubernetes_service" "temporal_web_service" {
   }
 }
 
-resource "google_service_account" "orchestration_gke_sa" {
-  account_id   = "orchestration-gke-sa"
-  display_name = "Orchestration Service Account"
-  project      = data.google_project.zipline.project_id
-}
-
-
-resource "kubernetes_service_account" "orchestration_sa" {
+resource "kubernetes_deployment" "temporal_worker" {
   metadata {
-    name      = "orchestration-gke-sa"
+    name      = "orchestration-temporal-worker"
     namespace = kubernetes_namespace.orchestration.metadata[0].name
-    annotations = {
-      "iam.gke.io/gcp-service-account" = google_service_account.orchestration_gke_sa.email
+
+    labels = {
+      app = "orchestration-temporal-worker"
     }
   }
-}
 
-resource "google_service_account_iam_member" "orchestration_workload_identity" {
-  service_account_id = google_service_account.orchestration_gke_sa.name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${data.google_project.zipline.project_id}.svc.id.goog[${kubernetes_namespace.orchestration.metadata[0].name}/orchestration-gke-sa]"
-}
-
-# Grant Cloud SQL access to the service account
-resource "google_project_iam_member" "orchestration_gke_cloudsql" {
-  project = data.google_project.zipline.project_id
-  role    = "roles/cloudsql.client"
-  member  = "serviceAccount:${google_service_account.orchestration_gke_sa.email}"
-}
-
-# Grant Cloud SQL access to the service account
-resource "google_project_iam_member" "orchestration_gke_bigtable" {
-  project = data.google_project.zipline.project_id
-  role    = "roles/bigtable.user"
-  member  = "serviceAccount:${google_service_account.orchestration_gke_sa.email}"
-}
-
-resource "google_project_iam_member" "orchestration_gke_dataproc" {
-  project = data.google_project.zipline.project_id
-  member  = "serviceAccount:${google_service_account.orchestration_gke_sa.email}"
-  role    = "roles/dataproc.editor"
-}
-
-resource "google_project_iam_member" "orchestration_gke_storage" {
-  project = data.google_project.zipline.project_id
-  member  = "serviceAccount:${google_service_account.orchestration_gke_sa.email}"
-  role    = "roles/storage.objectAdmin"
-}
-
-resource "google_project_iam_member" "orchestration_gke_monitoring" {
-  project = data.google_project.zipline.project_id
-  member  = "serviceAccount:${google_service_account.orchestration_gke_sa.email}"
-  role    = "roles/monitoring.editor"
-}
-
-resource "kubernetes_deployment" "temporal_worker" {
-    metadata {
-        name      = "orchestration-temporal-worker"
-        namespace = kubernetes_namespace.orchestration.metadata[0].name
-
-        labels = {
+  spec {
+    replicas = 1
+    selector {
+      match_labels = {
         app = "orchestration-temporal-worker"
-        }
+      }
     }
 
-    spec {
-        replicas = 1
-        selector {
-        match_labels = {
-            app = "orchestration-temporal-worker"
+    template {
+      metadata {
+        labels = {
+          app = "orchestration-temporal-worker"
         }
-        }
+      }
 
-        template {
-          metadata {
-            labels = {
-              app = "orchestration-temporal-worker"
-            }
+      spec {
+        service_account_name = kubernetes_service_account.orchestration_sa.metadata[0].name
+        container {
+          name  = "orchestration-temporal-worker"
+          image = "ziplineai/orchestration-temporal-worker:v0.9.7"
+
+          env {
+            name  = "DB_URL"
+            value = "jdbc:postgresql://${google_sql_database_instance.orchestration_gke_instance.private_ip_address}:5432/${google_sql_database.orchestration_gke_database.name}"
           }
-
-          spec {
-            service_account_name = kubernetes_service_account.orchestration_sa.metadata[0].name
-            container {
-              name  = "orchestration-temporal-worker"
-              image = "ziplineai/orchestration-temporal-worker:v0.9.7"
-
-              env {
-                name  = "DB_URL"
-                value = "jdbc:postgresql://${google_sql_database_instance.orchestration_gke_instance.private_ip_address}:5432/${google_sql_database.orchestration_gke_database.name}"
-              }
-              env {
-                name  = "DB_USERNAME"
-                value = google_sql_user.locker.name
-              }
-              env {
-                name = "DB_PASSWORD"
-                value_from {
-                  secret_key_ref {
-                    name = kubernetes_secret.temporal_db_secret.metadata[0].name
-                    key  = "password"
-                  }
-                }
-              }
-              env {
-                name  = "GCP_REGION"
-                value = var.region
-              }
-              env {
-                name  = "GCP_PROJECT_ID"
-                value = data.google_project.zipline.project_id
-              }
-              env {
-                name  = "GCP_BIGTABLE_INSTANCE_ID"
-                value = module.base_setup.bigtable_instance_name
-              }
-              env {
-                name  = "CUSTOMER_ID"
-                value = var.name
-              }
-              env {
-                name  = "ARTIFACT_PREFIX"
-                value = "gs://zipline-artifacts-${var.name}"
-              }
-              env {
-                name  = "TOPIC_ID"
-                value = "canary-testing"
-              }
-              env {
-                name  = "TEMPORAL_SERVICE_ADDRESS"
-                value = "temporal-service:7233"
-              }
-              env {
-                name  = "TEMPORAL_NAMESPACE"
-                value = "default"
-              }
-              env {
-                name  = "TABLE_PARTITIONS_DATASET"
-                value = "TABLE_PARTITIONS_DEV"
-              }
-
-              resources {
-                limits = {
-                  cpu    = "16"
-                  memory = "64Gi"
-                }
+          env {
+            name  = "DB_USERNAME"
+            value = google_sql_user.locker.name
+          }
+          env {
+            name = "DB_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.temporal_db_secret.metadata[0].name
+                key  = "password"
               }
             }
           }
+          env {
+            name  = "GCP_REGION"
+            value = var.region
+          }
+          env {
+            name  = "GCP_PROJECT_ID"
+            value = data.google_project.zipline.project_id
+          }
+          env {
+            name  = "GCP_BIGTABLE_INSTANCE_ID"
+            value = module.base_setup.bigtable_instance_name
+          }
+          env {
+            name  = "CUSTOMER_ID"
+            value = var.name
+          }
+          env {
+            name  = "ARTIFACT_PREFIX"
+            value = "gs://zipline-artifacts-${var.name}"
+          }
+          env {
+            name  = "TOPIC_ID"
+            value = "canary-testing"
+          }
+          env {
+            name  = "TEMPORAL_SERVICE_ADDRESS"
+            value = "temporal-service:7233"
+          }
+          env {
+            name  = "TEMPORAL_NAMESPACE"
+            value = "default"
+          }
+          env {
+            name  = "TABLE_PARTITIONS_DATASET"
+            value = "TABLE_PARTITIONS_DEV"
+          }
 
+          resources {
+            limits = {
+              cpu    = "16"
+              memory = "64Gi"
+            }
+          }
         }
-    }
+      }
 
-    depends_on = [kubernetes_service.temporal_service,
-      google_sql_database.orchestration_gke_database,
-      google_sql_user.locker,
-      google_service_account_iam_member.orchestration_workload_identity,
-      google_project_iam_member.orchestration_gke_cloudsql,
-      google_project_iam_member.orchestration_gke_dataproc,
-      google_project_iam_member.orchestration_gke_bigtable,
-      google_project_iam_member.orchestration_gke_monitoring,
-      google_project_iam_member.orchestration_gke_storage]
-
-    lifecycle {
-        ignore_changes = [
-        metadata,
-        spec[0].template[0].spec[0].container[0].resources,
-        spec[0].template[0].spec[0].container[0].security_context,
-        spec[0].template[0].spec[0].security_context,
-        spec[0].template[0].spec[0].toleration,
-        spec[0].template[0].spec[0].container[0].image
-        ]
     }
+  }
+
+  depends_on = [kubernetes_service.temporal_service,
+    google_sql_database.orchestration_gke_database,
+    google_sql_user.locker,
+    google_service_account_iam_member.orchestration_workload_identity,
+    google_project_iam_member.orchestration_gke_cloudsql,
+    google_project_iam_member.orchestration_gke_dataproc,
+    google_project_iam_member.orchestration_gke_bigtable,
+    google_project_iam_member.orchestration_gke_monitoring,
+  google_project_iam_member.orchestration_gke_storage]
+
+  lifecycle {
+    ignore_changes = [
+      metadata,
+      spec[0].template[0].spec[0].container[0].resources,
+      spec[0].template[0].spec[0].container[0].security_context,
+      spec[0].template[0].spec[0].security_context,
+      spec[0].template[0].spec[0].toleration,
+      spec[0].template[0].spec[0].container[0].image
+    ]
+  }
 }
 
 resource "kubernetes_deployment" "orchestration_hub" {
@@ -648,7 +652,7 @@ resource "kubernetes_deployment" "orchestration_hub" {
             value = "jdbc:postgresql://${google_sql_database_instance.orchestration_gke_instance.private_ip_address}:5432/${google_sql_database.orchestration_gke_database.name}"
           }
           env {
-            name  = "DB_USERNAME"
+            name = "DB_USERNAME"
             value_from {
               secret_key_ref {
                 name = kubernetes_secret.orchestration_db_secret.metadata[0].name
@@ -727,7 +731,7 @@ resource "kubernetes_deployment" "orchestration_hub" {
     google_project_iam_member.orchestration_gke_dataproc,
     google_project_iam_member.orchestration_gke_bigtable,
     google_project_iam_member.orchestration_gke_monitoring,
-    google_project_iam_member.orchestration_gke_storage]
+  google_project_iam_member.orchestration_gke_storage]
 
   lifecycle {
     ignore_changes = [
@@ -812,7 +816,7 @@ resource "kubernetes_deployment" "orchestration_ui" {
             value = "postgres://${google_sql_user.orchestration_gke_locker.name}@${google_sql_database_instance.orchestration_gke_instance.private_ip_address}:5432/${google_sql_database.orchestration_gke_database.name}"
           }
           env {
-            name  = "PGPASSWORD"
+            name = "PGPASSWORD"
             value_from {
               secret_key_ref {
                 name = kubernetes_secret.orchestration_db_secret.metadata[0].name
