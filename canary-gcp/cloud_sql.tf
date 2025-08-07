@@ -38,7 +38,7 @@ resource "google_sql_database_instance" "orchestration-instance" {
   }
   lifecycle {
     prevent_destroy = true
-    ignore_changes = [settings]
+    ignore_changes  = [settings]
   }
 }
 
@@ -49,6 +49,77 @@ resource "google_sql_database" "orchestration-database" {
     prevent_destroy = true
   }
 }
+
+resource "google_sql_database_instance" "temporal_gke_instance" {
+  database_version = "POSTGRES_16"
+  name             = "temporal-gke-instance"
+  region           = var.region
+
+  settings {
+    tier    = "db-g1-small"
+    edition = "ENTERPRISE"
+
+    ip_configuration {
+      ipv4_enabled    = false
+      private_network = google_compute_network.zipline_vpc.id
+    }
+
+    database_flags {
+      name  = "max_connections"
+      value = "200"
+    }
+  }
+
+  depends_on = [
+    google_project_service.cloud_sql,
+    google_service_networking_connection.private_vpc_connection
+  ]
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_sql_database" "temporal_gke_database" {
+  name     = "temporal"
+  instance = google_sql_database_instance.temporal_gke_instance.name
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_sql_database_instance" "orchestration_gke_instance" {
+  database_version = "POSTGRES_16"
+  name             = "orchestration-gke-instance"
+  region           = var.region
+  settings {
+    tier    = "db-g1-small"
+    edition = "ENTERPRISE"
+
+    ip_configuration {
+      ipv4_enabled    = false
+      private_network = google_compute_network.zipline_vpc.id
+    }
+
+    database_flags {
+      name  = "max_connections"
+      value = "200" # Temporal needs at least 100 connections
+    }
+  }
+  lifecycle {
+    prevent_destroy = true
+  }
+  depends_on = [google_service_networking_connection.private_vpc_connection]
+}
+
+resource "google_sql_database" "orchestration_gke_database" {
+  name     = "execution-info"
+  instance = google_sql_database_instance.orchestration_gke_instance.name
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 
 # Create secrets for database credentials
 resource "google_secret_manager_secret" "db_password" {
@@ -73,6 +144,7 @@ resource "google_secret_manager_secret_iam_member" "db_password_access" {
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.cloud_run_service_account.email}"
 }
+
 
 resource "google_secret_manager_secret_iam_member" "ui_db_password_access" {
   secret_id = google_secret_manager_secret.db_password.secret_id
@@ -122,6 +194,18 @@ resource "google_sql_database" "temporal_database" {
 
 resource "google_sql_user" "temporal_locker" {
   instance = google_sql_database_instance.temporal_instance.name
+  name     = "locker_user"
+  password = random_password.db_password.result
+}
+
+resource "google_sql_user" "temporal_gke_locker" {
+  instance = google_sql_database_instance.temporal_gke_instance.name
+  name     = "locker_user"
+  password = random_password.db_password.result
+}
+
+resource "google_sql_user" "orchestration_gke_locker" {
+  instance = google_sql_database_instance.orchestration_gke_instance.name
   name     = "locker_user"
   password = random_password.db_password.result
 }

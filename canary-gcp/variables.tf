@@ -5,3 +5,7 @@ variable "region" {
 variable "name" {
   default = "canary"
 }
+
+variable "personnel_email" {
+  default = "gcp-admin@zipline.ai"
+}
