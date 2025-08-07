@@ -36,6 +36,12 @@ resource "google_project_iam_member" "cloud_run_service_account_cloudsql" {
   role    = "roles/cloudsql.client"
 }
 
+resource "google_project_iam_member" "cloud_run_service_account_bigtable" {
+  project = data.google_project.zipline.project_id
+  member  = "serviceAccount:${google_service_account.cloud_run_service_account.email}"
+  role    = "roles/bigtable.user"
+}
+
 resource "google_cloud_run_v2_service" "orchestration" {
   name     = "zipline-orchestration"
   location = var.region
