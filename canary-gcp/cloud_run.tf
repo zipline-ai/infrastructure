@@ -224,6 +224,18 @@ resource "google_cloud_run_service_iam_member" "cloud_run_invoker" {
   ]
 }
 
+resource "google_project_iam_member" "ui_cloud_run_dataproc" {
+  project = data.google_project.zipline.project_id
+  member  = "serviceAccount:${google_service_account.ui_cloud_run_service_account.email}"
+  role    = "roles/dataproc.viewer"
+}
+
+resource "google_project_iam_member" "ui_cloud_run_storage" {
+  project = data.google_project.zipline.project_id
+  member  = "serviceAccount:${google_service_account.ui_cloud_run_service_account.email}"
+  role    = "roles/storage.objectViewer"
+}
+
 resource "google_cloud_run_v2_service" "zipline_ui" {
   name     = "zipline-ui"
   location = var.region
@@ -242,7 +254,7 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
         value = "postgres://${google_sql_user.locker.name}@${google_sql_database_instance.orchestration-instance.ip_address[0].ip_address}:5432/${google_sql_database.orchestration-database.name}"
       }
       env {
-        name  = "PGPASSWORD"
+        name = "PGPASSWORD"
         value_source {
           secret_key_ref {
             secret  = google_secret_manager_secret.db_password.secret_id
