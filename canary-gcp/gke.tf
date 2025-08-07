@@ -526,7 +526,7 @@ resource "kubernetes_deployment" "temporal_worker" {
         service_account_name = kubernetes_service_account.orchestration_sa.metadata[0].name
         container {
           name  = "orchestration-temporal-worker"
-          image = "ziplineai/orchestration-temporal-worker:v0.9.7"
+          image = "ziplineai/orchestration-temporal-worker:v0.9.8"
 
           env {
             name  = "DB_URL"
@@ -645,7 +645,7 @@ resource "kubernetes_deployment" "orchestration_hub" {
         service_account_name = kubernetes_service_account.orchestration_sa.metadata[0].name
         container {
           name              = "orchestration-hub"
-          image             = "ziplineai/orchestration-hub:v0.9.7"
+          image             = "ziplineai/orchestration-hub:v0.9.8"
           image_pull_policy = "Always"
           env {
             name  = "DB_URL"
@@ -804,7 +804,7 @@ resource "kubernetes_deployment" "orchestration_ui" {
         service_account_name = kubernetes_service_account.orchestration_sa.metadata[0].name
         container {
           name  = "web-ui"
-          image = "ziplineai/web-ui:v0.9.7"
+          image = "ziplineai/web-ui:v0.9.8"
 
           env {
             name  = "API_BASE_URL"
