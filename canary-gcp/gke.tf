@@ -5,6 +5,18 @@ resource "google_project_service" "container_api" {
   disable_on_destroy         = false
 }
 
+resource "google_project_service" "iap_api" {
+  service = "iap.googleapis.com"
+  disable_dependent_services = false
+  disable_on_destroy         = false
+}
+
+resource "google_project_service" "oauth2_api" {
+  service = "oauth2.googleapis.com"
+  disable_dependent_services = false
+  disable_on_destroy         = false
+}
+
 # GKE Autopilot Cluster
 resource "google_container_cluster" "orchestration_cluster" {
   name     = "orchestration-cluster"
@@ -607,7 +619,6 @@ resource "kubernetes_deployment" "temporal_worker" {
   lifecycle {
     ignore_changes = [
       metadata,
-      spec[0].template[0].spec[0].container[0].resources,
       spec[0].template[0].spec[0].container[0].security_context,
       spec[0].template[0].spec[0].security_context,
       spec[0].template[0].spec[0].toleration,
@@ -736,7 +747,6 @@ resource "kubernetes_deployment" "orchestration_hub" {
   lifecycle {
     ignore_changes = [
       metadata,
-      spec[0].template[0].spec[0].container[0].resources,
       spec[0].template[0].spec[0].container[0].security_context,
       spec[0].template[0].spec[0].security_context,
       spec[0].template[0].spec[0].toleration,
@@ -750,6 +760,15 @@ resource "kubernetes_service" "orchestration_hub_service" {
   metadata {
     name      = "orchestration-hub-service"
     namespace = kubernetes_namespace.orchestration.metadata[0].name
+    annotations = {
+      "cloud.google.com/app-protocols" = jsonencode({
+        "grpc-port" = "HTTP2"  # Tell GKE this port serves HTTP/2 (gRPC)
+      })
+
+      "beta.cloud.google.com/backend-config" = jsonencode({
+        "default" = "grpc-backend-config"
+      })
+    }
   }
 
   spec {
@@ -758,7 +777,7 @@ resource "kubernetes_service" "orchestration_hub_service" {
     }
 
     port {
-      name        = "http"
+      name        = "grpc-port"
       port        = 3903
       target_port = 3903
       protocol    = "TCP"
@@ -883,7 +902,7 @@ resource "kubernetes_service" "orchestration_ui_service" {
   }
 }
 
-# Configuration for HTTP(S) Load Balancers with Ingress
+## Configuration for HTTP(S) Load Balancers with Ingress
 
 # Create a global static IP address
 resource "google_compute_global_address" "orchestration_ui_ip" {
@@ -993,6 +1012,14 @@ output "orchestration_ui_ip" {
   description = "Static IP address for the orchestration UI ingress"
 }
 
+resource "google_compute_managed_ssl_certificate" "orchestration_ui_ssl_nip" {
+  name  = "orchestration-ui-ssl-nip"
+
+  managed {
+    domains = ["${google_compute_global_address.orchestration_ui_ip.address}.nip.io"]
+  }
+}
+
 output "orchestration_ui_https_url" {
   value = "https://${google_compute_global_address.orchestration_ui_ip.address}"
   description = "HTTPS URL for the orchestration UI (will show certificate warning)"
@@ -1007,11 +1034,11 @@ resource "google_compute_managed_ssl_certificate" "temporal_ui_ssl_nip" {
   name  = "temporal-ui-ssl-nip"
 
   managed {
-    domains = ["${google_compute_global_address.orchestration_ui_ip.address}.nip.io"]
+    domains = ["${google_compute_global_address.temporal_ui_ip.address}.nip.io"]
   }
 }
 
-# # Use a given domain for Google-managed certificat
+# # Use a given domain for Google-managed certificate
 # resource "google_compute_managed_ssl_certificate" "temporal_ui_ssl" {
 #   name = "temporal-ui-ssl"
 #
@@ -1034,7 +1061,11 @@ resource "kubernetes_ingress_v1" "temporal_ui_ingress_nip" {
       "kubernetes.io/ingress.global-static-ip-name" = google_compute_global_address.temporal_ui_ip.name
       "networking.gke.io/managed-certificates"      = google_compute_managed_ssl_certificate.temporal_ui_ssl_nip.name
       "kubernetes.io/ingress.class"                 = "gce"
-      "kubernetes.io/ingress.allow-http"            = "false"
+      # Allow HTTP during certificate provisioning
+      "kubernetes.io/ingress.allow-http" = "true"
+
+      # Redirect HTTP to HTTPS once certificate is ready
+      "ingress.gcp.kubernetes.io/redirect-to-https" = "true"
     }
   }
 
@@ -1161,3 +1192,121 @@ output "temporal_ui_https_url_nip" {
 #   EOT
 # }
 
+# Create a global static IP address
+resource "google_compute_global_address" "orchestration_hub_ip" {
+  name = "orchestration-hub-ip"
+}
+
+resource "google_compute_managed_ssl_certificate" "orchestration_hub_ssl_nip" {
+  name  = "orchestration-hub-ssl-nip"
+
+  managed {
+    domains = ["${google_compute_global_address.orchestration_hub_ip.address}.nip.io"]
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "google_iap_brand" "project_brand" {
+  support_email     = "support@zipline.ai"  # Must be verified email
+  application_title = "Zipline Orchestration"
+  project           = data.google_project.zipline.id
+}
+
+# Create OAuth2 client for IAP
+resource "google_iap_client" "grpc_oauth_client" {
+  display_name = "Zipline Orchestration OAuth Client"
+  brand        = google_iap_brand.project_brand.name
+}
+
+resource "kubernetes_secret" "orchestration_iap_oauth_secret" {
+  metadata {
+    name      = "orchestration-iap-oauth-secret"
+    namespace = kubernetes_namespace.orchestration.metadata[0].name
+  }
+
+  data = {
+    client_id     = google_iap_client.grpc_oauth_client.client_id
+    client_secret = google_iap_client.grpc_oauth_client.secret
+  }
+
+  type = "Opaque"
+
+  depends_on = [google_iap_client.grpc_oauth_client]
+}
+
+# Backend configuration for IAP
+resource "kubernetes_manifest" "grpc_backend_config" {
+  manifest = {
+    apiVersion = "cloud.google.com/v1"
+    kind       = "BackendConfig"
+    metadata = {
+      name      = "orchestration-grpc-backend-config"
+      namespace = kubernetes_namespace.orchestration.metadata[0].name
+    }
+    spec = {
+      # Enable Identity-Aware Proxy
+      iap = {
+        enabled = true
+        oauthclientCredentials = {
+          secretName = kubernetes_secret.orchestration_iap_oauth_secret.metadata[0].name
+        }
+      }
+
+      # Optional: Custom timeout for gRPC
+      timeoutSec = 3600
+    }
+  }
+}
+
+# Ingress for gRPC service with HTTPS
+resource "kubernetes_ingress_v1" "orchestration_hub_ingress" {
+  metadata {
+    name      = "orchestration-hub-ingress"
+    namespace = kubernetes_namespace.orchestration.metadata[0].name
+
+    annotations = {
+      "kubernetes.io/ingress.global-static-ip-name" = google_compute_global_address.orchestration_hub_ip.name
+      "networking.gke.io/managed-certificates"      = google_compute_managed_ssl_certificate.orchestration_hub_ssl_nip.name
+      "kubernetes.io/ingress.class" = "gce"
+
+      # Allow HTTP during certificate provisioning
+      "kubernetes.io/ingress.allow-http" = "true"
+
+      # Redirect HTTP to HTTPS once certificate is ready
+      "ingress.gcp.kubernetes.io/redirect-to-https" = "true"
+
+      # Optional: Increase timeout for long-running gRPC calls
+      "cloud.google.com/timeout-seconds" = "3600"
+    }
+  }
+
+  spec {
+    rule {
+      host = "${google_compute_global_address.orchestration_hub_ip.address}.nip.io"
+
+      http {
+        path {
+          path = "/*"  # gRPC services typically use /* path
+          path_type = "ImplementationSpecific"
+
+          backend {
+            service {
+              name = kubernetes_service.orchestration_hub_service.metadata[0].name
+              port {
+                number = 3903  # Match the service port
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    kubernetes_service.orchestration_hub_service,
+    google_compute_managed_ssl_certificate.orchestration_hub_ssl_nip
+  ]
+}
