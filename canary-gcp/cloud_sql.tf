@@ -60,7 +60,7 @@ resource "google_sql_database_instance" "temporal_gke_instance" {
     edition = "ENTERPRISE"
 
     ip_configuration {
-      ipv4_enabled    = false
+      ipv4_enabled    = true
       private_network = google_compute_network.zipline_vpc.id
     }
 
@@ -97,7 +97,7 @@ resource "google_sql_database_instance" "orchestration_gke_instance" {
     edition = "ENTERPRISE"
 
     ip_configuration {
-      ipv4_enabled    = false
+      ipv4_enabled    = true
       private_network = google_compute_network.zipline_vpc.id
     }
 
