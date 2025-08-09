@@ -5,17 +5,6 @@ resource "google_project_service" "container_api" {
   disable_on_destroy         = false
 }
 
-resource "google_project_service" "iap_api" {
-  service = "iap.googleapis.com"
-  disable_dependent_services = false
-  disable_on_destroy         = false
-}
-
-resource "google_project_service" "oauth2_api" {
-  service = "oauth2.googleapis.com"
-  disable_dependent_services = false
-  disable_on_destroy         = false
-}
 
 # GKE Autopilot Cluster
 resource "google_container_cluster" "orchestration_cluster" {
@@ -347,7 +336,9 @@ resource "kubernetes_deployment" "temporal_server" {
   lifecycle {
     ignore_changes = [
       metadata,
-      spec[0].template[0].spec[0].container[0].resources,
+      spec[0].template[0].metadata,
+      spec[0].template[0].spec[0].container[0].resources[0].limits["ephemeral-storage"],
+      spec[0].template[0].spec[0].container[0].resources[0].requests["ephemeral-storage"],
       spec[0].template[0].spec[0].container[0].security_context,
       spec[0].template[0].spec[0].security_context,
       spec[0].template[0].spec[0].toleration,
@@ -620,6 +611,7 @@ resource "kubernetes_deployment" "temporal_worker" {
     ignore_changes = [
       metadata,
       spec[0].template[0].spec[0].container[0].security_context,
+      spec[0].template[0].spec[0].container[0].resources[0].limits["ephemeral-storage"],
       spec[0].template[0].spec[0].security_context,
       spec[0].template[0].spec[0].toleration,
       spec[0].template[0].spec[0].container[0].image
@@ -747,7 +739,9 @@ resource "kubernetes_deployment" "orchestration_hub" {
   lifecycle {
     ignore_changes = [
       metadata,
+      spec[0].template[0].metadata,
       spec[0].template[0].spec[0].container[0].security_context,
+      spec[0].template[0].spec[0].container[0].resources[0].limits["ephemeral-storage"],
       spec[0].template[0].spec[0].security_context,
       spec[0].template[0].spec[0].toleration,
       spec[0].template[0].spec[0].container[0].image
@@ -863,7 +857,7 @@ resource "kubernetes_deployment" "orchestration_ui" {
   lifecycle {
     ignore_changes = [
       metadata,
-      spec[0].template[0].spec[0].container[0].resources,
+      spec[0].template[0].spec[0].container[0].resources[0].limits["ephemeral-storage"],
       spec[0].template[0].spec[0].container[0].security_context,
       spec[0].template[0].spec[0].security_context,
       spec[0].template[0].spec[0].toleration,
@@ -909,79 +903,60 @@ resource "google_compute_global_address" "orchestration_ui_ip" {
   name = "orchestration-ui-ip"
 }
 
-# Generate a self-signed certificate with better compatibility
-resource "tls_private_key" "orchestration_ui_key" {
-  algorithm = "RSA"
-  rsa_bits  = 2048
-}
-
-resource "tls_self_signed_cert" "orchestration_ui_cert" {
-  private_key_pem = tls_private_key.orchestration_ui_key.private_key_pem
-
-  subject {
-    common_name  = google_compute_global_address.orchestration_ui_ip.address
-    organization = "Zipline AI"
-  }
-
-  # Add both IP and DNS SANs for better compatibility
-  ip_addresses = [
-    google_compute_global_address.orchestration_ui_ip.address
-  ]
-
-  dns_names = [
-    google_compute_global_address.orchestration_ui_ip.address,
-    "localhost"
-  ]
-
-  validity_period_hours = 8760  # 1 year
-
-  allowed_uses = [
-    "key_encipherment",
-    "digital_signature",
-    "server_auth",
-  ]
-
-  # Ensure certificate is ready before dependent resources
-  lifecycle {
-    create_before_destroy = true
+# Use a given domain for the Orchestration UI if provided
+resource "kubernetes_manifest" "orchestration_ui_managed_cert_custom" {
+  count = var.zipline_ui_domain != "" ? 1 : 0
+  manifest = {
+    apiVersion = "networking.gke.io/v1"
+    kind       = "ManagedCertificate"
+    metadata = {
+      name      = "orchestration-ui-ssl"
+      namespace = kubernetes_namespace.orchestration.metadata[0].name
+    }
+    spec = {
+      domains = [var.zipline_ui_domain]
+    }
   }
 }
 
-# Create Kubernetes secret with the self-signed certificate
-resource "kubernetes_secret" "orchestration_ui_tls" {
-  metadata {
-    name      = "orchestration-ui-tls"
-    namespace = kubernetes_namespace.orchestration.metadata[0].name
-  }
-
-  type = "kubernetes.io/tls"
-
-  # Use data with the raw PEM content (Kubernetes will handle base64 encoding)
-  data = {
-    "tls.crt" = tls_self_signed_cert.orchestration_ui_cert.cert_pem
-    "tls.key" = tls_private_key.orchestration_ui_key.private_key_pem
+# Use ManagedCertificate CRD for nip.io domain
+resource "kubernetes_manifest" "orchestration_ui_managed_cert_nip" {
+  count = var.zipline_ui_domain != "" ? 0 : 1
+  manifest = {
+    apiVersion = "networking.gke.io/v1"
+    kind       = "ManagedCertificate"
+    metadata = {
+      name      = "orchestration-ui-ssl-nip"
+      namespace = kubernetes_namespace.orchestration.metadata[0].name
+    }
+    spec = {
+      domains = ["${google_compute_global_address.orchestration_ui_ip.address}.nip.io"]
+    }
   }
 }
 
-# Create the Ingress resource with self-signed certificate
+# Create the Ingress resource with Managed Certificate
 resource "kubernetes_ingress_v1" "orchestration_ui_ingress" {
   metadata {
-    name      = "orchestration-ui-ingress"
+    name      = var.zipline_ui_domain != "" ? "orchestration-ui-ingress" : "orchestration-ui-ingress-nip"
     namespace = kubernetes_namespace.orchestration.metadata[0].name
 
     annotations = {
       "kubernetes.io/ingress.global-static-ip-name" = google_compute_global_address.orchestration_ui_ip.name
+      "networking.gke.io/managed-certificates"      = var.zipline_ui_domain != "" ? "orchestration-ui-ssl" : "orchestration-ui-ssl-nip"
       "kubernetes.io/ingress.class"                 = "gce"
-      "kubernetes.io/ingress.allow-http"            = "false"  # Force HTTPS only
+      # Allow HTTP during certificate provisioning
+      "kubernetes.io/ingress.allow-http" = "true"
+
+      # Redirect HTTP to HTTPS once certificate is ready
+      "ingress.gcp.kubernetes.io/redirect-to-https" = "true"
     }
   }
 
   spec {
-    tls {
-      secret_name = kubernetes_secret.orchestration_ui_tls.metadata[0].name
-    }
-
     rule {
+      host = var.zipline_ui_domain != "" ? var.zipline_ui_domain : "${google_compute_global_address.orchestration_ui_ip.address}.nip.io"
+
       http {
         path {
           path      = "/*"
@@ -1001,8 +976,7 @@ resource "kubernetes_ingress_v1" "orchestration_ui_ingress" {
   }
 
   depends_on = [
-    kubernetes_service.orchestration_ui_service,
-    kubernetes_secret.orchestration_ui_tls
+    kubernetes_service.orchestration_ui_service
   ]
 }
 
@@ -1012,17 +986,32 @@ output "orchestration_ui_ip" {
   description = "Static IP address for the orchestration UI ingress"
 }
 
-resource "google_compute_managed_ssl_certificate" "orchestration_ui_ssl_nip" {
-  name  = "orchestration-ui-ssl-nip"
-
-  managed {
-    domains = ["${google_compute_global_address.orchestration_ui_ip.address}.nip.io"]
-  }
+output "orchestration_ui_https_url" {
+  value = var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io"
+  description = "HTTPS URL for the Zipline UI (This may take 15-60 minutes to be active)"
 }
 
-output "orchestration_ui_https_url" {
-  value = "https://${google_compute_global_address.orchestration_ui_ip.address}"
-  description = "HTTPS URL for the orchestration UI (will show certificate warning)"
+locals {
+  orchestration_ui_custom_domain_instructions = <<-EOT
+Zipline UI HTTPS Setup Instructions:
+
+1. Point your domain's DNS A record to: ${google_compute_global_address.orchestration_ui_ip.address}
+2. Wait 15-60 minutes for certificate provisioning
+3. Access your service at: https://${var.zipline_ui_domain}
+
+The Google-managed certificate will be automatically issued and renewed!
+EOT
+
+  orchestration_ui_nip_io_instructions = <<-EOT
+Zipline UI HTTPS Setup Instructions (using nip.io):
+
+1. Wait 15-60 minutes for certificate provisioning
+2. Access your service at: https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io
+EOT
+}
+
+output "orchestration_ui_setup_instructions" {
+  value = var.zipline_ui_domain != "" ? local.orchestration_ui_custom_domain_instructions : local.orchestration_ui_nip_io_instructions
 }
 
 # Create a global static IP address
@@ -1030,36 +1019,47 @@ resource "google_compute_global_address" "temporal_ui_ip" {
   name = "temporal-ui-ip"
 }
 
-resource "google_compute_managed_ssl_certificate" "temporal_ui_ssl_nip" {
-  name  = "temporal-ui-ssl-nip"
-
-  managed {
-    domains = ["${google_compute_global_address.temporal_ui_ip.address}.nip.io"]
+# Use a given domain for the Temporal Web UI if provided
+resource "kubernetes_manifest" "temporal_ui_managed_cert_custom" {
+  count = var.temporal_domain != "" ? 1 : 0
+  manifest = {
+    apiVersion = "networking.gke.io/v1"
+    kind       = "ManagedCertificate"
+    metadata = {
+      name      = "temporal-ui-ssl"
+      namespace = kubernetes_namespace.orchestration.metadata[0].name
+    }
+    spec = {
+      domains = [var.temporal_domain]
+    }
   }
 }
 
-# # Use a given domain for Google-managed certificate
-# resource "google_compute_managed_ssl_certificate" "temporal_ui_ssl" {
-#   name = "temporal-ui-ssl"
-#
-#   managed {
-#     domains = [ var.temporal_domain ]
-#   }
-#
-#   lifecycle {
-#     create_before_destroy = true
-#   }
-# }
+# Use ManagedCertificate CRD for nip.io domain
+resource "kubernetes_manifest" "temporal_ui_managed_cert_nip" {
+  count = var.temporal_domain != "" ? 0 : 1
+  manifest = {
+    apiVersion = "networking.gke.io/v1"
+    kind       = "ManagedCertificate"
+    metadata = {
+      name      = "temporal-ui-ssl-nip"  # Match the name from your debug output
+      namespace = kubernetes_namespace.orchestration.metadata[0].name
+    }
+    spec = {
+      domains = ["${google_compute_global_address.temporal_ui_ip.address}.nip.io"]
+    }
+  }
+}
 
 # Ingress for nip.io
-resource "kubernetes_ingress_v1" "temporal_ui_ingress_nip" {
+resource "kubernetes_ingress_v1" "temporal_ui_ingress" {
   metadata {
-    name      = "temporal-ui-ingress-nip"
+    name      = var.temporal_domain != "" ? "temporal-ui-ingress" : "temporal-ui-ingress-nip"
     namespace = kubernetes_namespace.orchestration.metadata[0].name
 
     annotations = {
       "kubernetes.io/ingress.global-static-ip-name" = google_compute_global_address.temporal_ui_ip.name
-      "networking.gke.io/managed-certificates"      = google_compute_managed_ssl_certificate.temporal_ui_ssl_nip.name
+      "networking.gke.io/managed-certificates"      = var.temporal_domain != "" ? "temporal-ui-ssl" : "temporal-ui-ssl-nip"
       "kubernetes.io/ingress.class"                 = "gce"
       # Allow HTTP during certificate provisioning
       "kubernetes.io/ingress.allow-http" = "true"
@@ -1071,7 +1071,7 @@ resource "kubernetes_ingress_v1" "temporal_ui_ingress_nip" {
 
   spec {
     rule {
-      host = "${google_compute_global_address.temporal_ui_ip.address}.nip.io"
+      host = var.temporal_domain != "" ? var.temporal_domain : "${google_compute_global_address.temporal_ui_ip.address}.nip.io"
 
       http {
         path {
@@ -1092,221 +1092,47 @@ resource "kubernetes_ingress_v1" "temporal_ui_ingress_nip" {
   }
 
   depends_on = [
-    kubernetes_service.temporal_web_service,
-    google_compute_managed_ssl_certificate.temporal_ui_ssl_nip
+    kubernetes_service.temporal_web_service
   ]
 }
 
-# # Create Ingress with user provided domain and Google-managed certificate
-# resource "kubernetes_ingress_v1" "temporal_ui_ingress" {
-#   metadata {
-#     name      = "temporal-ui-ingress"
-#     namespace = kubernetes_namespace.orchestration.metadata[0].name
-#
-#     annotations = {
-#       # Use the static IP (like Cloud Run domain mapping)
-#       "kubernetes.io/ingress.global-static-ip-name" = google_compute_global_address.temporal_ui_ip.name
-#
-#       # Use Google-managed certificate (exactly like Cloud Run)
-#       "networking.gke.io/managed-certificates" = google_compute_managed_ssl_certificate.temporal_ui_ssl.name
-#
-#       # GKE Ingress class
-#       "kubernetes.io/ingress.class" = "gce"
-#
-#       # Force HTTPS only (like Cloud Run)
-#       "kubernetes.io/ingress.allow-http" = "false"
-#
-#       # Optional: redirect HTTP to HTTPS
-#       "ingress.gcp.kubernetes.io/redirect-to-https" = "true"
-#     }
-#   }
-#
-#   spec {
-#     rule {
-#       host = var.temporal_domain
-#
-#       http {
-#         path {
-#           path      = "/*"
-#           path_type = "ImplementationSpecific"
-#
-#           backend {
-#             service {
-#               name = kubernetes_service.temporal_web_service.metadata[0].name
-#               port {
-#                 number = 80
-#               }
-#             }
-#           }
-#         }
-#       }
-#     }
-#
-#     rule {
-#       host = var.temporal_domain
-#
-#       http {
-#         path {
-#           path      = "/*"
-#           path_type = "ImplementationSpecific"
-#
-#           backend {
-#             service {
-#               name = kubernetes_service.temporal_web_service.metadata[0].name
-#               port {
-#                 number = 80
-#               }
-#             }
-#           }
-#         }
-#       }
-#     }
-#   }
-#
-#   depends_on = [
-#     kubernetes_service.orchestration_ui_service,
-#     google_compute_managed_ssl_certificate.temporal_ui_ssl
-#   ]
-# }
 
 # Output the IP and instructions (like Cloud Run's domain mapping page)
 output "temporal_ui_ip" {
   value = google_compute_global_address.temporal_ui_ip.address
-  description = "Point your domain's A record to this IP address"
+  description = "Static IP address for the Temporal Web UI ingress"
 }
 
-output "temporal_ui_https_url_nip" {
-  value = "https://${google_compute_global_address.temporal_ui_ip.address}.nip.io"
-  description = "HTTPS URL for the Temporal Web UI using nip.io"
+output "temporal_ui_https_url" {
+  value = var.temporal_domain != "" ? "https://${var.temporal_domain}" : "https://${google_compute_global_address.temporal_ui_ip.address}.nip.io"
+  description = "HTTPS URL for the Temporal Web UI (This may take 15-60 minutes to be active)"
 }
 
-# output "temporal_ui_setup_instructions" {
-#   value = <<-EOT
-#     Cloud Run-style HTTPS Setup Instructions:
-#
-#     1. Point your domain's DNS A record to: ${google_compute_global_address.temporal_ui_ip.address}
-#     2. Wait 15-60 minutes for certificate provisioning (just like Cloud Run)
-#     3. Access your service at: https://${var.temporal_domain}
-#
-#     The Google-managed certificate will be automatically issued and renewed!
-#   EOT
-# }
+
+locals {
+  temporal_ui_custom_domain_instructions = <<-EOT
+Zipline UI HTTPS Setup Instructions:
+
+1. Point your domain's DNS A record to: ${google_compute_global_address.orchestration_ui_ip.address}
+2. Wait 15-60 minutes for certificate provisioning
+3. Access your service at: https://${var.zipline_ui_domain}
+
+The Google-managed certificate will be automatically issued and renewed!
+EOT
+
+  temporal_ui_nip_io_instructions = <<-EOT
+Zipline UI HTTPS Setup Instructions (using nip.io):
+
+1. Wait 15-60 minutes for certificate provisioning
+2. Access your service at: https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io
+EOT
+}
+
+output "temporal_ui_setup_instructions" {
+  value = var.temporal_domain != "" ? local.temporal_ui_custom_domain_instructions : local.temporal_ui_nip_io_instructions
+}
 
 # Create a global static IP address
 resource "google_compute_global_address" "orchestration_hub_ip" {
   name = "orchestration-hub-ip"
-}
-
-resource "google_compute_managed_ssl_certificate" "orchestration_hub_ssl_nip" {
-  name  = "orchestration-hub-ssl-nip"
-
-  managed {
-    domains = ["${google_compute_global_address.orchestration_hub_ip.address}.nip.io"]
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-resource "google_iap_brand" "project_brand" {
-  support_email     = "support@zipline.ai"  # Must be verified email
-  application_title = "Zipline Orchestration"
-  project           = data.google_project.zipline.id
-}
-
-# Create OAuth2 client for IAP
-resource "google_iap_client" "grpc_oauth_client" {
-  display_name = "Zipline Orchestration OAuth Client"
-  brand        = google_iap_brand.project_brand.name
-}
-
-resource "kubernetes_secret" "orchestration_iap_oauth_secret" {
-  metadata {
-    name      = "orchestration-iap-oauth-secret"
-    namespace = kubernetes_namespace.orchestration.metadata[0].name
-  }
-
-  data = {
-    client_id     = google_iap_client.grpc_oauth_client.client_id
-    client_secret = google_iap_client.grpc_oauth_client.secret
-  }
-
-  type = "Opaque"
-
-  depends_on = [google_iap_client.grpc_oauth_client]
-}
-
-# Backend configuration for IAP
-resource "kubernetes_manifest" "grpc_backend_config" {
-  manifest = {
-    apiVersion = "cloud.google.com/v1"
-    kind       = "BackendConfig"
-    metadata = {
-      name      = "orchestration-grpc-backend-config"
-      namespace = kubernetes_namespace.orchestration.metadata[0].name
-    }
-    spec = {
-      # Enable Identity-Aware Proxy
-      iap = {
-        enabled = true
-        oauthclientCredentials = {
-          secretName = kubernetes_secret.orchestration_iap_oauth_secret.metadata[0].name
-        }
-      }
-
-      # Optional: Custom timeout for gRPC
-      timeoutSec = 3600
-    }
-  }
-}
-
-# Ingress for gRPC service with HTTPS
-resource "kubernetes_ingress_v1" "orchestration_hub_ingress" {
-  metadata {
-    name      = "orchestration-hub-ingress"
-    namespace = kubernetes_namespace.orchestration.metadata[0].name
-
-    annotations = {
-      "kubernetes.io/ingress.global-static-ip-name" = google_compute_global_address.orchestration_hub_ip.name
-      "networking.gke.io/managed-certificates"      = google_compute_managed_ssl_certificate.orchestration_hub_ssl_nip.name
-      "kubernetes.io/ingress.class" = "gce"
-
-      # Allow HTTP during certificate provisioning
-      "kubernetes.io/ingress.allow-http" = "true"
-
-      # Redirect HTTP to HTTPS once certificate is ready
-      "ingress.gcp.kubernetes.io/redirect-to-https" = "true"
-
-      # Optional: Increase timeout for long-running gRPC calls
-      "cloud.google.com/timeout-seconds" = "3600"
-    }
-  }
-
-  spec {
-    rule {
-      host = "${google_compute_global_address.orchestration_hub_ip.address}.nip.io"
-
-      http {
-        path {
-          path = "/*"  # gRPC services typically use /* path
-          path_type = "ImplementationSpecific"
-
-          backend {
-            service {
-              name = kubernetes_service.orchestration_hub_service.metadata[0].name
-              port {
-                number = 3903  # Match the service port
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  depends_on = [
-    kubernetes_service.orchestration_hub_service,
-    google_compute_managed_ssl_certificate.orchestration_hub_ssl_nip
-  ]
 }

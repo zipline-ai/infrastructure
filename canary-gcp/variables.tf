@@ -11,9 +11,13 @@ variable "personnel_email" {
 }
 
 variable "hub_domain" {
-  default = "canary.zipline.ai"
+  default = ""
 }
 
 variable "temporal_domain" {
-  default = "temporal.zipline.ai"
+  default = ""
+}
+
+variable "zipline_ui_domain" {
+  default = ""
 }
