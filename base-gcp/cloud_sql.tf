@@ -14,7 +14,7 @@ resource "google_project_service" "secrets" {
 
 # Create secrets for database credentials
 resource "google_secret_manager_secret" "db_password" {
-  secret_id = "zipline-db-password"
+  secret_id = "${var.customer_name}-zipline-db-password"
   replication {
     auto {}
   }
@@ -118,4 +118,4 @@ resource "google_secret_manager_secret_iam_member" "db_password_access" {
   secret_id = google_secret_manager_secret.db_password.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "group:${var.personnel_email}"
-}"
+}

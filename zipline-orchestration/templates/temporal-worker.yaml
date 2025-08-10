@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestration-temporal-worker
+  namespace: zipline-system
+  labels:
+    app: orchestration-temporal-worker
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.orchestration.worker.replicas }}
+  selector:
+    matchLabels:
+      app: orchestration-temporal-worker
+  template:
+    metadata:
+      labels:
+        app: orchestration-temporal-worker
+    spec:
+      serviceAccountName: orchestration-sa
+      containers:
+        - name: orchestration-temporal-worker
+          image: {{ .Values.orchestration.worker.image }}
+          env:
+            - name: DB_URL
+              value: "jdbc:postgresql://{{ .Values.database.orchestration.host }}:5432/{{ .Values.database.orchestration.database }}"
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: orchestration-db-secret
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: orchestration-db-secret
+                  key: password
+            - name: GCP_REGION
+              value: {{ .Values.global.region | quote }}
+            - name: GCP_PROJECT_ID
+              value: {{ .Values.global.project_id | quote }}
+            - name: GCP_BIGTABLE_INSTANCE_ID
+              value: {{ .Values.bigtable.instance_id | quote }}
+            - name: CUSTOMER_ID
+              value: {{ .Values.global.customer_name | quote }}
+            - name: ARTIFACT_PREFIX
+              value: {{ .Values.global.artifact_prefix | quote }}
+            - name: TOPIC_ID
+              value: {{ .Values.global.topic_id | quote }}
+            - name: TEMPORAL_SERVICE_ADDRESS
+              value: "temporal-service:7233"
+            - name: TEMPORAL_NAMESPACE
+              value: "default"
+            - name: TABLE_PARTITIONS_DATASET
+              value: "TABLE_PARTITIONS"
+          resources:
+          {{- toYaml .Values.orchestration.worker.resources | nindent 10 }}

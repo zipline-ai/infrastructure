@@ -1,0 +1,82 @@
+# Orchestration UI Certificate - Custom Domain
+{{- if .Values.domains.ziplineUI }}
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: zipline-ui-ssl
+  namespace: zipline-system
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  domains:
+    - {{ .Values.domains.ziplineUI }}
+---
+{{- else }}
+# Orchestration UI Certificate - nip.io Domain
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: zipline-ui-ssl-nip
+  namespace: zipline-system
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  domains:
+    - {{ include "zipline-orchestration.orchestrationUIDomain" . }}
+---
+{{- end }}
+
+# Temporal UI Certificate - Custom Domain
+{{- if .Values.domains.temporal }}
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: temporal-ui-ssl
+  namespace: zipline-system
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  domains:
+    - {{ .Values.domains.temporal }}
+---
+{{- else }}
+# Temporal UI Certificate - nip.io Domain
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: temporal-ui-ssl-nip
+  namespace: zipline-system
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  domains:
+    - {{ include "zipline-orchestration.temporalUIDomain" . }}
+---
+{{- end }}
+
+# Orchestration Hub Certificate - Custom Domain
+{{- if .Values.domains.hub }}
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: orchestration-hub-ssl
+  namespace: zipline-system
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  domains:
+    - {{ .Values.domains.hub }}
+---
+{{- else }}
+# Orchestration Hub Certificate - nip.io Domain
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: orchestration-hub-ssl-nip
+  namespace: zipline-system
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  domains:
+    - {{ include "zipline-orchestration.orchestrationHubDomain" . }}
+{{- end }}
