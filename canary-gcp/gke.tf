@@ -1136,3 +1136,35 @@ output "temporal_ui_setup_instructions" {
 resource "google_compute_global_address" "orchestration_hub_ip" {
   name = "orchestration-hub-ip"
 }
+
+# Use a given domain for the Temporal Hub if provided
+resource "kubernetes_manifest" "orchestration_hub_managed_cert_custom" {
+  count = var.hub_domain != "" ? 1 : 0
+  manifest = {
+    apiVersion = "networking.gke.io/v1"
+    kind       = "ManagedCertificate"
+    metadata = {
+      name      = "orchestration-hub-ssl"
+      namespace = kubernetes_namespace.orchestration.metadata[0].name
+    }
+    spec = {
+      domains = [var.hub_domain]
+    }
+  }
+}
+
+# Use ManagedCertificate CRD for nip.io domain
+resource "kubernetes_manifest" "orchestration_hub_managed_cert_nip" {
+  count = var.hub_domain != "" ? 0 : 1
+  manifest = {
+    apiVersion = "networking.gke.io/v1"
+    kind       = "ManagedCertificate"
+    metadata = {
+      name      = "orchestration-hub-ssl-nip"  # Match the name from your debug output
+      namespace = kubernetes_namespace.orchestration.metadata[0].name
+    }
+    spec = {
+      domains = ["${google_compute_global_address.orchestration_hub_ip.address}.nip.io"]
+    }
+  }
+}
