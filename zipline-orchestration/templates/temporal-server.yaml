@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: temporal-server
+  name: zipline-temporal-server
   namespace: zipline-system
   labels:
     app: temporal-server

@@ -9,8 +9,8 @@ metadata:
     {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-    kubernetes.io/ingress.global-static-ip-name: {{ .Values.staticIPs.temporalUI | quote }}
-    networking.gke.io/managed-certificates: {{ if .Values.domains.temporal }}"temporal-ui-ssl"{{ else }}"temporal-ui-ssl-nip"{{ end }}
+    kubernetes.io/ingress.global-static-ip-name: {{ .Values.staticIPs.temporalUIName | quote }}
+    networking.gke.io/managed-certificates: "temporal-ui-ssl"
 spec:
   rules:
     - host: {{ include "zipline-orchestration.temporalUIDomain" . }}

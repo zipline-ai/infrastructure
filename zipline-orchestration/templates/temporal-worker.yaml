@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: orchestration-temporal-worker
+  name: zipline-orchestration-temporal-worker
   namespace: zipline-system
   labels:
     app: orchestration-temporal-worker
@@ -19,7 +19,7 @@ spec:
       serviceAccountName: orchestration-sa
       containers:
         - name: orchestration-temporal-worker
-          image: {{ .Values.orchestration.worker.image }}
+          image: "{{ .Values.orchestration.worker.image }}:{{ .Values.global.version }}"
           env:
             - name: DB_URL
               value: "jdbc:postgresql://{{ .Values.database.orchestration.host }}:5432/{{ .Values.database.orchestration.database }}"

@@ -54,3 +54,8 @@ variable "zipline_ui_domain" {
   description = "Optional custom domain for the Zipline UI. If not set, a default domain will be used."
   default = ""
 }
+
+variable "zipline_version" {
+  description = "The version of Zipline to deploy. This should correspond to a valid Docker image tag in the Zipline repository."
+  default     = "v0.9.8"
+}

@@ -1,0 +1,106 @@
+# Default values for zipline-orchestration
+global:
+  customer_name: ""
+  region: "us-central1"
+  project_id: ""
+  artifact_prefix: ""
+  topic_id: ""
+  version: ""
+
+# Database configuration
+database:
+  temporal:
+    host: ""
+    username: ""
+    password: ""
+    database: ""
+  orchestration:
+    host: ""
+    username: ""
+    password: ""
+    database: ""
+
+# Bigtable configuration
+bigtable:
+  instance_id: ""
+
+# Service account configuration
+serviceAccount:
+  temporal:
+    googleServiceAccount: ""
+  orchestration:
+    googleServiceAccount: ""
+
+# Domain configuration
+domains:
+  ziplineUI: ""  # If empty, will use nip.io
+  temporal: ""   # If empty, will use nip.io
+  hub: ""        # If empty, will use nip.io
+
+# Static IP addresses (will be created by Terraform)
+staticIPs:
+  orchestrationUI: ""
+  orchestrationUIName: ""
+  temporalUI: ""
+  temporalUIName: ""
+  orchestrationHub: ""
+  orchestrationHubName: ""
+
+# Temporal configuration
+temporal:
+  server:
+    image: "temporalio/auto-setup:1.28.0"
+    replicas: 1
+    resources:
+      requests:
+        cpu: "1000m"
+        memory: "2Gi"
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+
+  web:
+    image: "temporalio/ui:2.39.0"
+    replicas: 1
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+
+# Orchestration services configuration
+orchestration:
+  worker:
+    image: "ziplineai/orchestration-temporal-worker"
+    replicas: 1
+    resources:
+      limits:
+        cpu: "4"
+        memory: "4Gi"
+
+  hub:
+    image: "ziplineai/orchestration-hub"
+    replicas: 1
+    port: 3903
+    resources:
+      limits:
+        cpu: "4"
+        memory: "4Gi"
+
+  ui:
+    image: "ziplineai/web-ui"
+    replicas: 1
+    port: 3000
+    resources:
+      limits:
+        cpu: "1000m"
+        memory: "1Gi"
+
+# Ingress configuration
+ingress:
+  className: "gce"
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    ingress.gcp.kubernetes.io/redirect-to-https: "true"

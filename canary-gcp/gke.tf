@@ -981,12 +981,12 @@ resource "kubernetes_ingress_v1" "orchestration_ui_ingress" {
 }
 
 # Output the static IP address and access information
-output "orchestration_ui_ip" {
+output "dev_orchestration_ui_ip" {
   value = google_compute_global_address.orchestration_ui_ip.address
   description = "Static IP address for the orchestration UI ingress"
 }
 
-output "orchestration_ui_https_url" {
+output "dev_orchestration_ui_https_url" {
   value = var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io"
   description = "HTTPS URL for the Zipline UI (This may take 15-60 minutes to be active)"
 }
@@ -1010,7 +1010,7 @@ Zipline UI HTTPS Setup Instructions (using nip.io):
 EOT
 }
 
-output "orchestration_ui_setup_instructions" {
+output "dev_orchestration_ui_setup_instructions" {
   value = var.zipline_ui_domain != "" ? local.orchestration_ui_custom_domain_instructions : local.orchestration_ui_nip_io_instructions
 }
 
@@ -1098,12 +1098,12 @@ resource "kubernetes_ingress_v1" "temporal_ui_ingress" {
 
 
 # Output the IP and instructions (like Cloud Run's domain mapping page)
-output "temporal_ui_ip" {
+output "dev_temporal_ui_ip" {
   value = google_compute_global_address.temporal_ui_ip.address
   description = "Static IP address for the Temporal Web UI ingress"
 }
 
-output "temporal_ui_https_url" {
+output "dev_temporal_ui_https_url" {
   value = var.temporal_domain != "" ? "https://${var.temporal_domain}" : "https://${google_compute_global_address.temporal_ui_ip.address}.nip.io"
   description = "HTTPS URL for the Temporal Web UI (This may take 15-60 minutes to be active)"
 }
@@ -1128,7 +1128,7 @@ Zipline UI HTTPS Setup Instructions (using nip.io):
 EOT
 }
 
-output "temporal_ui_setup_instructions" {
+output "dev_temporal_ui_setup_instructions" {
   value = var.temporal_domain != "" ? local.temporal_ui_custom_domain_instructions : local.temporal_ui_nip_io_instructions
 }
 
@@ -1160,7 +1160,7 @@ resource "kubernetes_manifest" "orchestration_hub_managed_cert_nip" {
     apiVersion = "networking.gke.io/v1"
     kind       = "ManagedCertificate"
     metadata = {
-      name      = "orchestration-hub-ssl-nip"  # Match the name from your debug output
+      name      = "orchestration-hub-ssl-nip"
       namespace = kubernetes_namespace.orchestration.metadata[0].name
     }
     spec = {

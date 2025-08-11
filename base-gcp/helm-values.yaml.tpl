@@ -4,6 +4,7 @@ global:
   project_id: "${project_id}"
   artifact_prefix: "${artifact_prefix}"
   topic_id: "${topic_id}"
+  version: "${version}"
 
 database:
   temporal:
@@ -33,5 +34,8 @@ domains:
 
 staticIPs:
   orchestrationUI: "${orchestration_ui_ip}"
+  orchestrationUIName: "${orchestration_ui_ip_name}"
   temporalUI: "${temporal_ui_ip}"
+  temporalUIName: "${temporal_ui_ip_name}"
   orchestrationHub: "${orchestration_hub_ip}"
+  orchestrationHubName: "${orchestration_hub_ip_name}"

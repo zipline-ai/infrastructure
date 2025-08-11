@@ -9,8 +9,9 @@ metadata:
     {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-    kubernetes.io/ingress.global-static-ip-name: {{ .Values.staticIPs.orchestrationHub | quote }}
-    networking.gke.io/managed-certificates: {{ if .Values.domains.hub }}"orchestration-hub-ssl"{{ else }}"orchestration-hub-ssl-nip"{{ end }}
+    kubernetes.io/ingress.global-static-ip-name: {{ .Values.staticIPs.orchestrationHubName | quote }}
+    networking.gke.io/v1beta1.FrontendConfig: '{"spec":{"identityAwareProxy":{"enabled":true}}}'
+    networking.gke.io/managed-certificates: "orchestration-hub-ssl"
 spec:
   rules:
     - host: {{ include "zipline-orchestration.orchestrationHubDomain" . }}
@@ -22,4 +23,4 @@ spec:
               service:
                 name: orchestration-hub-service
                 port:
-                  number: {{ .Values.orchestration.hub.port }}
+                  number: 80

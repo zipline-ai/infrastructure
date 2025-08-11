@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: orchestration-hub
+  name: zipline-orchestration-hub
   namespace: zipline-system
   labels:
     app: orchestration-hub
@@ -19,7 +19,7 @@ spec:
       serviceAccountName: orchestration-sa
       containers:
         - name: orchestration-hub
-          image: {{ .Values.orchestration.hub.image }}
+          image: "{{ .Values.orchestration.hub.image }}:{{ .Values.global.version }}"
           imagePullPolicy: Always
           env:
             - name: DB_URL
@@ -64,6 +64,8 @@ kind: Service
 metadata:
   name: orchestration-hub-service
   namespace: zipline-system
+  annotations:
+    cloud.google.com/backend-config: '{"default": "orchestration-hub-backendconfig"}'
   labels:
     {{- include "zipline-orchestration.labels" . | nindent 4 }}
 spec:
@@ -71,7 +73,25 @@ spec:
     app: orchestration-hub
   ports:
     - name: http
-      port: {{ .Values.orchestration.hub.port }}
+      port: 80
       targetPort: {{ .Values.orchestration.hub.port }}
       protocol: TCP
   type: ClusterIP
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: orchestration-hub-backendconfig
+  namespace: zipline-system
+spec:
+  healthCheck:
+    checkIntervalSec: 10
+    timeoutSec: 5
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+    type: HTTP
+    requestPath: /ping
+  iap:
+    enabled: true
+    oauthclientCredentials:
+      secretName: iap-oauth-credentials

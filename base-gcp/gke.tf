@@ -5,6 +5,17 @@ resource "google_project_service" "container_api" {
   disable_on_destroy         = false
 }
 
+resource "google_project_service" "iap_api" {
+  project = data.google_project.zipline.project_id
+  service = "iap.googleapis.com"
+}
+
+resource "google_project_service" "beyondcorp" {
+  project = data.google_project.zipline.project_id
+  service = "beyondcorp.googleapis.com"
+  disable_on_destroy = false  # Prevents accidental disabling
+}
+
 # GKE Autopilot Cluster
 resource "google_container_cluster" "orchestration_cluster" {
   name     = "${var.customer_name}-zipline-cluster"
@@ -139,6 +150,12 @@ resource "google_project_iam_member" "orchestration_monitoring" {
   role    = "roles/monitoring.editor"
 }
 
+resource "google_service_account_iam_member" "impersonation_binding" {
+  service_account_id = google_service_account.orchestration_sa.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "group:${var.personnel_email}"
+}
+
 ###########################################################
 # Static IP Addresses for Load Balancers
 
@@ -170,6 +187,7 @@ resource "helm_release" "zipline_orchestration" {
       project_id = data.google_project.zipline.project_id
       artifact_prefix = var.artifact_prefix
       topic_id = var.topic_id
+      version = var.zipline_version
 
       temporal_db_host = google_sql_database_instance.temporal_instance.private_ip_address
       temporal_db_username = google_sql_user.temporal_user.name
@@ -187,8 +205,11 @@ resource "helm_release" "zipline_orchestration" {
       orchestration_service_account = google_service_account.orchestration_sa.email
 
       orchestration_ui_ip = google_compute_global_address.orchestration_ui_ip.address
+      orchestration_ui_ip_name = google_compute_global_address.orchestration_ui_ip.name
       temporal_ui_ip = google_compute_global_address.temporal_ui_ip.address
+      temporal_ui_ip_name = google_compute_global_address.temporal_ui_ip.name
       orchestration_hub_ip = google_compute_global_address.orchestration_hub_ip.address
+      orchestration_hub_ip_name = google_compute_global_address.orchestration_hub_ip.name
 
       zipline_ui_domain = var.zipline_ui_domain
       temporal_domain = var.temporal_domain
@@ -214,37 +235,70 @@ resource "helm_release" "zipline_orchestration" {
 }
 
 ###########################################################
+# IAP Setup for Secure Access
+resource "google_beyondcorp_app_connection" "orchestration_hub" {
+  name = "orchestration-hub-connection"
+  region = var.region
+  type = "TCP_PROXY"
+
+  application_endpoint {
+    host =  var.hub_domain != "" ? var.hub_domain : "${google_compute_global_address.orchestration_hub_ip.address}.nip.io"
+    port = 443
+  }
+
+  depends_on = [
+    google_project_service.beyondcorp,
+    google_container_cluster.orchestration_cluster
+  ]
+}
+
+resource "google_beyondcorp_app_gateway" "orchestration_hub" {
+  name = "orchestration-hub-gateway"
+  region = var.region
+  type = "TCP_PROXY"
+
+  depends_on = [
+    google_project_service.beyondcorp
+  ]
+  lifecycle {
+    ignore_changes = [
+      host_type,
+    ]
+  }
+}
+
+resource "google_iap_client" "orchestration" {
+  display_name = "Zipline Orchestration IAP Client"
+  brand = "projects/${data.google_project.zipline.number}/brands/${data.google_project.zipline.number}"
+}
+
+resource "kubernetes_secret" "iap_oauth_credentials" {
+  metadata {
+    name = "iap-oauth-credentials"
+    namespace = "zipline-system"
+  }
+
+  data = {
+    client_id     = google_iap_client.orchestration.client_id
+    client_secret = google_iap_client.orchestration.secret
+  }
+}
+
+# Grant IAP access to the orchestration service account and personnel group
+resource "google_project_iam_member" "sa_iap_access" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/iap.httpsResourceAccessor"
+  member  = "serviceAccount:${google_service_account.orchestration_sa.email}"
+}
+
+resource "google_project_iam_member" "personnel_iap_access" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/iap.httpsResourceAccessor"
+  member  = "group:${var.personnel_email}"
+}
+
+###########################################################
 # Outputs
-
-output "orchestration_ui_ip" {
-  value = google_compute_global_address.orchestration_ui_ip.address
-  description = "Static IP address for the orchestration UI ingress"
-}
-
-output "temporal_ui_ip" {
-  value = google_compute_global_address.temporal_ui_ip.address
-  description = "Static IP address for the Temporal Web UI ingress"
-}
-
-output "orchestration_hub_ip" {
-  value = google_compute_global_address.orchestration_hub_ip.address
-  description = "Static IP address for the orchestration hub ingress"
-}
-
-output "orchestration_ui_https_url" {
-  value = var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io"
-  description = "HTTPS URL for the Zipline UI (This may take 15-60 minutes to be active)"
-}
-
-output "temporal_ui_https_url" {
-  value = var.temporal_domain != "" ? "https://${var.temporal_domain}" : "https://${google_compute_global_address.temporal_ui_ip.address}.nip.io"
-  description = "HTTPS URL for the Temporal Web UI (This may take 15-60 minutes to be active)"
-}
-
-output "orchestration_hub_https_url" {
-  value = var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${google_compute_global_address.orchestration_hub_ip.address}.nip.io"
-  description = "HTTPS URL for the Zipline Hub (This may take 15-60 minutes to be active)"
-}
 
 locals {
   setup_instructions = <<-EOT
@@ -267,6 +321,12 @@ Access URLs (available in 15-60 minutes):
 - Orchestration Hub: ${var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${google_compute_global_address.orchestration_hub_ip.address}.nip.io"}
 
 The Google-managed certificates will be automatically issued and renewed!
+
+To use the CLI, add the following to ENVIRONMENT_VARIABLES in teams.py:
+"FRONTEND_URL": "${var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io"}"
+"HUB_URL": "${var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${google_compute_global_address.orchestration_hub_ip.address}.nip.io"}"
+"IAP_CLIENT_ID": "${google_iap_client.orchestration.client_id}"
+
 EOT
 }
 

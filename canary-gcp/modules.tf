@@ -7,3 +7,7 @@ module "base_setup" {
   artifact_prefix = "gs://zipline-canary-artifacts"
   topic_id = "canary-testing"
 }
+
+output "setup_instructions" {
+  value = module.base_setup.setup_instructions
+}
