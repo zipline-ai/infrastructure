@@ -282,6 +282,10 @@ resource "kubernetes_secret" "iap_oauth_credentials" {
     client_id     = google_iap_client.orchestration.client_id
     client_secret = google_iap_client.orchestration.secret
   }
+
+  depends_on = [
+    helm_release.zipline_orchestration
+  ]
 }
 
 # Grant IAP access to the orchestration service account and personnel group

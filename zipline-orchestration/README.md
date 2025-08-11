@@ -167,47 +167,14 @@ helm upgrade zipline-orchestration ./zipline-orchestration \
 
 ### Upgrading Container Images
 
-#### Method 1: Update Values File (Recommended)
-
-1. Update your `values.yaml` with new image versions:
+1. Update your `modules.tf` with new image versions:
 ```yaml
-temporal:
-  server:
-    image: "temporalio/auto-setup:1.29.0"  # New version
-  web:
-    image: "temporalio/ui:2.40.0"          # New version
-
-orchestration:
-  worker:
-    image: "ziplineai/orchestration-temporal-worker:v0.9.8"  # New version
-  hub:
-    image: "ziplineai/orchestration-hub:v0.9.8"              # New version
-  ui:
-    image: "ziplineai/web-ui:v0.9.8"                         # New version
+zipline_version = "0.10.1"  # Update to desired version
 ```
 
 2. Apply the upgrade:
 ```bash
-helm upgrade zipline-orchestration ./zipline-orchestration \
-  -f values-production.yaml \
-  --namespace zipline-system
-```
-
-#### Method 2: Quick Single Image Update
-
-For updating individual images without modifying files:
-
-```bash
-# Update orchestration hub only
-helm upgrade zipline-orchestration ./zipline-orchestration \
-  --set orchestration.hub.image="ziplineai/orchestration-hub:v0.9.8" \
-  --namespace zipline-system
-
-# Update multiple images at once
-helm upgrade zipline-orchestration ./zipline-orchestration \
-  --set orchestration.hub.image="ziplineai/orchestration-hub:v0.9.8" \
-  --set orchestration.worker.image="ziplineai/orchestration-temporal-worker:v0.9.8" \
-  --namespace zipline-system
+terraform apply
 ```
 
 ### Checking Current Versions
@@ -220,21 +187,6 @@ kubectl get deployments -n zipline-system -o wide
 
 # Check Helm values
 helm get values zipline-orchestration -n zipline-system
-```
-
-### Rolling Back
-
-If an upgrade causes issues:
-
-```bash
-# List release history
-helm history zipline-orchestration -n zipline-system
-
-# Rollback to previous version
-helm rollback zipline-orchestration -n zipline-system
-
-# Rollback to specific revision
-helm rollback zipline-orchestration 2 -n zipline-system
 ```
 
 ## Uninstalling
@@ -254,6 +206,9 @@ helm uninstall zipline-orchestration --namespace zipline-system
 | `global.customer_name` | Customer identifier | Yes |
 | `global.region` | GCP region | Yes |
 | `global.project_id` | GCP project ID | Yes |
+| `global.artifact_prefix` | GCS path prefix for artifacts | Yes |
+| `global.topic_id` | Pub/Sub topic ID for orchestration | Yes |
+| `global.version` | Zipline version to deploy | Yes |
 | `database.temporal.host` | Temporal database host | Yes |
 | `database.temporal.username` | Temporal database username | Yes |
 | `database.temporal.password` | Temporal database password | Yes |
@@ -262,11 +217,15 @@ helm uninstall zipline-orchestration --namespace zipline-system
 | `database.orchestration.username` | Orchestration database username | Yes |
 | `database.orchestration.password` | Orchestration database password | Yes |
 | `database.orchestration.database` | Orchestration database name | Yes |
+| `bigtable.instance_id` | Bigtable instance ID | Yes |
 | `serviceAccount.temporal.googleServiceAccount` | Google service account email for Temporal | Yes |
 | `serviceAccount.orchestration.googleServiceAccount` | Google service account email for orchestration | Yes |
 | `staticIPs.orchestrationUI` | Static IP for orchestration UI | Yes |
+| `staticIPs.orchestrationUIName` | Name of the static IP for orchestration UI | Yes |
 | `staticIPs.temporalUI` | Static IP for Temporal UI | Yes |
+| `staticIPs.temporalUIName` | Name of the static IP for Temporal UI | Yes |
 | `staticIPs.orchestrationHub` | Static IP for orchestration hub | Yes |
+| `staticIPs.orchestrationHubName` | Name of the static IP for orchestration hub | Yes |
 
 ### Optional Values
 

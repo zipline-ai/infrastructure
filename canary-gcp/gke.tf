@@ -771,7 +771,7 @@ resource "kubernetes_service" "orchestration_hub_service" {
     }
 
     port {
-      name        = "grpc-port"
+      name        = "http"
       port        = 3903
       target_port = 3903
       protocol    = "TCP"
