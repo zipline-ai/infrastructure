@@ -44,8 +44,6 @@ spec:
               value: {{ .Values.global.customer_name | quote }}
             - name: ARTIFACT_PREFIX
               value: {{ .Values.global.artifact_prefix | quote }}
-            - name: TOPIC_ID
-              value: {{ .Values.global.topic_id | quote }}
             - name: TEMPORAL_SERVICE_ADDRESS
               value: "temporal-service:7233"
             - name: TEMPORAL_NAMESPACE

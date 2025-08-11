@@ -4,7 +4,6 @@ global:
   region: "us-central1"
   project_id: ""
   artifact_prefix: ""
-  topic_id: ""
   version: ""
 
 # Database configuration

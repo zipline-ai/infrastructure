@@ -3,7 +3,6 @@ global:
   region: "${region}"
   project_id: "${project_id}"
   artifact_prefix: "${artifact_prefix}"
-  topic_id: "${topic_id}"
   version: "${version}"
 
 database:

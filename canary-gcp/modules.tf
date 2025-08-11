@@ -5,7 +5,6 @@ module "base_setup" {
   customer_name = "canary"
 
   artifact_prefix = "gs://zipline-canary-artifacts"
-  topic_id = "canary-testing"
   zipline_version = "v0.10.0"
 }
 

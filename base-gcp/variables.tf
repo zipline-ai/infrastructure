@@ -35,11 +35,6 @@ variable "artifact_prefix"  {
   description = "The GCS path prefix for storing artifacts. e.g. gs://my-bucket/artifacts"
 }
 
-variable "topic_id" {
-  description = "The ID of the Pub/Sub topic to create. The name must be unique within the project and conform to the format: [a-zA-Z0-9-_]{3,255}."
-  default     = "zipline-topic"
-}
-
 variable "hub_domain" {
   description = "Optional custom domain for hub. If not set, a default domain will be used."
   default = ""

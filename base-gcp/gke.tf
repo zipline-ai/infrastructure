@@ -186,7 +186,6 @@ resource "helm_release" "zipline_orchestration" {
       region = var.region
       project_id = data.google_project.zipline.project_id
       artifact_prefix = var.artifact_prefix
-      topic_id = var.topic_id
       version = var.zipline_version
 
       temporal_db_host = google_sql_database_instance.temporal_instance.private_ip_address
