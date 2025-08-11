@@ -712,6 +712,10 @@ resource "kubernetes_deployment" "orchestration_hub" {
             name  = "TABLE_PARTITIONS_DATASET"
             value = "TABLE_PARTITIONS_DEV"
           }
+          env {
+            name = "HUB_FRONTEND_URL"
+            value = var.zipline_ui_domain != "" ? var.zipline_ui_domain : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io/"
+          }
           port {
             container_port = 3903
           }
