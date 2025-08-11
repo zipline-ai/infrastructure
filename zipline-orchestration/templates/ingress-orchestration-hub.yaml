@@ -10,7 +10,6 @@ metadata:
     {{- toYaml . | nindent 4 }}
     {{- end }}
     kubernetes.io/ingress.global-static-ip-name: {{ .Values.staticIPs.orchestrationHubName | quote }}
-    networking.gke.io/v1beta1.FrontendConfig: '{"spec":{"identityAwareProxy":{"enabled":true}}}'
     networking.gke.io/managed-certificates: "orchestration-hub-ssl"
 spec:
   rules:
