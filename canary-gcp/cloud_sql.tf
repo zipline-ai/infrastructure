@@ -108,7 +108,7 @@ resource "google_sql_database_instance" "orchestration_gke_instance" {
   }
   lifecycle {
     prevent_destroy = true
-    ignore_changes = [settings[0].ip_configuration[0].authorized_networks]
+    ignore_changes  = [settings[0].ip_configuration[0].authorized_networks]
   }
   depends_on = [google_service_networking_connection.private_vpc_connection]
 }

@@ -74,7 +74,7 @@ resource "google_compute_firewall" "zipline_internal" {
 
   allow {
     protocol = "tcp"
-    ports    = ["7233", "8080", "3903", "3000", "443", "10250"] # Added GKE ports
+    ports    = ["7233", "8080", "3903", "3000", "443", "10250", "80"] # Added service ports
   }
 
   allow {
@@ -83,9 +83,9 @@ resource "google_compute_firewall" "zipline_internal" {
 
   # Expanded source ranges for GKE
   source_ranges = [
-    "10.0.0.0/24",   # Original subnet
-    "10.1.0.0/16",   # GKE pods
-    "10.2.0.0/16"    # GKE services
+    "10.0.0.0/24", # Original subnet
+    "10.1.0.0/16", # GKE pods
+    "10.2.0.0/16"  # GKE services
   ]
   direction = "INGRESS"
 }

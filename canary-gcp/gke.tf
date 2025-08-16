@@ -713,7 +713,7 @@ resource "kubernetes_deployment" "orchestration_hub" {
             value = "TABLE_PARTITIONS_DEV"
           }
           env {
-            name = "HUB_FRONTEND_URL"
+            name  = "HUB_FRONTEND_URL"
             value = var.zipline_ui_domain != "" ? var.zipline_ui_domain : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io/"
           }
           port {
@@ -760,7 +760,7 @@ resource "kubernetes_service" "orchestration_hub_service" {
     namespace = kubernetes_namespace.orchestration.metadata[0].name
     annotations = {
       "cloud.google.com/app-protocols" = jsonencode({
-        "grpc-port" = "HTTP2"  # Tell GKE this port serves HTTP/2 (gRPC)
+        "grpc-port" = "HTTP2" # Tell GKE this port serves HTTP/2 (gRPC)
       })
 
       "beta.cloud.google.com/backend-config" = jsonencode({
@@ -986,12 +986,12 @@ resource "kubernetes_ingress_v1" "orchestration_ui_ingress" {
 
 # Output the static IP address and access information
 output "dev_orchestration_ui_ip" {
-  value = google_compute_global_address.orchestration_ui_ip.address
+  value       = google_compute_global_address.orchestration_ui_ip.address
   description = "Static IP address for the orchestration UI ingress"
 }
 
 output "dev_orchestration_ui_https_url" {
-  value = var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io"
+  value       = var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io"
   description = "HTTPS URL for the Zipline UI (This may take 15-60 minutes to be active)"
 }
 
@@ -1046,7 +1046,7 @@ resource "kubernetes_manifest" "temporal_ui_managed_cert_nip" {
     apiVersion = "networking.gke.io/v1"
     kind       = "ManagedCertificate"
     metadata = {
-      name      = "temporal-ui-ssl-nip"  # Match the name from your debug output
+      name      = "temporal-ui-ssl-nip" # Match the name from your debug output
       namespace = kubernetes_namespace.orchestration.metadata[0].name
     }
     spec = {
@@ -1103,12 +1103,12 @@ resource "kubernetes_ingress_v1" "temporal_ui_ingress" {
 
 # Output the IP and instructions (like Cloud Run's domain mapping page)
 output "dev_temporal_ui_ip" {
-  value = google_compute_global_address.temporal_ui_ip.address
+  value       = google_compute_global_address.temporal_ui_ip.address
   description = "Static IP address for the Temporal Web UI ingress"
 }
 
 output "dev_temporal_ui_https_url" {
-  value = var.temporal_domain != "" ? "https://${var.temporal_domain}" : "https://${google_compute_global_address.temporal_ui_ip.address}.nip.io"
+  value       = var.temporal_domain != "" ? "https://${var.temporal_domain}" : "https://${google_compute_global_address.temporal_ui_ip.address}.nip.io"
   description = "HTTPS URL for the Temporal Web UI (This may take 15-60 minutes to be active)"
 }
 
@@ -1139,36 +1139,4 @@ output "dev_temporal_ui_setup_instructions" {
 # Create a global static IP address
 resource "google_compute_global_address" "orchestration_hub_ip" {
   name = "orchestration-hub-ip"
-}
-
-# Use a given domain for the Temporal Hub if provided
-resource "kubernetes_manifest" "orchestration_hub_managed_cert_custom" {
-  count = var.hub_domain != "" ? 1 : 0
-  manifest = {
-    apiVersion = "networking.gke.io/v1"
-    kind       = "ManagedCertificate"
-    metadata = {
-      name      = "orchestration-hub-ssl"
-      namespace = kubernetes_namespace.orchestration.metadata[0].name
-    }
-    spec = {
-      domains = [var.hub_domain]
-    }
-  }
-}
-
-# Use ManagedCertificate CRD for nip.io domain
-resource "kubernetes_manifest" "orchestration_hub_managed_cert_nip" {
-  count = var.hub_domain != "" ? 0 : 1
-  manifest = {
-    apiVersion = "networking.gke.io/v1"
-    kind       = "ManagedCertificate"
-    metadata = {
-      name      = "orchestration-hub-ssl-nip"
-      namespace = kubernetes_namespace.orchestration.metadata[0].name
-    }
-    spec = {
-      domains = ["${google_compute_global_address.orchestration_hub_ip.address}.nip.io"]
-    }
-  }
 }

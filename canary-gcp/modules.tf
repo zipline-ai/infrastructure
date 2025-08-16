@@ -7,7 +7,3 @@ module "base_setup" {
   artifact_prefix = "gs://zipline-canary-artifacts"
   zipline_version = "v0.10.0"
 }
-
-output "setup_instructions" {
-  value = module.base_setup.setup_instructions
-}
