@@ -168,6 +168,10 @@ resource "google_cloud_run_v2_service" "temporal_server" {
         name  = "BIND_ON_IP"
         value = "0.0.0.0"
       }
+      env {
+        name  = "DEFAULT_NAMESPACE_RETENTION"
+        value = "168h" # 7 days
+      }
 
       resources {
         limits = {
@@ -607,4 +611,16 @@ resource "google_cloud_run_v2_service_iam_member" "ui_all_access" {
   location = google_cloud_run_v2_service.zipline_ui.location
   role     = "roles/run.invoker"
   member   = "allUsers"
+}
+
+output "docker_hub_remote_repository_id" {
+  value = google_artifact_registry_repository.docker_hub_remote_repository.repository_id
+}
+
+output "orchestration_service_name" {
+  value = google_cloud_run_v2_service.orchestration.name
+}
+
+output "orchestration_service_account_id" {
+  value = google_service_account.orchestration_service_account.id
 }
