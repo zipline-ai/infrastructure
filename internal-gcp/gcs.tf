@@ -81,3 +81,9 @@ resource "google_service_account" "logs-viewer" {
     prevent_destroy = true
   }
 }
+
+resource "google_storage_bucket" "spark_libs" {
+  name                        = "zipline-spark-libs"
+  location                    = var.region
+  uniform_bucket_level_access = true
+}
