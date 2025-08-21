@@ -1,7 +1,7 @@
 # Google Artifact Registry - Remote Repository for Docker Hub
 resource "google_artifact_registry_repository" "docker_hub_remote_repository" {
   format        = "DOCKER"
-  repository_id = "${var.customer_name}-zipline-docker-hub-proxy"
+  repository_id = "${var.name_prefix}-zipline-docker-hub-proxy"
   location      = var.region
   description   = "Remote repository for Docker images from Docker Hub"
   mode          = "REMOTE_REPOSITORY"
@@ -13,9 +13,10 @@ resource "google_artifact_registry_repository" "docker_hub_remote_repository" {
   }
 }
 
+data "google_project" "zipline" {}
+
 # Enable required APIs
 resource "google_project_service" "cloudrun_api" {
-  project = data.google_project.zipline.project_id
   service = "run.googleapis.com"
 
   disable_dependent_services = false
@@ -92,9 +93,8 @@ resource "google_project_iam_member" "temporal_service_account_cloudsql" {
 # Cloud Run v2 service for Temporal Server
 
 resource "google_cloud_run_v2_service" "temporal_server" {
-  name     = "${var.customer_name}-zipline-temporal-server"
+  name     = "${var.name_prefix}-zipline-temporal-server"
   location = var.region
-  project  = data.google_project.zipline.project_id
 
   ingress = "INGRESS_TRAFFIC_ALL"
 
@@ -102,8 +102,8 @@ resource "google_cloud_run_v2_service" "temporal_server" {
 
     vpc_access {
       network_interfaces {
-        network    = google_compute_network.zipline_vpc.name
-        subnetwork = google_compute_subnetwork.zipline_subnet.name
+        network    = var.vpc_name
+        subnetwork = var.subnet_name
       }
     }
 
@@ -231,7 +231,7 @@ resource "google_cloud_run_v2_service_iam_member" "temporal_server_unauthenticat
 # Cloud Run v2 service for Temporal UI
 
 resource "google_cloud_run_v2_service" "temporal_ui" {
-  name     = "${var.customer_name}-zipline-temporal-ui"
+  name     = "${var.name_prefix}-zipline-temporal-ui"
   location = var.region
   project  = data.google_project.zipline.project_id
 
@@ -239,8 +239,8 @@ resource "google_cloud_run_v2_service" "temporal_ui" {
 
     vpc_access {
       network_interfaces {
-        network    = google_compute_network.zipline_vpc.name
-        subnetwork = google_compute_subnetwork.zipline_subnet.name
+        network    = var.vpc_name
+        subnetwork = var.subnet_name
       }
       egress = "ALL_TRAFFIC"
     }
@@ -304,20 +304,19 @@ resource "google_cloud_run_v2_service_iam_member" "temporal_ui_public_access" {
 }
 
 ################################################################
-# Cloud Run v2 Worker Pool for Orchestration Temporal Worker
+# Cloud Run v2 Service for Orchestration Temporal Worker
 
-resource "google_cloud_run_v2_worker_pool" "orchestration_temporal_worker" {
+resource "google_cloud_run_v2_service" "orchestration_temporal_worker" {
   location     = var.region
-  name         = "${var.customer_name}-zipline-orchestration-worker"
+  name         = "${var.name_prefix}-zipline-orchestration-worker"
   project      = data.google_project.zipline.project_id
-  launch_stage = "BETA"
 
   template {
 
     vpc_access {
       network_interfaces {
-        network    = google_compute_network.zipline_vpc.name
-        subnetwork = google_compute_subnetwork.zipline_subnet.name
+        network    = var.vpc_name
+        subnetwork = var.subnet_name
       }
       egress = "ALL_TRAFFIC"
     }
@@ -325,7 +324,7 @@ resource "google_cloud_run_v2_worker_pool" "orchestration_temporal_worker" {
 
     service_account = google_service_account.orchestration_service_account.email
     containers {
-      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/orchestration-temporal-worker:4d58aeed22d262ed1a7f00532aa3c388eba5cd6c"
+      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/orchestration-temporal-worker:${var.zipline_version}"
       name  = "orchestration-worker"
 
       env {
@@ -363,15 +362,15 @@ resource "google_cloud_run_v2_worker_pool" "orchestration_temporal_worker" {
       }
       env {
         name  = "GCP_BIGTABLE_INSTANCE_ID"
-        value = google_bigtable_instance.zipline_bigtable_instance.name
+        value = var.bigtable_instance_name
       }
       env {
         name  = "ZIPLINE_LOGS_BUCKET_NAME"
-        value = google_storage_bucket.zipline-logs.name
+        value = var.logs_bucket_name
       }
       env {
         name  = "CUSTOMER_ID"
-        value = var.customer_name
+        value = var.name_prefix
       }
       env {
         name  = "ARTIFACT_PREFIX"
@@ -379,7 +378,7 @@ resource "google_cloud_run_v2_worker_pool" "orchestration_temporal_worker" {
       }
       env {
         name  = "TABLE_PARTITIONS_DATASET"
-        value = "TABLE_PARTITIONS"
+        value = var.table_partitions_dataset
       }
       env {
         name  = "BIGTABLE_INITIAL_RPC_TIMEOUT_DURATION"
@@ -403,28 +402,36 @@ resource "google_cloud_run_v2_worker_pool" "orchestration_temporal_worker" {
       }
     }
   }
+
+  lifecycle {
+    ignore_changes = [
+      template[0].containers[0].image,
+      client,
+      client_version,
+    ]
+  }
 }
 
 ################################################################
 # Cloud Run v2 service for Orchestration Hub
 
 resource "google_cloud_run_v2_service" "orchestration" {
-  name     = "${var.customer_name}-zipline-orchestration"
+  name     = "${var.name_prefix}-zipline-orchestration"
   location = var.region
 
   template {
 
     vpc_access {
       network_interfaces {
-        network    = google_compute_network.zipline_vpc.name
-        subnetwork = google_compute_subnetwork.zipline_subnet.name
+        network    = var.vpc_name
+        subnetwork = var.subnet_name
       }
       egress = "ALL_TRAFFIC"
     }
     # Main orchestration container
     containers {
       name  = "orchestration-hub"
-      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/orchestration-hub:4d58aeed22d262ed1a7f00532aa3c388eba5cd6c"
+      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/orchestration-hub:${var.zipline_version}"
       env {
         name  = "DB_URL"
         value = "jdbc:postgresql://${google_sql_database_instance.orchestration_instance.private_ip_address}:5432/${google_sql_database.orchestration_database.name}"
@@ -452,11 +459,11 @@ resource "google_cloud_run_v2_service" "orchestration" {
       }
       env {
         name  = "GCP_BIGTABLE_INSTANCE_ID"
-        value = google_bigtable_instance.zipline_bigtable_instance.name
+        value = var.bigtable_instance_name
       }
       env {
         name  = "CUSTOMER_ID"
-        value = var.customer_name
+        value = var.name_prefix
       }
       env {
         name  = "ARTIFACT_PREFIX"
@@ -509,8 +516,8 @@ resource "google_cloud_run_v2_service" "orchestration" {
   lifecycle {
     ignore_changes = [
       template[0].containers[0].resources[0].cpu_idle,
-      template[0].containers[1].resources[0].cpu_idle,
       template[0].containers[0].image,
+      template[0].labels,
       client,
       client_version,
     ]
@@ -535,14 +542,14 @@ resource "google_cloud_run_v2_service_iam_member" "orchestration_ui_hub_access" 
 # Cloud Run v2 service for Orchestration UI
 
 resource "google_cloud_run_v2_service" "zipline_ui" {
-  name     = "${var.customer_name}-zipline-ui"
+  name     = "${var.name_prefix}-zipline-ui"
   location = var.region
 
   template {
     vpc_access {
       network_interfaces {
-        network    = google_compute_network.zipline_vpc.name
-        subnetwork = google_compute_subnetwork.zipline_subnet.name
+        network    = var.vpc_name
+        subnetwork = var.subnet_name
       }
       egress = "ALL_TRAFFIC"
     }
@@ -550,7 +557,7 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
 
     containers {
       name  = "web-ui"
-      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/web-ui:4d58aeed22d262ed1a7f00532aa3c388eba5cd6c"
+      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/web-ui:${var.zipline_version}"
 
       env {
         name  = "API_BASE_URL"
@@ -593,6 +600,7 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
     ignore_changes = [
       template[0].containers[0].resources[0].cpu_idle,
       template[0].containers[0].image,
+      template[0].labels,
       client,
       client_version,
     ]

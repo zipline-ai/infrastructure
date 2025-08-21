@@ -14,7 +14,7 @@ resource "google_project_service" "secrets" {
 
 # Create secrets for database credentials
 resource "google_secret_manager_secret" "db_password" {
-  secret_id = "${var.customer_name}-zipline-db-password"
+  secret_id = "${var.name_prefix}-zipline-db-password"
   replication {
     auto {}
   }
@@ -33,7 +33,7 @@ resource "random_password" "db_password" {
 
 resource "google_sql_database_instance" "temporal_instance" {
   database_version = "POSTGRES_16"
-  name             = "${var.customer_name}-zipline-temporal-instance"
+  name             = "${var.name_prefix}-zipline-temporal-instance"
   region           = var.region
 
   settings {
@@ -42,18 +42,23 @@ resource "google_sql_database_instance" "temporal_instance" {
 
     ip_configuration {
       ipv4_enabled    = true
-      private_network = google_compute_network.zipline_vpc.id
+      private_network = var.vpc_id
     }
 
     database_flags {
       name  = "max_connections"
       value = "200"
     }
+
+    backup_configuration {
+      enabled = true
+      start_time = "03:00" # UTC time for backup start
+      location = var.region
+    }
   }
 
   depends_on = [
     google_project_service.cloud_sql,
-    google_service_networking_connection.private_vpc_connection
   ]
 
   lifecycle {
@@ -78,7 +83,7 @@ resource "google_sql_user" "temporal_user" {
 
 resource "google_sql_database_instance" "orchestration_instance" {
   database_version = "POSTGRES_16"
-  name             = "${var.customer_name}-zipline-orchestration-instance"
+  name             = "${var.name_prefix}-zipline-orchestration-instance"
   region           = var.region
   settings {
     tier    = "db-g1-small"
@@ -86,18 +91,23 @@ resource "google_sql_database_instance" "orchestration_instance" {
 
     ip_configuration {
       ipv4_enabled    = true
-      private_network = google_compute_network.zipline_vpc.id
+      private_network = var.vpc_id
     }
 
     database_flags {
       name  = "max_connections"
       value = "200" # Temporal needs at least 100 connections
     }
+
+    backup_configuration {
+      enabled = true
+      start_time = "03:00" # UTC time for backup start
+      location = var.region
+    }
   }
   lifecycle {
     prevent_destroy = true
   }
-  depends_on = [google_service_networking_connection.private_vpc_connection]
 }
 
 resource "google_sql_database" "orchestration_database" {
