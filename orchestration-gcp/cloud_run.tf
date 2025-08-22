@@ -96,7 +96,7 @@ resource "google_cloud_run_v2_service" "temporal_server" {
   name     = "${var.name_prefix}-zipline-temporal-server"
   location = var.region
 
-  ingress = "INGRESS_TRAFFIC_ALL"
+  ingress = "INGRESS_TRAFFIC_INTERNAL_ONLY"
 
   template {
 
@@ -307,9 +307,13 @@ resource "google_cloud_run_v2_service_iam_member" "temporal_ui_public_access" {
 # Cloud Run v2 Service for Orchestration Temporal Worker
 
 resource "google_cloud_run_v2_service" "orchestration_temporal_worker" {
-  location     = var.region
-  name         = "${var.name_prefix}-zipline-orchestration-worker"
-  project      = data.google_project.zipline.project_id
+  location = var.region
+  name     = "${var.name_prefix}-zipline-orchestration-worker"
+  project  = data.google_project.zipline.project_id
+
+  scaling {
+    min_instance_count = 1
+  }
 
   template {
 
@@ -323,6 +327,84 @@ resource "google_cloud_run_v2_service" "orchestration_temporal_worker" {
 
 
     service_account = google_service_account.orchestration_service_account.email
+    containers {
+      # Nginx sidecar using official image
+      name  = "nginx-sidecar"
+      image = "nginx:alpine"
+
+      ports {
+        container_port = 80
+      }
+
+      # Configure nginx via environment and command override
+      command = ["/bin/sh"]
+      args = [
+        "-c",
+        <<-EOF
+        cat > /etc/nginx/conf.d/default.conf << 'NGINXEOF'
+        server {
+            listen 80;
+            server_name _;
+
+            location /health {
+                access_log off;
+                add_header Content-Type application/json;
+                return 200 '{"status": "healthy", "service": "nginx-sidecar"}';
+            }
+
+            location /ready {
+                access_log off;
+                add_header Content-Type application/json;
+                return 200 '{"status": "ready", "service": "nginx-sidecar"}';
+            }
+
+            location /live {
+                access_log off;
+                add_header Content-Type application/json;
+                return 200 '{"status": "alive", "service": "nginx-sidecar"}';
+            }
+
+            location / {
+                access_log off;
+                add_header Content-Type application/json;
+                return 200 '{"status": "ok", "service": "running"}';
+            }
+        }
+        NGINXEOF
+        nginx -g 'daemon off;'
+        EOF
+      ]
+
+      resources {
+        limits = {
+          cpu    = "100m"
+          memory = "128Mi"
+        }
+      }
+
+      # Health probes
+      startup_probe {
+        http_get {
+          path = "/health"
+          port = 80
+        }
+        initial_delay_seconds = 5
+        period_seconds        = 10
+        timeout_seconds       = 5
+        failure_threshold     = 3
+      }
+
+      liveness_probe {
+        http_get {
+          path = "/live"
+          port = 80
+        }
+        period_seconds    = 30
+        timeout_seconds   = 5
+        failure_threshold = 3
+      }
+    }
+
     containers {
       image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/orchestration-temporal-worker:${var.zipline_version}"
       name  = "orchestration-worker"
@@ -396,7 +478,7 @@ resource "google_cloud_run_v2_service" "orchestration_temporal_worker" {
 
       resources {
         limits = {
-          cpu    = "2"
+          cpu    = "2000m"
           memory = "4Gi"
         }
       }
@@ -405,7 +487,7 @@ resource "google_cloud_run_v2_service" "orchestration_temporal_worker" {
 
   lifecycle {
     ignore_changes = [
-      template[0].containers[0].image,
+      template[0].containers[1].image,
       client,
       client_version,
     ]

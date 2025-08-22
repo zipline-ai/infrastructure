@@ -29,10 +29,15 @@ resource "google_sql_database_instance" "dev_orchestration_instance" {
       name  = "max_connections"
       value = "200" # Temporal needs at least 100 connections
     }
+
+    backup_configuration {
+      enabled = true
+      start_time = "03:00" # UTC time for backup start
+      location = var.region
+    }
   }
   lifecycle {
     prevent_destroy = true
-    ignore_changes  = [settings]
   }
 }
 
@@ -61,6 +66,12 @@ resource "google_sql_database_instance" "dev_temporal_instance" {
     database_flags {
       name  = "max_connections"
       value = "200"
+    }
+
+    backup_configuration {
+      enabled = true
+      start_time = "03:00" # UTC time for backup start
+      location = var.region
     }
   }
 

@@ -51,9 +51,9 @@ resource "google_sql_database_instance" "temporal_instance" {
     }
 
     backup_configuration {
-      enabled = true
+      enabled    = true
       start_time = "03:00" # UTC time for backup start
-      location = var.region
+      location   = var.region
     }
   }
 
@@ -100,9 +100,9 @@ resource "google_sql_database_instance" "orchestration_instance" {
     }
 
     backup_configuration {
-      enabled = true
+      enabled    = true
       start_time = "03:00" # UTC time for backup start
-      location = var.region
+      location   = var.region
     }
   }
   lifecycle {

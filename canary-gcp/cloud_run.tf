@@ -355,6 +355,15 @@ resource "google_cloud_run_v2_worker_pool" "dev_orchestration_temporal_worker" {
       }
     }
   }
+
+  lifecycle {
+    ignore_changes = [
+      template[0].containers[0].image,
+      template[0].labels,
+      client,
+      client_version,
+    ]
+  }
 }
 
 ################################################################
@@ -461,6 +470,7 @@ resource "google_cloud_run_v2_service" "dev_orchestration" {
     ignore_changes = [
       template[0].containers[0].resources[0].cpu_idle,
       template[0].containers[0].image,
+      template[0].labels,
       client,
       client_version,
     ]
@@ -542,6 +552,7 @@ resource "google_cloud_run_v2_service" "dev_zipline_ui" {
     ignore_changes = [
       template[0].containers[0].resources[0].cpu_idle,
       template[0].containers[0].image,
+      template[0].labels,
       client,
       client_version,
     ]
