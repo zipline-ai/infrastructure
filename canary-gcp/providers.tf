@@ -2,7 +2,7 @@ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = "6.14.1"
+      version = "6.48.0"
     }
     local = {
       source  = "hashicorp/local"
@@ -19,4 +19,4 @@ provider "google" {
   region  = "us-central1"
 }
 
-provider "local"  {}
+provider "local" {}

@@ -9,3 +9,19 @@ variable "name" {
 variable "personnel_email" {
   default = "gcp-admin@zipline.ai"
 }
+
+variable "hub_domain" {
+  default = ""
+}
+
+variable "temporal_domain" {
+  default = ""
+}
+
+variable "zipline_ui_domain" {
+  default = ""
+}
+
+variable "artifact_prefix" {
+  default = "gs://zipline-canary-artifacts"
+}

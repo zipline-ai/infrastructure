@@ -49,9 +49,9 @@ resource "google_compute_firewall" "zipline_internal" {
 
   # Expanded source ranges for GKE
   source_ranges = [
-    "10.0.0.0/24",   # Original subnet
-    "10.1.0.0/16",   # GKE pods
-    "10.2.0.0/16"    # GKE services
+    "10.0.0.0/24", # Original subnet
+    "10.1.0.0/16", # GKE pods
+    "10.2.0.0/16"  # GKE services
   ]
   direction = "INGRESS"
 }
