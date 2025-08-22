@@ -87,3 +87,15 @@ resource "google_storage_bucket" "spark_libs" {
   location                    = var.region
   uniform_bucket_level_access = true
 }
+
+# Grant access to spark_libs bucket
+resource "google_storage_bucket_iam_member" "dataproc-spark-libs-binding" {
+  for_each = var.customer_projects
+  bucket   = google_storage_bucket.spark_libs.name
+  role     = "roles/storage.objectViewer"
+  member   = "serviceAccount:dataproc@${each.value}.iam.gserviceaccount.com"
+
+  depends_on = [
+    google_storage_bucket.spark_libs
+  ]
+}
