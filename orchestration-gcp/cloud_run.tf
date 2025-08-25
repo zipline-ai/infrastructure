@@ -89,6 +89,19 @@ resource "google_project_iam_member" "temporal_service_account_cloudsql" {
   role    = "roles/cloudsql.client"
 }
 
+
+resource "google_project_iam_member" "temporal_service_account_metric_writer" {
+  project = data.google_project.zipline.project_id
+  member  = "serviceAccount:${google_service_account.temporal_service_account.email}"
+  role    = "roles/monitoring.metricWriter"
+}
+
+resource "google_project_iam_member" "temporal_service_account_log_writer" {
+  project = data.google_project.zipline.project_id
+  member  = "serviceAccount:${google_service_account.temporal_service_account.email}"
+  role    = "roles/logging.logWriter"
+}
+
 ################################################################
 # Cloud Run v2 service for Temporal Server
 
@@ -99,6 +112,12 @@ resource "google_cloud_run_v2_service" "temporal_server" {
   ingress = "INGRESS_TRAFFIC_INTERNAL_ONLY"
 
   template {
+    annotations = {
+      "run.googleapis.com/container-dependencies" = jsonencode({
+        collector = ["temporal-server"]
+      })
+      "run.googleapis.com/sidecar" = "collector"
+    }
 
     vpc_access {
       network_interfaces {
@@ -151,6 +170,10 @@ resource "google_cloud_run_v2_service" "temporal_server" {
         name  = "SKIP_DEFAULT_NAMESPACE_CREATION"
         value = "false"
       }
+      env {
+        name = "NUM_HISTORY_SHARDS"
+        value = "512"
+      }
       # Add additional environment variables for better debugging
       env {
         name  = "LOG_LEVEL"
@@ -173,10 +196,15 @@ resource "google_cloud_run_v2_service" "temporal_server" {
         value = "168h" # 7 days
       }
 
+      env {
+        name = "PROMETHEUS_ENDPOINT"
+        value = "0.0.0.0:8080"
+      }
+
       resources {
         limits = {
-          cpu    = "2"
-          memory = "2Gi"
+          cpu    = "6"
+          memory = "24Gi"
         }
       }
 
@@ -189,6 +217,11 @@ resource "google_cloud_run_v2_service" "temporal_server" {
         timeout_seconds       = 5
         failure_threshold     = 10
       }
+
+    }
+    containers {
+      image = "us-docker.pkg.dev/cloud-ops-agents-artifacts/cloud-run-gmp-sidecar/cloud-run-gmp-sidecar:1.2.0"
+      name  = "collector"
 
     }
 
@@ -377,8 +410,8 @@ resource "google_cloud_run_v2_service" "orchestration_temporal_worker" {
 
       resources {
         limits = {
-          cpu    = "100m"
-          memory = "128Mi"
+          cpu    = "1"
+          memory = "1Gi"
         }
       }
 
@@ -478,8 +511,8 @@ resource "google_cloud_run_v2_service" "orchestration_temporal_worker" {
 
       resources {
         limits = {
-          cpu    = "2000m"
-          memory = "4Gi"
+          cpu    = "6"
+          memory = "24Gi"
         }
       }
     }
@@ -576,8 +609,8 @@ resource "google_cloud_run_v2_service" "orchestration" {
       }
       resources {
         limits = {
-          cpu    = "6000m"
-          memory = "24Gi"
+          cpu    = "8"
+          memory = "32Gi"
         }
       }
     }
