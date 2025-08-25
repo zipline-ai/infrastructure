@@ -235,36 +235,36 @@ resource "helm_release" "zipline_orchestration" {
 
 ###########################################################
 # IAP Setup for Secure Access
-resource "google_beyondcorp_app_connection" "orchestration_hub" {
-  name = "orchestration-hub-connection"
-  region = var.region
-  type = "TCP_PROXY"
+# resource "google_beyondcorp_app_connection" "orchestration_hub" {
+#   name = "orchestration-hub-connection"
+#   region = var.region
+#   type = "TCP_PROXY"
+#
+#   application_endpoint {
+#     host =  var.hub_domain != "" ? var.hub_domain : "${google_compute_global_address.orchestration_hub_ip.address}.nip.io"
+#     port = 443
+#   }
+#
+#   depends_on = [
+#     google_project_service.beyondcorp,
+#     google_container_cluster.orchestration_cluster
+#   ]
+# }
 
-  application_endpoint {
-    host =  var.hub_domain != "" ? var.hub_domain : "${google_compute_global_address.orchestration_hub_ip.address}.nip.io"
-    port = 443
-  }
-
-  depends_on = [
-    google_project_service.beyondcorp,
-    google_container_cluster.orchestration_cluster
-  ]
-}
-
-resource "google_beyondcorp_app_gateway" "orchestration_hub" {
-  name = "orchestration-hub-gateway"
-  region = var.region
-  type = "TCP_PROXY"
-
-  depends_on = [
-    google_project_service.beyondcorp
-  ]
-  lifecycle {
-    ignore_changes = [
-      host_type,
-    ]
-  }
-}
+# resource "google_beyondcorp_app_gateway" "orchestration_hub" {
+#   name = "orchestration-hub-gateway"
+#   region = var.region
+#   type = "TCP_PROXY"
+#
+#   depends_on = [
+#     google_project_service.beyondcorp
+#   ]
+#   lifecycle {
+#     ignore_changes = [
+#       host_type,
+#     ]
+#   }
+# }
 
 # resource "google_iap_client" "orchestration" {
 #   display_name = "Zipline Orchestration IAP Client"
