@@ -170,6 +170,10 @@ resource "google_cloud_run_v2_service" "temporal_server" {
         name  = "SKIP_DEFAULT_NAMESPACE_CREATION"
         value = "false"
       }
+      env {
+        name = "NUM_HISTORY_SHARDS"
+        value = "512"
+      }
       # Add additional environment variables for better debugging
       env {
         name  = "LOG_LEVEL"
