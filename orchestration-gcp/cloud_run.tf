@@ -175,8 +175,8 @@ resource "google_cloud_run_v2_service" "temporal_server" {
 
       resources {
         limits = {
-          cpu    = "2"
-          memory = "2Gi"
+          cpu    = "8"
+          memory = "32Gi"
         }
       }
 
@@ -377,8 +377,8 @@ resource "google_cloud_run_v2_service" "orchestration_temporal_worker" {
 
       resources {
         limits = {
-          cpu    = "100m"
-          memory = "128Mi"
+          cpu    = "1"
+          memory = "1Gi"
         }
       }
 
@@ -478,8 +478,8 @@ resource "google_cloud_run_v2_service" "orchestration_temporal_worker" {
 
       resources {
         limits = {
-          cpu    = "2000m"
-          memory = "4Gi"
+          cpu    = "6"
+          memory = "24Gi"
         }
       }
     }
@@ -576,8 +576,8 @@ resource "google_cloud_run_v2_service" "orchestration" {
       }
       resources {
         limits = {
-          cpu    = "6000m"
-          memory = "24Gi"
+          cpu    = "8"
+          memory = "32Gi"
         }
       }
     }

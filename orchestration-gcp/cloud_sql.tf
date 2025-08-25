@@ -37,7 +37,7 @@ resource "google_sql_database_instance" "temporal_instance" {
   region           = var.region
 
   settings {
-    tier    = "db-g1-small"
+    tier    = "db-custom-8-30720"
     edition = "ENTERPRISE"
 
     ip_configuration {
@@ -47,7 +47,7 @@ resource "google_sql_database_instance" "temporal_instance" {
 
     database_flags {
       name  = "max_connections"
-      value = "200"
+      value = "10000"
     }
 
     backup_configuration {
@@ -86,7 +86,7 @@ resource "google_sql_database_instance" "orchestration_instance" {
   name             = "${var.name_prefix}-zipline-orchestration-instance"
   region           = var.region
   settings {
-    tier    = "db-g1-small"
+    tier    = "db-custom-8-30720"
     edition = "ENTERPRISE"
 
     ip_configuration {
@@ -96,7 +96,7 @@ resource "google_sql_database_instance" "orchestration_instance" {
 
     database_flags {
       name  = "max_connections"
-      value = "200" # Temporal needs at least 100 connections
+      value = "10000" # Temporal needs at least 100 connections
     }
 
     backup_configuration {
