@@ -12,43 +12,130 @@ resource "google_project_service" "secrets" {
   disable_on_destroy         = false
 }
 
-resource "google_sql_database_instance" "orchestration-instance" {
+resource "google_sql_database_instance" "dev_orchestration_instance" {
   database_version = "POSTGRES_16"
-  name             = "orchestration-instance"
+  name             = "dev-orchestration-instance"
   region           = var.region
   settings {
     tier    = "db-g1-small"
     edition = "ENTERPRISE"
 
     ip_configuration {
-      # Enable public IP
-      ipv4_enabled = true
-
-      # Allow all networks (0.0.0.0/0)
-      authorized_networks {
-        name  = "allow-all"
-        value = "0.0.0.0/0"
-      }
+      ipv4_enabled    = true
+      private_network = google_compute_network.zipline_vpc.id
     }
 
     database_flags {
       name  = "max_connections"
       value = "200" # Temporal needs at least 100 connections
     }
+
+    backup_configuration {
+      enabled = true
+      start_time = "03:00" # UTC time for backup start
+      location = var.region
+    }
   }
   lifecycle {
     prevent_destroy = true
-    ignore_changes  = [settings]
   }
 }
 
-resource "google_sql_database" "orchestration-database" {
+resource "google_sql_database" "dev_orchestration_database" {
   name     = "execution-info"
-  instance = google_sql_database_instance.orchestration-instance.name
+  instance = google_sql_database_instance.dev_orchestration_instance.name
   lifecycle {
     prevent_destroy = true
   }
 }
+
+resource "google_sql_database_instance" "dev_temporal_instance" {
+  database_version = "POSTGRES_16"
+  name             = "dev-temporal-instance"
+  region           = var.region
+
+  settings {
+    tier    = "db-g1-small"
+    edition = "ENTERPRISE"
+
+    ip_configuration {
+      ipv4_enabled    = true
+      private_network = google_compute_network.zipline_vpc.id
+    }
+
+    database_flags {
+      name  = "max_connections"
+      value = "200"
+    }
+
+    backup_configuration {
+      enabled = true
+      start_time = "03:00" # UTC time for backup start
+      location = var.region
+    }
+  }
+
+  depends_on = [
+    google_project_service.cloud_sql,
+    google_service_networking_connection.private_vpc_connection
+  ]
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_sql_database" "dev_temporal_database" {
+  name     = "temporal"
+  instance = google_sql_database_instance.dev_temporal_instance.name
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Create secrets for database credentials
+resource "google_secret_manager_secret" "dev_db_password" {
+  secret_id = "dev-zipline-db-password"
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "dev_db_password" {
+  secret      = google_secret_manager_secret.dev_db_password.id
+  secret_data = random_password.dev_db_password.result
+}
+
+resource "random_password" "dev_db_password" {
+  length  = 16
+  special = true
+}
+
+resource "google_secret_manager_secret_iam_member" "dev_db_password_access" {
+  secret_id = google_secret_manager_secret.dev_db_password.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.dev_orchestration_service_account.email}"
+}
+
+
+resource "google_secret_manager_secret_iam_member" "dev_temporal_db_password_access" {
+  secret_id = google_secret_manager_secret.dev_db_password.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.dev_temporal_service_account.email}"
+}
+
+resource "google_sql_user" "dev_temporal_user" {
+  instance = google_sql_database_instance.dev_temporal_instance.name
+  name     = "locker_user"
+  password = random_password.dev_db_password.result
+}
+
+resource "google_sql_user" "dev_orchestration_user" {
+  instance = google_sql_database_instance.dev_orchestration_instance.name
+  name     = "locker_user"
+  password = random_password.dev_db_password.result
+}
+##################################################
 
 resource "google_sql_database_instance" "temporal_gke_instance" {
   database_version = "POSTGRES_16"
@@ -108,7 +195,7 @@ resource "google_sql_database_instance" "orchestration_gke_instance" {
   }
   lifecycle {
     prevent_destroy = true
-    ignore_changes = [settings[0].ip_configuration[0].authorized_networks]
+    ignore_changes  = [settings[0].ip_configuration[0].authorized_networks]
   }
   depends_on = [google_service_networking_connection.private_vpc_connection]
 }
@@ -138,65 +225,6 @@ resource "google_secret_manager_secret_version" "db_password" {
 resource "random_password" "db_password" {
   length  = 16
   special = true
-}
-
-resource "google_secret_manager_secret_iam_member" "db_password_access" {
-  secret_id = google_secret_manager_secret.db_password.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.cloud_run_service_account.email}"
-}
-
-
-resource "google_secret_manager_secret_iam_member" "ui_db_password_access" {
-  secret_id = google_secret_manager_secret.db_password.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.ui_cloud_run_service_account.email}"
-}
-
-resource "google_sql_user" "locker" {
-  instance = google_sql_database_instance.orchestration-instance.name
-  name     = "locker_user"
-  password = random_password.db_password.result
-}
-
-resource "google_sql_database_instance" "temporal_instance" {
-  database_version = "POSTGRES_16"
-  name             = "temporal-instance"
-  region           = var.region
-  settings {
-    tier    = "db-g1-small"
-    edition = "ENTERPRISE"
-
-    ip_configuration {
-      # Enable public IP
-      ipv4_enabled = true
-
-      # Allow all networks (0.0.0.0/0)
-      authorized_networks {
-        name  = "allow-all"
-        value = "0.0.0.0/0"
-      }
-    }
-
-    database_flags {
-      name  = "max_connections"
-      value = "200" # Temporal needs at least 100 connections
-    }
-  }
-  lifecycle {
-    ignore_changes = [settings]
-  }
-}
-
-resource "google_sql_database" "temporal_database" {
-  instance = google_sql_database_instance.temporal_instance.name
-  name     = "temporal"
-}
-
-resource "google_sql_user" "temporal_locker" {
-  instance = google_sql_database_instance.temporal_instance.name
-  name     = "locker_user"
-  password = random_password.db_password.result
 }
 
 resource "google_sql_user" "temporal_gke_locker" {

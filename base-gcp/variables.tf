@@ -31,26 +31,26 @@ variable "control_plane_service_account" {
   default = "logs-viewer@zipline-main.iam.gserviceaccount.com"
 }
 
-variable "artifact_prefix"  {
+variable "artifact_prefix" {
   description = "The GCS path prefix for storing artifacts. e.g. gs://my-bucket/artifacts"
 }
 
 variable "hub_domain" {
   description = "Optional custom domain for hub. If not set, a default domain will be used."
-  default = ""
+  default     = ""
 }
 
 variable "temporal_domain" {
   description = "Optional custom domain for the Temporal UI. If not set, a default domain will be used."
-  default = ""
+  default     = ""
 }
 
 variable "zipline_ui_domain" {
   description = "Optional custom domain for the Zipline UI. If not set, a default domain will be used."
-  default = ""
+  default     = ""
 }
 
 variable "zipline_version" {
   description = "The version of Zipline to deploy. This should correspond to a valid Docker image tag in the Zipline repository."
-  default     = "v0.9.8"
+  default     = "v0.11.5"
 }

@@ -53,17 +53,6 @@ resource "google_compute_subnetwork" "zipline_subnet" {
   region        = var.region
   network       = google_compute_network.zipline_vpc.id
   project       = data.google_project.zipline.project_id
-
-  # Add secondary IP ranges for GKE pods and services
-  secondary_ip_range {
-    range_name    = "gke-pods"
-    ip_cidr_range = "10.1.0.0/16"
-  }
-
-  secondary_ip_range {
-    range_name    = "gke-services"
-    ip_cidr_range = "10.2.0.0/16"
-  }
 }
 
 # Create firewall rule to allow internal communication
@@ -74,7 +63,7 @@ resource "google_compute_firewall" "zipline_internal" {
 
   allow {
     protocol = "tcp"
-    ports    = ["7233", "8080", "3903", "3000", "443", "10250"] # Added GKE ports
+    ports    = ["7233", "8080", "3903", "3000", "443", "10250", "80"] # Added service ports
   }
 
   allow {
@@ -83,9 +72,7 @@ resource "google_compute_firewall" "zipline_internal" {
 
   # Expanded source ranges for GKE
   source_ranges = [
-    "10.0.0.0/24",   # Original subnet
-    "10.1.0.0/16",   # GKE pods
-    "10.2.0.0/16"    # GKE services
+    "10.0.0.0/24", # Original subnet
   ]
   direction = "INGRESS"
 }

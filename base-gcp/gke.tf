@@ -266,74 +266,74 @@ resource "google_beyondcorp_app_gateway" "orchestration_hub" {
   }
 }
 
-resource "google_iap_client" "orchestration" {
-  display_name = "Zipline Orchestration IAP Client"
-  brand = "projects/${data.google_project.zipline.number}/brands/${data.google_project.zipline.number}"
-}
-
-resource "kubernetes_secret" "iap_oauth_credentials" {
-  metadata {
-    name = "iap-oauth-credentials"
-    namespace = "zipline-system"
-  }
-
-  data = {
-    client_id     = google_iap_client.orchestration.client_id
-    client_secret = google_iap_client.orchestration.secret
-  }
-
-  depends_on = [
-    helm_release.zipline_orchestration
-  ]
-}
-
-# Grant IAP access to the orchestration service account and personnel group
-resource "google_project_iam_member" "sa_iap_access" {
-  project = data.google_project.zipline.project_id
-  role    = "roles/iap.httpsResourceAccessor"
-  member  = "serviceAccount:${google_service_account.orchestration_sa.email}"
-}
-
-resource "google_project_iam_member" "personnel_iap_access" {
-  project = data.google_project.zipline.project_id
-  role    = "roles/iap.httpsResourceAccessor"
-  member  = "group:${var.personnel_email}"
-}
+# resource "google_iap_client" "orchestration" {
+#   display_name = "Zipline Orchestration IAP Client"
+#   brand = "projects/${data.google_project.zipline.number}/brands/${data.google_project.zipline.number}"
+# }
+#
+# resource "kubernetes_secret" "iap_oauth_credentials" {
+#   metadata {
+#     name = "iap-oauth-credentials"
+#     namespace = "zipline-system"
+#   }
+#
+#   data = {
+#     client_id     = google_iap_client.orchestration.client_id
+#     client_secret = google_iap_client.orchestration.secret
+#   }
+#
+#   depends_on = [
+#     helm_release.zipline_orchestration
+#   ]
+# }
+#
+# # Grant IAP access to the orchestration service account and personnel group
+# resource "google_project_iam_member" "sa_iap_access" {
+#   project = data.google_project.zipline.project_id
+#   role    = "roles/iap.httpsResourceAccessor"
+#   member  = "serviceAccount:${google_service_account.orchestration_sa.email}"
+# }
+#
+# resource "google_project_iam_member" "personnel_iap_access" {
+#   project = data.google_project.zipline.project_id
+#   role    = "roles/iap.httpsResourceAccessor"
+#   member  = "group:${var.personnel_email}"
+# }
 
 ###########################################################
 # Outputs
 
-locals {
-  setup_instructions = <<-EOT
-Zipline Orchestration Deployment Complete!
-
-Static IP Addresses:
-- Orchestration UI: ${google_compute_global_address.orchestration_ui_ip.address}
-- Temporal UI: ${google_compute_global_address.temporal_ui_ip.address}
-- Orchestration Hub: ${google_compute_global_address.orchestration_hub_ip.address}
-
-${var.zipline_ui_domain != "" || var.temporal_domain != "" || var.hub_domain != "" ?
-"DNS Setup Required:" : ""}
-${var.zipline_ui_domain != "" ? "- Point ${var.zipline_ui_domain} A record to ${google_compute_global_address.orchestration_ui_ip.address}" : ""}
-${var.temporal_domain != "" ? "- Point ${var.temporal_domain} A record to ${google_compute_global_address.temporal_ui_ip.address}" : ""}
-${var.hub_domain != "" ? "- Point ${var.hub_domain} A record to ${google_compute_global_address.orchestration_hub_ip.address}" : ""}
-
-Access URLs (available in 15-60 minutes):
-- Zipline UI: ${var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io"}
-- Temporal UI: ${var.temporal_domain != "" ? "https://${var.temporal_domain}" : "https://${google_compute_global_address.temporal_ui_ip.address}.nip.io"}
-- Orchestration Hub: ${var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${google_compute_global_address.orchestration_hub_ip.address}.nip.io"}
-
-The Google-managed certificates will be automatically issued and renewed!
-
-CLI Access:
-To use the CLI, add the following to ENVIRONMENT_VARIABLES in teams.py:
-"FRONTEND_URL": "${var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io"}"
-"HUB_URL": "${var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${google_compute_global_address.orchestration_hub_ip.address}.nip.io"}"
-"IAP_CLIENT_ID": "${google_iap_client.orchestration.client_id}"
-
-EOT
-}
-
-output "setup_instructions" {
-  value = local.setup_instructions
-}
+# locals {
+#   setup_instructions = <<-EOT
+# Zipline Orchestration Deployment Complete!
+#
+# Static IP Addresses:
+# - Orchestration UI: ${google_compute_global_address.orchestration_ui_ip.address}
+# - Temporal UI: ${google_compute_global_address.temporal_ui_ip.address}
+# - Orchestration Hub: ${google_compute_global_address.orchestration_hub_ip.address}
+#
+# ${var.zipline_ui_domain != "" || var.temporal_domain != "" || var.hub_domain != "" ?
+# "DNS Setup Required:" : ""}
+# ${var.zipline_ui_domain != "" ? "- Point ${var.zipline_ui_domain} A record to ${google_compute_global_address.orchestration_ui_ip.address}" : ""}
+# ${var.temporal_domain != "" ? "- Point ${var.temporal_domain} A record to ${google_compute_global_address.temporal_ui_ip.address}" : ""}
+# ${var.hub_domain != "" ? "- Point ${var.hub_domain} A record to ${google_compute_global_address.orchestration_hub_ip.address}" : ""}
+#
+# Access URLs (available in 15-60 minutes):
+# - Zipline UI: ${var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io"}
+# - Temporal UI: ${var.temporal_domain != "" ? "https://${var.temporal_domain}" : "https://${google_compute_global_address.temporal_ui_ip.address}.nip.io"}
+# - Orchestration Hub: ${var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${google_compute_global_address.orchestration_hub_ip.address}.nip.io"}
+#
+# The Google-managed certificates will be automatically issued and renewed!
+#
+# CLI Access:
+# To use the CLI, add the following to ENVIRONMENT_VARIABLES in teams.py:
+# "FRONTEND_URL": "${var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io"}"
+# "HUB_URL": "${var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${google_compute_global_address.orchestration_hub_ip.address}.nip.io"}"
+#  "IAP_CLIENT_ID": "${google_iap_client.orchestration.client_id}"
+#
+# EOT
+# }
+#
+# output "setup_instructions" {
+#   value = local.setup_instructions
+# }
