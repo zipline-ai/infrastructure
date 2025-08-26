@@ -52,5 +52,5 @@ variable "zipline_ui_domain" {
 
 variable "zipline_version" {
   description = "The version of Zipline to deploy. This should correspond to a valid Docker image tag in the Zipline repository."
-  default     = "v0.11.5"
+  default     = "latest"
 }
