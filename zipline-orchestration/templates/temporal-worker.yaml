@@ -48,6 +48,6 @@ spec:
             - name: TEMPORAL_NAMESPACE
               value: "default"
             - name: TABLE_PARTITIONS_DATASET
-              value: "TABLE_PARTITIONS"
+              value: "{{ .Values.bigtable.table_partitions_dataset }}"
           resources:
           {{- toYaml .Values.orchestration.worker.resources | nindent 10 }}
