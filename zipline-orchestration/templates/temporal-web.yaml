@@ -46,8 +46,8 @@ kind: Service
 metadata:
   name: temporal-web-service
   namespace: zipline-system
-  annotations:
-    cloud.google.com/backend-config: '{"default": "temporal-web-backendconfig"}'
+{{/*  annotations:*/}}
+{{/*    cloud.google.com/backend-config: '{"default": "temporal-web-backendconfig"}'*/}}
   labels:
     {{- include "zipline-orchestration.labels" . | nindent 4 }}
 spec:
@@ -59,14 +59,14 @@ spec:
       targetPort: 8080
       protocol: TCP
   type: ClusterIP
----
-apiVersion: cloud.google.com/v1
-kind: BackendConfig
-metadata:
-  name: temporal-web-backendconfig
-  namespace: zipline-system
-spec:
-  iap:
-    enabled: true
-    oauthclientCredentials:
-      secretName: iap-oauth-credentials
+{{/*---*/}}
+{{/*apiVersion: cloud.google.com/v1*/}}
+{{/*kind: BackendConfig*/}}
+{{/*metadata:*/}}
+{{/*  name: temporal-web-backendconfig*/}}
+{{/*  namespace: zipline-system*/}}
+{{/*spec:*/}}
+{{/*  iap:*/}}
+{{/*    enabled: true*/}}
+{{/*    oauthclientCredentials:*/}}
+{{/*      secretName: iap-oauth-credentials*/}}

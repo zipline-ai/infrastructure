@@ -5,5 +5,5 @@ module "base_setup" {
   customer_name = "canary"
 
   artifact_prefix = "gs://zipline-canary-artifacts"
-  zipline_version = "v0.11.2"
+  zipline_version = "212a8e714e758db2119f7cf297616c8398b5567a"
 }

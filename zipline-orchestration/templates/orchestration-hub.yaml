@@ -53,7 +53,7 @@ spec:
             - name: TABLE_PARTITIONS_DATASET
               value: "TABLE_PARTITIONS"
             - name: HUB_FRONTEND_URL
-              value: "https://{{ include "zipline-orchestration.orchestrationUIDomain" . | quote }}/"
+              value: "https://{{ include "zipline-orchestration.orchestrationUIDomain" . }}/"
 
           ports:
             - containerPort: {{ .Values.orchestration.hub.port }}
@@ -92,7 +92,7 @@ spec:
     unhealthyThreshold: 3
     type: HTTP
     requestPath: /ping
-  iap:
-    enabled: true
-    oauthclientCredentials:
-      secretName: iap-oauth-credentials
+{{/*  iap:*/}}
+{{/*    enabled: true*/}}
+{{/*    oauthclientCredentials:*/}}
+{{/*      secretName: iap-oauth-credentials*/}}

@@ -40,8 +40,8 @@ kind: Service
 metadata:
   name: orchestration-ui-service
   namespace: zipline-system
-  annotations:
-    cloud.google.com/backend-config: '{"default": "orchestration-ui-backendconfig"}'
+{{/*  annotations:*/}}
+{{/*    cloud.google.com/backend-config: '{"default": "orchestration-ui-backendconfig"}'*/}}
   labels:
     {{- include "zipline-orchestration.labels" . | nindent 4 }}
 spec:
@@ -53,14 +53,14 @@ spec:
       targetPort: {{ .Values.orchestration.ui.port }}
       protocol: TCP
   type: ClusterIP
----
-apiVersion: cloud.google.com/v1
-kind: BackendConfig
-metadata:
-  name: orchestration-ui-backendconfig
-  namespace: zipline-system
-spec:
-  iap:
-    enabled: true
-    oauthclientCredentials:
-      secretName: iap-oauth-credentials
+{{/*---*/}}
+{{/*apiVersion: cloud.google.com/v1*/}}
+{{/*kind: BackendConfig*/}}
+{{/*metadata:*/}}
+{{/*  name: orchestration-ui-backendconfig*/}}
+{{/*  namespace: zipline-system*/}}
+{{/*spec:*/}}
+{{/*  iap:*/}}
+{{/*    enabled: true*/}}
+{{/*    oauthclientCredentials:*/}}
+{{/*      secretName: iap-oauth-credentials*/}}
