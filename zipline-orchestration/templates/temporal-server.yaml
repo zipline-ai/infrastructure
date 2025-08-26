@@ -55,6 +55,8 @@ spec:
               value: "debug"
             - name: PROMETHEUS_ENDPOINT
               value: "0.0.0.0:8080"
+            - name: NUM_HISTORY_SHARDS
+              value: "512"
           ports:
             - containerPort: 7233
               name: grpc
