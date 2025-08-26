@@ -22,6 +22,7 @@ database:
 # Bigtable configuration
 bigtable:
   instance_id: ""
+  table_partitions_dataset: ""
 
 # Service account configuration
 serviceAccount:
@@ -52,8 +53,8 @@ temporal:
     replicas: 1
     resources:
       requests:
-        cpu: "1000m"
-        memory: "2Gi"
+        cpu: "8000m"
+        memory: "32Gi"
       limits:
         cpu: "2"
         memory: "4Gi"
@@ -83,8 +84,8 @@ orchestration:
     replicas: 1
     resources:
       limits:
-        cpu: "4"
-        memory: "4Gi"
+        cpu: "6"
+        memory: "24Gi"
 
   hub:
     image: "ziplineai/orchestration-hub"
@@ -92,8 +93,8 @@ orchestration:
     port: 3903
     resources:
       limits:
-        cpu: "4"
-        memory: "4Gi"
+        cpu: "8"
+        memory: "32Gi"
 
   ui:
     image: "ziplineai/web-ui"
