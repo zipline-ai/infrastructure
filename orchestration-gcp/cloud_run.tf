@@ -234,6 +234,14 @@ resource "google_cloud_run_v2_service" "temporal_server" {
     google_project_iam_member.temporal_service_account_cloudsql,
     google_project_iam_member.temporal_service_account_secretmanager,
   ]
+
+  lifecycle {
+    ignore_changes = [
+      scaling,
+      client,
+      client_version,
+    ]
+  }
 }
 
 resource "google_cloud_run_v2_service_iam_member" "temporal_ui_server_access" {
