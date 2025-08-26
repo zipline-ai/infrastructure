@@ -25,3 +25,7 @@ variable "zipline_ui_domain" {
 variable "artifact_prefix" {
   default = "gs://zipline-canary-artifacts"
 }
+
+variable "zipline_version" {
+  default = "212a8e714e758db2119f7cf297616c8398b5567a"
+}

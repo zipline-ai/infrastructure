@@ -10,15 +10,15 @@ resource "google_project_service" "iap_api" {
   service = "iap.googleapis.com"
 }
 
-# resource "google_project_service" "beyondcorp" {
-#   project = data.google_project.zipline.project_id
-#   service = "beyondcorp.googleapis.com"
-#   disable_on_destroy = false  # Prevents accidental disabling
-# }
+resource "google_project_service" "beyondcorp" {
+  project = data.google_project.zipline.project_id
+  service = "beyondcorp.googleapis.com"
+  disable_on_destroy = false  # Prevents accidental disabling
+}
 
 # GKE Autopilot Cluster
 resource "google_container_cluster" "orchestration_cluster" {
-  name     = "${var.customer_name}-zipline-cluster"
+  name     = "dev-zipline-cluster"
   location = var.region
   project  = data.google_project.zipline.project_id
 
@@ -82,15 +82,15 @@ provider "helm" {
 # Service Accounts and IAM Bindings
 
 # Google Service Account for Temporal
-resource "google_service_account" "temporal_gsa" {
-  account_id   = "temporal-sa"
+resource "google_service_account" "dev_temporal_gsa" {
+  account_id   = "dev-temporal-sa"
   display_name = "Zipline Temporal Service Account"
   project      = data.google_project.zipline.project_id
 }
 
 # Bind Kubernetes SA to Google SA for Temporal
-resource "google_service_account_iam_binding" "temporal_workload_identity" {
-  service_account_id = google_service_account.temporal_gsa.name
+resource "google_service_account_iam_binding" "dev_temporal_workload_identity" {
+  service_account_id = google_service_account.dev_temporal_gsa.name
   role               = "roles/iam.workloadIdentityUser"
 
   members = [
@@ -99,59 +99,59 @@ resource "google_service_account_iam_binding" "temporal_workload_identity" {
 }
 
 # Grant Cloud SQL access to the Temporal service account
-resource "google_project_iam_member" "temporal_cloudsql" {
+resource "google_project_iam_member" "dev_temporal_cloudsql" {
   project = data.google_project.zipline.project_id
   role    = "roles/cloudsql.client"
-  member  = "serviceAccount:${google_service_account.temporal_gsa.email}"
+  member  = "serviceAccount:${google_service_account.dev_temporal_gsa.email}"
 }
 
 # Google Service Account for Orchestration Hub and Worker
-resource "google_service_account" "orchestration_sa" {
-  account_id   = "orchestration-sa"
+resource "google_service_account" "dev_orchestration_sa" {
+  account_id   = "dev-orchestration-sa"
   display_name = "Zipline Orchestration Service Account"
   project      = data.google_project.zipline.project_id
 }
 
 # Bind Kubernetes SA to Google SA for Orchestration
-resource "google_service_account_iam_member" "orchestration_workload_identity" {
-  service_account_id = google_service_account.orchestration_sa.name
+resource "google_service_account_iam_member" "dev_orchestration_workload_identity" {
+  service_account_id = google_service_account.dev_orchestration_sa.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${data.google_project.zipline.project_id}.svc.id.goog[zipline-system/orchestration-sa]"
 }
 
 # Grant various permissions to orchestration service account
-resource "google_project_iam_member" "orchestration_cloudsql" {
+resource "google_project_iam_member" "dev_orchestration_cloudsql" {
   project = data.google_project.zipline.project_id
   role    = "roles/cloudsql.client"
-  member  = "serviceAccount:${google_service_account.orchestration_sa.email}"
+  member  = "serviceAccount:${google_service_account.dev_orchestration_sa.email}"
 }
 
-resource "google_project_iam_member" "orchestration_bigtable" {
+resource "google_project_iam_member" "dev_orchestration_bigtable" {
   project = data.google_project.zipline.project_id
   role    = "roles/bigtable.user"
-  member  = "serviceAccount:${google_service_account.orchestration_sa.email}"
+  member  = "serviceAccount:${google_service_account.dev_orchestration_sa.email}"
 }
 
-resource "google_project_iam_member" "orchestration_dataproc" {
+resource "google_project_iam_member" "dev_orchestration_dataproc" {
   project = data.google_project.zipline.project_id
-  member  = "serviceAccount:${google_service_account.orchestration_sa.email}"
+  member  = "serviceAccount:${google_service_account.dev_orchestration_sa.email}"
   role    = "roles/dataproc.editor"
 }
 
-resource "google_project_iam_member" "orchestration_storage" {
+resource "google_project_iam_member" "dev_orchestration_storage" {
   project = data.google_project.zipline.project_id
-  member  = "serviceAccount:${google_service_account.orchestration_sa.email}"
+  member  = "serviceAccount:${google_service_account.dev_orchestration_sa.email}"
   role    = "roles/storage.objectAdmin"
 }
 
-resource "google_project_iam_member" "orchestration_monitoring" {
+resource "google_project_iam_member" "dev_orchestration_monitoring" {
   project = data.google_project.zipline.project_id
-  member  = "serviceAccount:${google_service_account.orchestration_sa.email}"
+  member  = "serviceAccount:${google_service_account.dev_orchestration_sa.email}"
   role    = "roles/monitoring.editor"
 }
 
-resource "google_service_account_iam_member" "impersonation_binding" {
-  service_account_id = google_service_account.orchestration_sa.name
+resource "google_service_account_iam_member" "dev_impersonation_binding" {
+  service_account_id = google_service_account.dev_orchestration_sa.name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "group:${var.personnel_email}"
 }
@@ -159,22 +159,22 @@ resource "google_service_account_iam_member" "impersonation_binding" {
 ###########################################################
 # Static IP Addresses for Load Balancers
 
-resource "google_compute_global_address" "orchestration_ui_ip" {
-  name = "zipline-orchestration-ui-ip"
+resource "google_compute_global_address" "dev_orchestration_ui_ip" {
+  name = "zipline-dev-orchestration-ui-ip"
 }
 
-resource "google_compute_global_address" "temporal_ui_ip" {
-  name = "zipline-temporal-ui-ip"
+resource "google_compute_global_address" "dev_temporal_ui_ip" {
+  name = "zipline-dev-temporal-ui-ip"
 }
 
-resource "google_compute_global_address" "orchestration_hub_ip" {
-  name = "zipline-orchestration-hub-ip"
+resource "google_compute_global_address" "dev_orchestration_hub_ip" {
+  name = "zipline-dev-orchestration-hub-ip"
 }
 
 ###########################################################
 # Deploy Zipline Orchestration using Helm
 
-resource "helm_release" "zipline_orchestration" {
+resource "helm_release" "dev_zipline_orchestration" {
   name       = "zipline-orchestration"
   chart      = "../zipline-orchestration"  # Path to your local helm chart
   namespace  = "zipline-system"
@@ -182,33 +182,34 @@ resource "helm_release" "zipline_orchestration" {
 
   values = [
     templatefile("${path.module}/helm-values.yaml.tpl", {
-      customer_name = var.customer_name
+      customer_name = "dev"
       region = var.region
       project_id = data.google_project.zipline.project_id
       artifact_prefix = var.artifact_prefix
       version = var.zipline_version
 
-      temporal_db_host = google_sql_database_instance.temporal_instance.private_ip_address
-      temporal_db_username = google_sql_user.temporal_user.name
-      temporal_db_password = google_secret_manager_secret_version.db_password.secret_data
-      temporal_db_database = google_sql_database.temporal_database.name
+      temporal_db_host = google_sql_database_instance.dev_temporal_gke_instance.private_ip_address
+      temporal_db_username = google_sql_user.dev_temporal_gke_user.name
+      temporal_db_password = google_secret_manager_secret_version.dev_db_password.secret_data
+      temporal_db_database = google_sql_database.dev_temporal_gke_database.name
 
-      orchestration_db_host = google_sql_database_instance.orchestration_instance.private_ip_address
-      orchestration_db_username = google_sql_user.orchestration_user.name
-      orchestration_db_password = google_secret_manager_secret_version.db_password.secret_data
-      orchestration_db_database = google_sql_database.orchestration_database.name
+      orchestration_db_host = google_sql_database_instance.dev_orchestration_gke_instance.private_ip_address
+      orchestration_db_username = google_sql_user.dev_orchestration_gke_user.name
+      orchestration_db_password = google_secret_manager_secret_version.dev_db_password.secret_data
+      orchestration_db_database = google_sql_database.dev_orchestration_gke_database.name
 
-      bigtable_instance_id = google_bigtable_instance.zipline_bigtable_instance.name
+      bigtable_instance_id = module.base_setup.bigtable_instance_name
+      bigtable_table_partitions_dataset = google_bigtable_table.dev_gke_table_partitions.name
 
-      temporal_service_account = google_service_account.temporal_gsa.email
-      orchestration_service_account = google_service_account.orchestration_sa.email
+      temporal_service_account = google_service_account.dev_temporal_gsa.email
+      orchestration_service_account = google_service_account.dev_orchestration_sa.email
 
-      orchestration_ui_ip = google_compute_global_address.orchestration_ui_ip.address
-      orchestration_ui_ip_name = google_compute_global_address.orchestration_ui_ip.name
-      temporal_ui_ip = google_compute_global_address.temporal_ui_ip.address
-      temporal_ui_ip_name = google_compute_global_address.temporal_ui_ip.name
-      orchestration_hub_ip = google_compute_global_address.orchestration_hub_ip.address
-      orchestration_hub_ip_name = google_compute_global_address.orchestration_hub_ip.name
+      orchestration_ui_ip = google_compute_global_address.dev_orchestration_ui_ip.address
+      orchestration_ui_ip_name = google_compute_global_address.dev_orchestration_ui_ip.name
+      temporal_ui_ip = google_compute_global_address.dev_temporal_ui_ip.address
+      temporal_ui_ip_name = google_compute_global_address.dev_temporal_ui_ip.name
+      orchestration_hub_ip = google_compute_global_address.dev_orchestration_hub_ip.address
+      orchestration_hub_ip_name = google_compute_global_address.dev_orchestration_hub_ip.name
 
       zipline_ui_domain = var.zipline_ui_domain
       temporal_domain = var.temporal_domain
@@ -218,87 +219,87 @@ resource "helm_release" "zipline_orchestration" {
 
   depends_on = [
     google_container_cluster.orchestration_cluster,
-    google_sql_database.temporal_database,
-    google_sql_user.temporal_user,
-    google_sql_database.orchestration_database,
-    google_sql_user.orchestration_user,
-    google_service_account_iam_member.orchestration_workload_identity,
-    google_service_account_iam_binding.temporal_workload_identity,
-    google_project_iam_member.orchestration_cloudsql,
-    google_project_iam_member.temporal_cloudsql,
-    google_project_iam_member.orchestration_dataproc,
-    google_project_iam_member.orchestration_bigtable,
-    google_project_iam_member.orchestration_monitoring,
-    google_project_iam_member.orchestration_storage
+    google_sql_database.dev_temporal_gke_database,
+    google_sql_user.dev_temporal_gke_user,
+    google_sql_database.dev_orchestration_gke_database,
+    google_sql_user.dev_orchestration_gke_user,
+    google_service_account_iam_member.dev_orchestration_workload_identity,
+    google_service_account_iam_binding.dev_temporal_workload_identity,
+    google_project_iam_member.dev_orchestration_cloudsql,
+    google_project_iam_member.dev_temporal_cloudsql,
+    google_project_iam_member.dev_orchestration_dataproc,
+    google_project_iam_member.dev_orchestration_bigtable,
+    google_project_iam_member.dev_orchestration_monitoring,
+    google_project_iam_member.dev_orchestration_storage
   ]
 }
 
 ###########################################################
 # IAP Setup for Secure Access
-# resource "google_beyondcorp_app_connection" "orchestration_hub" {
-#   name = "orchestration-hub-connection"
-#   region = var.region
-#   type = "TCP_PROXY"
-#
-#   application_endpoint {
-#     host =  var.hub_domain != "" ? var.hub_domain : "${google_compute_global_address.orchestration_hub_ip.address}.nip.io"
-#     port = 443
-#   }
-#
-#   depends_on = [
-#     google_project_service.beyondcorp,
-#     google_container_cluster.orchestration_cluster
-#   ]
-# }
+resource "google_beyondcorp_app_connection" "orchestration_hub" {
+  name = "orchestration-hub-connection"
+  region = var.region
+  type = "TCP_PROXY"
 
-# resource "google_beyondcorp_app_gateway" "orchestration_hub" {
-#   name = "orchestration-hub-gateway"
-#   region = var.region
-#   type = "TCP_PROXY"
-#
-#   depends_on = [
-#     google_project_service.beyondcorp
-#   ]
-#   lifecycle {
-#     ignore_changes = [
-#       host_type,
-#     ]
-#   }
-# }
+  application_endpoint {
+    host =  var.hub_domain != "" ? var.hub_domain : "${google_compute_global_address.dev_orchestration_hub_ip.address}.nip.io"
+    port = 443
+  }
 
-# resource "google_iap_client" "orchestration" {
-#   display_name = "Zipline Orchestration IAP Client"
-#   brand = "projects/${data.google_project.zipline.number}/brands/${data.google_project.zipline.number}"
-# }
-#
-# resource "kubernetes_secret" "iap_oauth_credentials" {
-#   metadata {
-#     name = "iap-oauth-credentials"
-#     namespace = "zipline-system"
-#   }
-#
-#   data = {
-#     client_id     = google_iap_client.orchestration.client_id
-#     client_secret = google_iap_client.orchestration.secret
-#   }
-#
-#   depends_on = [
-#     helm_release.zipline_orchestration
-#   ]
-# }
-#
-# # Grant IAP access to the orchestration service account and personnel group
-# resource "google_project_iam_member" "sa_iap_access" {
-#   project = data.google_project.zipline.project_id
-#   role    = "roles/iap.httpsResourceAccessor"
-#   member  = "serviceAccount:${google_service_account.orchestration_sa.email}"
-# }
-#
-# resource "google_project_iam_member" "personnel_iap_access" {
-#   project = data.google_project.zipline.project_id
-#   role    = "roles/iap.httpsResourceAccessor"
-#   member  = "group:${var.personnel_email}"
-# }
+  depends_on = [
+    google_project_service.beyondcorp,
+    google_container_cluster.orchestration_cluster
+  ]
+}
+
+resource "google_beyondcorp_app_gateway" "orchestration_hub" {
+  name = "orchestration-hub-gateway"
+  region = var.region
+  type = "TCP_PROXY"
+
+  depends_on = [
+    google_project_service.beyondcorp
+  ]
+  lifecycle {
+    ignore_changes = [
+      host_type,
+    ]
+  }
+}
+
+resource "google_iap_client" "orchestration" {
+  display_name = "Zipline Orchestration IAP Client"
+  brand = "projects/${data.google_project.zipline.number}/brands/${data.google_project.zipline.number}"
+}
+
+resource "kubernetes_secret" "iap_oauth_credentials" {
+  metadata {
+    name = "iap-oauth-credentials"
+    namespace = "zipline-system"
+  }
+
+  data = {
+    client_id     = google_iap_client.orchestration.client_id
+    client_secret = google_iap_client.orchestration.secret
+  }
+
+  depends_on = [
+    helm_release.dev_zipline_orchestration
+  ]
+}
+
+# Grant IAP access to the orchestration service account and personnel group
+resource "google_project_iam_member" "sa_iap_access" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/iap.httpsResourceAccessor"
+  member  = "serviceAccount:${google_service_account.dev_orchestration_sa.email}"
+}
+
+resource "google_project_iam_member" "personnel_iap_access" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/iap.httpsResourceAccessor"
+  member  = "group:${var.personnel_email}"
+}
 
 ###########################################################
 # Outputs

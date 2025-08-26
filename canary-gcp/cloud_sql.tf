@@ -137,9 +137,9 @@ resource "google_sql_user" "dev_orchestration_user" {
 }
 ##################################################
 
-resource "google_sql_database_instance" "temporal_gke_instance" {
+resource "google_sql_database_instance" "dev_temporal_gke_instance" {
   database_version = "POSTGRES_16"
-  name             = "temporal-gke-instance"
+  name             = "dev-temporal-gke-instance"
   region           = var.region
 
   settings {
@@ -167,17 +167,17 @@ resource "google_sql_database_instance" "temporal_gke_instance" {
   }
 }
 
-resource "google_sql_database" "temporal_gke_database" {
+resource "google_sql_database" "dev_temporal_gke_database" {
   name     = "temporal"
-  instance = google_sql_database_instance.temporal_gke_instance.name
+  instance = google_sql_database_instance.dev_temporal_gke_instance.name
   lifecycle {
     prevent_destroy = true
   }
 }
 
-resource "google_sql_database_instance" "orchestration_gke_instance" {
+resource "google_sql_database_instance" "dev_orchestration_gke_instance" {
   database_version = "POSTGRES_16"
-  name             = "orchestration-gke-instance"
+  name             = "dev-orchestration-gke-instance"
   region           = var.region
   settings {
     tier    = "db-g1-small"
@@ -200,9 +200,9 @@ resource "google_sql_database_instance" "orchestration_gke_instance" {
   depends_on = [google_service_networking_connection.private_vpc_connection]
 }
 
-resource "google_sql_database" "orchestration_gke_database" {
+resource "google_sql_database" "dev_orchestration_gke_database" {
   name     = "execution-info"
-  instance = google_sql_database_instance.orchestration_gke_instance.name
+  instance = google_sql_database_instance.dev_orchestration_gke_instance.name
   lifecycle {
     prevent_destroy = true
   }
@@ -210,31 +210,31 @@ resource "google_sql_database" "orchestration_gke_database" {
 
 
 # Create secrets for database credentials
-resource "google_secret_manager_secret" "db_password" {
-  secret_id = "zipline-db-password"
+resource "google_secret_manager_secret" "dev_gke_db_password" {
+  secret_id = "dev-gke-zipline-db-password"
   replication {
     auto {}
   }
 }
 
-resource "google_secret_manager_secret_version" "db_password" {
-  secret      = google_secret_manager_secret.db_password.id
-  secret_data = random_password.db_password.result
+resource "google_secret_manager_secret_version" "dev_gke_db_password" {
+  secret      = google_secret_manager_secret.dev_gke_db_password.id
+  secret_data = random_password.dev_gke_db_password.result
 }
 
-resource "random_password" "db_password" {
+resource "random_password" "dev_gke_db_password" {
   length  = 16
   special = true
 }
 
-resource "google_sql_user" "temporal_gke_locker" {
-  instance = google_sql_database_instance.temporal_gke_instance.name
+resource "google_sql_user" "dev_temporal_gke_user" {
+  instance = google_sql_database_instance.dev_temporal_gke_instance.name
   name     = "locker_user"
-  password = random_password.db_password.result
+  password = random_password.dev_gke_db_password.result
 }
 
-resource "google_sql_user" "orchestration_gke_locker" {
-  instance = google_sql_database_instance.orchestration_gke_instance.name
+resource "google_sql_user" "dev_orchestration_gke_user" {
+  instance = google_sql_database_instance.dev_orchestration_gke_instance.name
   name     = "locker_user"
-  password = random_password.db_password.result
+  password = random_password.dev_gke_db_password.result
 }

@@ -22,6 +22,7 @@ database:
 # Bigtable configuration
 bigtable:
   instance_id: ""
+  table_partitions_dataset: "TABLE_PARTITIONS"
 
 # Service account configuration
 serviceAccount:
