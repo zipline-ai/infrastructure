@@ -64,6 +64,6 @@ spec:
   selector:
     matchLabels:
       app: orchestration-temporal-worker
-  podMetricsEndpoints:
+  endpoints:
     - port: metrics
       interval: 30s

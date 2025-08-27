@@ -91,6 +91,6 @@ spec:
   selector:
     matchLabels:
       app: temporal-server
-  podMetricsEndpoints:
+  endpoints:
     - port: http
       interval: 30s
