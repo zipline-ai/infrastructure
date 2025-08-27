@@ -17,7 +17,7 @@ resource "google_project_service" "beyondcorp" {
 }
 
 # GKE Autopilot Cluster
-resource "google_container_cluster" "orchestration_cluster" {
+resource "google_container_cluster" "dev_orchestration_cluster" {
   name     = "dev-zipline-cluster"
   location = var.region
   project  = data.google_project.zipline.project_id
