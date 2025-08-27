@@ -10,7 +10,7 @@ module "orchestration" {
   artifact_prefix = var.artifact_prefix
   bigtable_instance_name = google_bigtable_instance.zipline_bigtable_instance.name
   logs_bucket_name = google_storage_bucket.zipline-logs.name
-  table_partitions_dataset = google_bigtable_table.table_partitions.name
+  table_partitions_dataset = var.table_partitions_dataset
 
   vpc_id = google_compute_network.zipline_vpc.id
   vpc_name = google_compute_network.zipline_vpc.name

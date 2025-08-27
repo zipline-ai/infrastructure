@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zipline-orchestration-ui
+  namespace: zipline-system
+  labels:
+    app: zipline-ui
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.orchestration.ui.replicas }}
+  selector:
+    matchLabels:
+      app: zipline-ui
+  template:
+    metadata:
+      labels:
+        app: zipline-ui
+    spec:
+      serviceAccountName: orchestration-sa
+      containers:
+        - name: web-ui
+          image: {{ .Values.orchestration.ui.image }}
+          env:
+            - name: API_BASE_URL
+              value: "http://orchestration-hub-service"
+            - name: DATABASE_URL
+              value: "postgres://{{ .Values.database.orchestration.username }}@{{ .Values.database.orchestration.host }}:5432/{{ .Values.database.orchestration.database }}"
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: orchestration-db-secret
+                  key: password
+          resources:
+          {{- toYaml .Values.orchestration.ui.resources | nindent 12 }}
+          ports:
+            - containerPort: {{ .Values.orchestration.ui.port }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestration-ui-service
+  namespace: zipline-system
+{{/*  annotations:*/}}
+{{/*    cloud.google.com/backend-config: '{"default": "orchestration-ui-backendconfig"}'*/}}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: zipline-ui
+  ports:
+    - name: http
+      port: 80
+      targetPort: {{ .Values.orchestration.ui.port }}
+      protocol: TCP
+  type: ClusterIP
+{{/*---*/}}
+{{/*apiVersion: cloud.google.com/v1*/}}
+{{/*kind: BackendConfig*/}}
+{{/*metadata:*/}}
+{{/*  name: orchestration-ui-backendconfig*/}}
+{{/*  namespace: zipline-system*/}}
+{{/*spec:*/}}
+{{/*  iap:*/}}
+{{/*    enabled: true*/}}
+{{/*    oauthclientCredentials:*/}}
+{{/*      secretName: iap-oauth-credentials*/}}

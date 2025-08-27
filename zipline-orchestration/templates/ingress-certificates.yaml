@@ -1,0 +1,38 @@
+# Orchestration UI Certificate - nip.io Domain
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: zipline-ui-ssl
+  namespace: zipline-system
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  domains:
+    - {{ include "zipline-orchestration.orchestrationUIDomain" . }}
+---
+
+# Temporal UI Certificate
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: temporal-ui-ssl
+  namespace: zipline-system
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  domains:
+    - {{ include "zipline-orchestration.temporalUIDomain" . }}
+---
+
+# Orchestration Hub Certificate - Custom Domain
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: orchestration-hub-ssl
+  namespace: zipline-system
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  domains:
+    - {{ include "zipline-orchestration.orchestrationHubDomain" . }}
+---

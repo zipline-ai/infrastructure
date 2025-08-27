@@ -14,7 +14,7 @@ resource "google_project_service" "secrets" {
 
 # Create secrets for database credentials
 resource "google_secret_manager_secret" "db_password" {
-  secret_id = "${var.name_prefix}-zipline-db-password"
+  secret_id = "${var.customer_name}-gke-zipline-db-password"
   replication {
     auto {}
   }
@@ -33,21 +33,21 @@ resource "random_password" "db_password" {
 
 resource "google_sql_database_instance" "temporal_instance" {
   database_version = "POSTGRES_16"
-  name             = "${var.name_prefix}-zipline-temporal-instance"
+  name             = "${var.customer_name}-gke-zipline-temporal-instance"
   region           = var.region
 
   settings {
-    tier    = "db-custom-8-30720"
+    tier    = "db-g1-small"
     edition = "ENTERPRISE"
 
     ip_configuration {
       ipv4_enabled    = true
-      private_network = var.vpc_id
+      private_network = google_compute_network.zipline_vpc.id
     }
 
     database_flags {
       name  = "max_connections"
-      value = "10000"
+      value = "200"
     }
 
     backup_configuration {
@@ -83,20 +83,20 @@ resource "google_sql_user" "temporal_user" {
 
 resource "google_sql_database_instance" "orchestration_instance" {
   database_version = "POSTGRES_16"
-  name             = "${var.name_prefix}-zipline-orchestration-instance"
+  name             = "${var.customer_name}-gke-zipline-orchestration-instance"
   region           = var.region
   settings {
-    tier    = "db-custom-8-30720"
+    tier    = "db-g1-small"
     edition = "ENTERPRISE"
 
     ip_configuration {
       ipv4_enabled    = true
-      private_network = var.vpc_id
+      private_network = google_compute_network.zipline_vpc.id
     }
 
     database_flags {
       name  = "max_connections"
-      value = "10000" # Temporal needs at least 100 connections
+      value = "200" # Temporal needs at least 100 connections
     }
 
     backup_configuration {

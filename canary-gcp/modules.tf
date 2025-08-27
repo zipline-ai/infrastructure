@@ -5,5 +5,6 @@ module "base_setup" {
   customer_name = "canary"
 
   artifact_prefix = "gs://zipline-canary-artifacts"
-  zipline_version = "v0.11.2"
+  zipline_version = "latest"
+  table_partitions_dataset = google_bigtable_table.table_partitions_ci.name
 }
