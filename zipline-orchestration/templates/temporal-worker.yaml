@@ -20,6 +20,9 @@ spec:
       containers:
         - name: orchestration-temporal-worker
           image: "{{ .Values.orchestration.worker.image }}:{{ .Values.global.version }}"
+          ports:
+            - containerPort: 8077
+              name: metrics
           env:
             - name: DB_URL
               value: "jdbc:postgresql://{{ .Values.database.orchestration.host }}:5432/{{ .Values.database.orchestration.database }}"
@@ -49,11 +52,8 @@ spec:
               value: "default"
             - name: TABLE_PARTITIONS_DATASET
               value: "{{ .Values.bigtable.table_partitions_dataset }}"
-          ports:
-            - containerPort: 8077
-              name: metrics
           resources:
-          {{- toYaml .Values.orchestration.worker.resources | nindent 10 }}
+          {{- toYaml .Values.orchestration.worker.resources | nindent 12 }}
 ---
 apiVersion: monitoring.googleapis.com/v1
 kind: PodMonitoring

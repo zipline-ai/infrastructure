@@ -58,7 +58,7 @@ spec:
           ports:
             - containerPort: {{ .Values.orchestration.hub.port }}
           resources:
-          {{- toYaml .Values.orchestration.hub.resources | nindent 10 }}
+          {{- toYaml .Values.orchestration.hub.resources | nindent 12 }}
 ---
 apiVersion: v1
 kind: Service

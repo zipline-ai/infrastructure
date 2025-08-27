@@ -31,7 +31,7 @@ spec:
                   name: orchestration-db-secret
                   key: password
           resources:
-          {{- toYaml .Values.orchestration.ui.resources | nindent 10 }}
+          {{- toYaml .Values.orchestration.ui.resources | nindent 12 }}
           ports:
             - containerPort: {{ .Values.orchestration.ui.port }}
 ---
