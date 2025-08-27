@@ -22,6 +22,25 @@ resource "google_bigtable_gc_policy" "dev_table_partitions_gc_policy" {
   }
 }
 
+resource "google_bigtable_table" "table_partitions_ci" {
+  instance_name = module.base_setup.bigtable_instance_name
+  name          = "TABLE_PARTITIONS_CI"
+  column_family {
+    family = "cf"
+  }
+}
+
+resource "google_bigtable_gc_policy" "table_partitions_ci_gc_policy" {
+  instance_name = module.base_setup.bigtable_instance_name
+  table         = google_bigtable_table.table_partitions_ci.name
+  column_family = "cf"
+
+  max_age {
+    duration = "120h"
+  }
+}
+
+
 resource "google_bigtable_table" "dev_gke_table_partitions" {
   instance_name = module.base_setup.bigtable_instance_name
   name          = "TABLE_PARTITIONS_DEV_GKE"

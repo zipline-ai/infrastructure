@@ -27,7 +27,7 @@ spec:
             - name: TEMPORAL_ADDRESS
               value: "temporal-service:7233"
           resources:
-          {{- toYaml .Values.temporal.web.resources | nindent 10 }}
+          {{- toYaml .Values.temporal.web.resources | nindent 12 }}
           livenessProbe:
             httpGet:
               path: /

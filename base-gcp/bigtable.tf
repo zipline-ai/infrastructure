@@ -119,6 +119,25 @@ resource "google_bigtable_gc_policy" "table_partitions_gc_policy" {
   }
 }
 
+resource "google_bigtable_table" "gke_table_partitions" {
+  instance_name = google_bigtable_instance.zipline_bigtable_instance.name
+  name          = "TABLE_PARTITIONS_GKE"
+  column_family {
+    family = "cf"
+  }
+}
+
+resource "google_bigtable_gc_policy" "gke_table_partitions_gc_policy" {
+  instance_name = google_bigtable_instance.zipline_bigtable_instance.name
+  table         = google_bigtable_table.gke_table_partitions.name
+  column_family = "cf"
+
+  max_age {
+    duration = "120h"
+  }
+}
+
+
 resource "google_bigtable_app_profile" "groupby_ingest" {
   instance       = google_bigtable_instance.zipline_bigtable_instance.name
   app_profile_id = "GROUPBY_INGEST"
