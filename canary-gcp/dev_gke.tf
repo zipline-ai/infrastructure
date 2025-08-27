@@ -64,17 +64,17 @@ data "google_client_config" "default" {}
 
 # Configure Kubernetes provider
 provider "kubernetes" {
-  host                   = "https://${google_container_cluster.orchestration_cluster.endpoint}"
+  host                   = "https://${google_container_cluster.dev_orchestration_cluster.endpoint}"
   token                  = data.google_client_config.default.access_token
-  cluster_ca_certificate = base64decode(google_container_cluster.orchestration_cluster.master_auth[0].cluster_ca_certificate)
+  cluster_ca_certificate = base64decode(google_container_cluster.dev_orchestration_cluster.master_auth[0].cluster_ca_certificate)
 }
 
 # Configure Helm provider
 provider "helm" {
   kubernetes = {
-    host                   = "https://${google_container_cluster.orchestration_cluster.endpoint}"
+    host                   = "https://${google_container_cluster.dev_orchestration_cluster.endpoint}"
     token                  = data.google_client_config.default.access_token
-    cluster_ca_certificate = base64decode(google_container_cluster.orchestration_cluster.master_auth[0].cluster_ca_certificate)
+    cluster_ca_certificate = base64decode(google_container_cluster.dev_orchestration_cluster.master_auth[0].cluster_ca_certificate)
   }
 }
 
@@ -218,7 +218,7 @@ resource "helm_release" "dev_zipline_orchestration" {
   ]
 
   depends_on = [
-    google_container_cluster.orchestration_cluster,
+    google_container_cluster.dev_orchestration_cluster,
     google_sql_database.dev_temporal_gke_database,
     google_sql_user.dev_temporal_gke_user,
     google_sql_database.dev_orchestration_gke_database,
@@ -248,7 +248,7 @@ resource "google_beyondcorp_app_connection" "orchestration_hub" {
 
   depends_on = [
     google_project_service.beyondcorp,
-    google_container_cluster.orchestration_cluster
+    google_container_cluster.dev_orchestration_cluster
   ]
 }
 
@@ -304,37 +304,37 @@ resource "google_project_iam_member" "personnel_iap_access" {
 ###########################################################
 # Outputs
 
-# locals {
-#   setup_instructions = <<-EOT
-# Zipline Orchestration Deployment Complete!
-#
-# Static IP Addresses:
-# - Orchestration UI: ${google_compute_global_address.orchestration_ui_ip.address}
-# - Temporal UI: ${google_compute_global_address.temporal_ui_ip.address}
-# - Orchestration Hub: ${google_compute_global_address.orchestration_hub_ip.address}
-#
-# ${var.zipline_ui_domain != "" || var.temporal_domain != "" || var.hub_domain != "" ?
-# "DNS Setup Required:" : ""}
-# ${var.zipline_ui_domain != "" ? "- Point ${var.zipline_ui_domain} A record to ${google_compute_global_address.orchestration_ui_ip.address}" : ""}
-# ${var.temporal_domain != "" ? "- Point ${var.temporal_domain} A record to ${google_compute_global_address.temporal_ui_ip.address}" : ""}
-# ${var.hub_domain != "" ? "- Point ${var.hub_domain} A record to ${google_compute_global_address.orchestration_hub_ip.address}" : ""}
-#
-# Access URLs (available in 15-60 minutes):
-# - Zipline UI: ${var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io"}
-# - Temporal UI: ${var.temporal_domain != "" ? "https://${var.temporal_domain}" : "https://${google_compute_global_address.temporal_ui_ip.address}.nip.io"}
-# - Orchestration Hub: ${var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${google_compute_global_address.orchestration_hub_ip.address}.nip.io"}
-#
-# The Google-managed certificates will be automatically issued and renewed!
-#
-# CLI Access:
-# To use the CLI, add the following to ENVIRONMENT_VARIABLES in teams.py:
-# "FRONTEND_URL": "${var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io"}"
-# "HUB_URL": "${var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${google_compute_global_address.orchestration_hub_ip.address}.nip.io"}"
-#  "IAP_CLIENT_ID": "${google_iap_client.orchestration.client_id}"
-#
-# EOT
-# }
-#
-# output "setup_instructions" {
-#   value = local.setup_instructions
-# }
+locals {
+  setup_instructions = <<-EOT
+Zipline Orchestration Deployment Complete!
+
+Static IP Addresses:
+- Orchestration UI: ${google_compute_global_address.dev_orchestration_ui_ip.address}
+- Temporal UI: ${google_compute_global_address.dev_temporal_ui_ip.address}
+- Orchestration Hub: ${google_compute_global_address.dev_orchestration_hub_ip.address}
+
+${var.zipline_ui_domain != "" || var.temporal_domain != "" || var.hub_domain != "" ?
+"DNS Setup Required:" : ""}
+${var.zipline_ui_domain != "" ? "- Point ${var.zipline_ui_domain} A record to ${google_compute_global_address.dev_orchestration_ui_ip.address}" : ""}
+${var.temporal_domain != "" ? "- Point ${var.temporal_domain} A record to ${google_compute_global_address.dev_temporal_ui_ip.address}" : ""}
+${var.hub_domain != "" ? "- Point ${var.hub_domain} A record to ${google_compute_global_address.dev_orchestration_hub_ip.address}" : ""}
+
+Access URLs (available in 15-60 minutes):
+- Zipline UI: ${var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.dev_orchestration_ui_ip.address}.nip.io"}
+- Temporal UI: ${var.temporal_domain != "" ? "https://${var.temporal_domain}" : "https://${google_compute_global_address.dev_temporal_ui_ip.address}.nip.io"}
+- Orchestration Hub: ${var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${google_compute_global_address.dev_orchestration_hub_ip.address}.nip.io"}
+
+The Google-managed certificates will be automatically issued and renewed!
+
+CLI Access:
+To use the CLI, add the following to ENVIRONMENT_VARIABLES in teams.py:
+"FRONTEND_URL": "${var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.dev_orchestration_ui_ip.address}.nip.io"}"
+"HUB_URL": "${var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${google_compute_global_address.dev_orchestration_hub_ip.address}.nip.io"}"
+ "IAP_CLIENT_ID": "${google_iap_client.orchestration.client_id}"
+
+EOT
+}
+
+output "setup_instructions" {
+  value = local.setup_instructions
+}
