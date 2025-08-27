@@ -54,3 +54,8 @@ variable "zipline_version" {
   description = "The version of Zipline to deploy. This should correspond to a valid Docker image tag in the Zipline repository."
   default     = "latest"
 }
+
+variable "table_partitions_dataset" {
+  description = "The Bigtable table to use for storing table partitions."
+  default     = "TABLE_PARTITIONS"
+}

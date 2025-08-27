@@ -606,7 +606,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
       }
       env {
         name  = "TABLE_PARTITIONS_DATASET"
-        value = "TABLE_PARTITIONS_CI"
+        value = var.table_partitions_dataset
       }
       env {
         name  = "USE_HTTPS"
