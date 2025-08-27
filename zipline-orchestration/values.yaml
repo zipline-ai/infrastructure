@@ -59,13 +59,6 @@ temporal:
         cpu: "2"
         memory: "4Gi"
 
-  collector:
-    image: "us-docker.pkg.dev/cloud-ops-agents-artifacts/cloud-run-gmp-sidecar/cloud-run-gmp-sidecar:1.2.0"
-    resources:
-      limits:
-        memory: "1Gi"
-        cpu: "1000m"
-
   web:
     image: "temporalio/ui:2.39.0"
     replicas: 1

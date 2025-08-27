@@ -49,5 +49,21 @@ spec:
               value: "default"
             - name: TABLE_PARTITIONS_DATASET
               value: "{{ .Values.bigtable.table_partitions_dataset }}"
+          ports:
+            - containerPort: 8077
+              name: metrics
           resources:
           {{- toYaml .Values.orchestration.worker.resources | nindent 10 }}
+---
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: temporal-worker-podmonitoring
+  namespace: zipline-system
+spec:
+  selector:
+    matchLabels:
+      app: orchestration-temporal-worker
+  podMetricsEndpoints:
+    - port: metrics
+      interval: 30s
