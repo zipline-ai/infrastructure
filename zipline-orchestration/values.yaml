@@ -56,8 +56,8 @@ temporal:
         cpu: "8000m"
         memory: "32Gi"
       limits:
-        cpu: "2"
-        memory: "4Gi"
+        cpu: "8"
+        memory: "16Gi"
 
   web:
     image: "temporalio/ui:2.39.0"
