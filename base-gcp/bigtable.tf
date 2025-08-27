@@ -152,24 +152,6 @@ resource "google_bigtable_app_profile" "groupby_ingest" {
   ignore_warnings = true
 }
 
-resource "google_bigtable_table" "gke_table_partitions" {
-  instance_name = google_bigtable_instance.zipline_bigtable_instance.name
-  name          = "TABLE_PARTITIONS_GKE"
-  column_family {
-    family = "cf"
-  }
-}
-
-resource "google_bigtable_gc_policy" "gke_table_partitions_gc_policy" {
-  instance_name = google_bigtable_instance.zipline_bigtable_instance.name
-  table         = google_bigtable_table.gke_table_partitions.name
-  column_family = "cf"
-
-  max_age {
-    duration = "120h"
-  }
-}
-
 output "bigtable_instance_name" {
   value = google_bigtable_instance.zipline_bigtable_instance.name
 }
