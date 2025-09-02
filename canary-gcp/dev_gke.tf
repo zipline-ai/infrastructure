@@ -8,12 +8,15 @@ resource "google_project_service" "container_api" {
 resource "google_project_service" "iap_api" {
   project = data.google_project.zipline.project_id
   service = "iap.googleapis.com"
+  disable_dependent_services = false
+  disable_on_destroy         = false
 }
 
 resource "google_project_service" "beyondcorp" {
   project = data.google_project.zipline.project_id
   service = "beyondcorp.googleapis.com"
-  disable_on_destroy = false  # Prevents accidental disabling
+  disable_dependent_services = false
+  disable_on_destroy         = false
 }
 
 # GKE Autopilot Cluster
@@ -62,15 +65,17 @@ resource "google_container_cluster" "dev_orchestration_cluster" {
 # Get cluster credentials for Kubernetes provider
 data "google_client_config" "default" {}
 
-# Configure Kubernetes provider
-provider "kubernetes" {
-  host                   = "https://${google_container_cluster.dev_orchestration_cluster.endpoint}"
-  token                  = data.google_client_config.default.access_token
-  cluster_ca_certificate = base64decode(google_container_cluster.dev_orchestration_cluster.master_auth[0].cluster_ca_certificate)
-}
+# # Configure Kubernetes provider
+# provider "kubernetes" {
+#   alias = "dev_orchestration"
+#   host                   = "https://${google_container_cluster.dev_orchestration_cluster.endpoint}"
+#   token                  = data.google_client_config.default.access_token
+#   cluster_ca_certificate = base64decode(google_container_cluster.dev_orchestration_cluster.master_auth[0].cluster_ca_certificate)
+# }
 
 # Configure Helm provider
 provider "helm" {
+  alias = "dev_orchestration"
   kubernetes = {
     host                   = "https://${google_container_cluster.dev_orchestration_cluster.endpoint}"
     token                  = data.google_client_config.default.access_token
@@ -175,6 +180,7 @@ resource "google_compute_global_address" "dev_orchestration_hub_ip" {
 # Deploy Zipline Orchestration using Helm
 
 resource "helm_release" "dev_zipline_orchestration" {
+  provider   = helm.dev_orchestration
   name       = "zipline-orchestration"
   chart      = "../zipline-orchestration"  # Path to your local helm chart
   namespace  = "zipline-system"
@@ -190,12 +196,12 @@ resource "helm_release" "dev_zipline_orchestration" {
 
       temporal_db_host = google_sql_database_instance.dev_temporal_gke_instance.private_ip_address
       temporal_db_username = google_sql_user.dev_temporal_gke_user.name
-      temporal_db_password = google_secret_manager_secret_version.dev_db_password.secret_data
+      temporal_db_password = google_secret_manager_secret_version.dev_gke_db_password.secret_data
       temporal_db_database = google_sql_database.dev_temporal_gke_database.name
 
       orchestration_db_host = google_sql_database_instance.dev_orchestration_gke_instance.private_ip_address
       orchestration_db_username = google_sql_user.dev_orchestration_gke_user.name
-      orchestration_db_password = google_secret_manager_secret_version.dev_db_password.secret_data
+      orchestration_db_password = google_secret_manager_secret_version.dev_gke_db_password.secret_data
       orchestration_db_database = google_sql_database.dev_orchestration_gke_database.name
 
       bigtable_instance_id = module.base_setup.bigtable_instance_name
@@ -267,27 +273,6 @@ resource "google_beyondcorp_app_gateway" "orchestration_hub" {
   }
 }
 
-resource "google_iap_client" "orchestration" {
-  display_name = "Zipline Orchestration IAP Client"
-  brand = "projects/${data.google_project.zipline.number}/brands/${data.google_project.zipline.number}"
-}
-
-resource "kubernetes_secret" "iap_oauth_credentials" {
-  metadata {
-    name = "iap-oauth-credentials"
-    namespace = "zipline-system"
-  }
-
-  data = {
-    client_id     = google_iap_client.orchestration.client_id
-    client_secret = google_iap_client.orchestration.secret
-  }
-
-  depends_on = [
-    helm_release.dev_zipline_orchestration
-  ]
-}
-
 # Grant IAP access to the orchestration service account and personnel group
 resource "google_project_iam_member" "sa_iap_access" {
   project = data.google_project.zipline.project_id
@@ -330,7 +315,6 @@ CLI Access:
 To use the CLI, add the following to ENVIRONMENT_VARIABLES in teams.py:
 "FRONTEND_URL": "${var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.dev_orchestration_ui_ip.address}.nip.io"}"
 "HUB_URL": "${var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${google_compute_global_address.dev_orchestration_hub_ip.address}.nip.io"}"
- "IAP_CLIENT_ID": "${google_iap_client.orchestration.client_id}"
 
 EOT
 }

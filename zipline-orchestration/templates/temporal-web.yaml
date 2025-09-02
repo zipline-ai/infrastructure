@@ -68,5 +68,3 @@ metadata:
 spec:
   iap:
     enabled: true
-    oauthclientCredentials:
-      secretName: iap-oauth-credentials

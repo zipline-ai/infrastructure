@@ -240,6 +240,7 @@ resource "google_cloud_run_v2_service" "temporal_server" {
       scaling,
       client,
       client_version,
+      template[0].containers[1]
     ]
   }
 }
@@ -516,8 +517,16 @@ resource "google_cloud_run_v2_service" "orchestration_temporal_worker" {
         name  = "USE_HTTPS"
         value = "true"
       }
+      env {
+        name  = "MAX_CONCURRENT_ACTIVITY_TASK_POLLERS"
+        value = "50"
+      }
+      env {
+        name  = "MAX_CONCURRENT_WORKFLOW_TASK_POLLERS"
+        value = "50"
+      }
 
-      resources {
+resources {
         limits = {
           cpu    = "6"
           memory = "24Gi"
@@ -528,6 +537,7 @@ resource "google_cloud_run_v2_service" "orchestration_temporal_worker" {
 
   lifecycle {
     ignore_changes = [
+      scaling,
       template[0].containers[1].image,
       client,
       client_version,
@@ -638,6 +648,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
 
   lifecycle {
     ignore_changes = [
+      scaling,
       template[0].containers[0].resources[0].cpu_idle,
       template[0].containers[0].image,
       template[0].labels,
@@ -721,6 +732,7 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
 
   lifecycle {
     ignore_changes = [
+      scaling,
       template[0].containers[0].resources[0].cpu_idle,
       template[0].containers[0].image,
       template[0].labels,
