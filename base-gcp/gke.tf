@@ -99,13 +99,6 @@ resource "google_project_iam_member" "temporal_cloudsql" {
   member  = "serviceAccount:${google_service_account.temporal_gsa.email}"
 }
 
-# Grant Dataproc access to the Temporal service account
-resource "google_service_account_iam_member" "temporal_impersonation_dataproc" {
-  service_account_id = google_service_account.dataproc_sa.id
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${google_service_account.temporal_gsa.email}"
-}
-
 # Google Service Account for Orchestration Hub and Worker
 resource "google_service_account" "orchestration_sa" {
   account_id   = "orchestration-sa"
@@ -149,6 +142,13 @@ resource "google_project_iam_member" "orchestration_monitoring" {
   project = data.google_project.zipline.project_id
   member  = "serviceAccount:${google_service_account.orchestration_sa.email}"
   role    = "roles/monitoring.editor"
+}
+
+# Grant Dataproc access to the Orchestration service account
+resource "google_service_account_iam_member" "orchestration_impersonation_dataproc" {
+  service_account_id = google_service_account.dataproc_sa.id
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.orchestration_sa.email}"
 }
 
 resource "google_service_account_iam_member" "impersonation_binding" {
