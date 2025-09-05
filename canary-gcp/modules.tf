@@ -4,6 +4,9 @@ module "base_setup" {
   customer_name = "canary"
 
   artifact_prefix = "gs://zipline-canary-artifacts"
-  zipline_version = "64ed58f364b5951f3dff1dc27a7c3a66a07682cf"
+  zipline_version = "latest"
   table_partitions_dataset = google_bigtable_table.table_partitions_ci.name
+  hub_domain = "canary-gke-orch.zipline.ai"
+  temporal_domain = "canary-gke-temporal.zipline.ai"
+  zipline_ui_domain = "canary-gke.zipline.ai"
 }
