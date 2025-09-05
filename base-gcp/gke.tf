@@ -144,6 +144,13 @@ resource "google_project_iam_member" "orchestration_monitoring" {
   role    = "roles/monitoring.editor"
 }
 
+# Grant Dataproc access to the Orchestration service account
+resource "google_service_account_iam_member" "orchestration_impersonation_dataproc" {
+  service_account_id = google_service_account.dataproc_sa.id
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.orchestration_sa.email}"
+}
+
 resource "google_service_account_iam_member" "impersonation_binding" {
   service_account_id = google_service_account.orchestration_sa.name
   role               = "roles/iam.serviceAccountTokenCreator"
@@ -169,45 +176,45 @@ resource "google_compute_global_address" "orchestration_hub_ip" {
 # Deploy Zipline Orchestration using Helm
 
 resource "helm_release" "zipline_orchestration" {
-  name       = "zipline-orchestration"
-  chart      = "../zipline-orchestration"  # Path to your local helm chart
-  namespace  = "zipline-system"
+  name             = "zipline-orchestration"
+  chart            = "../zipline-orchestration" # Path to your local helm chart
+  namespace        = "zipline-system"
   create_namespace = true
 
   values = [
     templatefile("${path.module}/helm-values.yaml.tpl", {
-      customer_name = var.customer_name
-      region = var.region
-      project_id = data.google_project.zipline.project_id
+      customer_name   = var.customer_name
+      region          = var.region
+      project_id      = data.google_project.zipline.project_id
       artifact_prefix = var.artifact_prefix
-      version = var.zipline_version
+      version         = var.zipline_version
 
-      temporal_db_host = google_sql_database_instance.temporal_instance.private_ip_address
+      temporal_db_host     = google_sql_database_instance.temporal_instance.private_ip_address
       temporal_db_username = google_sql_user.temporal_user.name
       temporal_db_password = google_secret_manager_secret_version.db_password.secret_data
       temporal_db_database = google_sql_database.temporal_database.name
 
-      orchestration_db_host = google_sql_database_instance.orchestration_instance.private_ip_address
+      orchestration_db_host     = google_sql_database_instance.orchestration_instance.private_ip_address
       orchestration_db_username = google_sql_user.orchestration_user.name
       orchestration_db_password = google_secret_manager_secret_version.db_password.secret_data
       orchestration_db_database = google_sql_database.orchestration_database.name
 
-      bigtable_instance_id = google_bigtable_instance.zipline_bigtable_instance.name
+      bigtable_instance_id              = google_bigtable_instance.zipline_bigtable_instance.name
       bigtable_table_partitions_dataset = google_bigtable_table.gke_table_partitions.name
 
-      temporal_service_account = google_service_account.temporal_gsa.email
+      temporal_service_account      = google_service_account.temporal_gsa.email
       orchestration_service_account = google_service_account.orchestration_sa.email
 
-      orchestration_ui_ip = google_compute_global_address.orchestration_ui_ip.address
-      orchestration_ui_ip_name = google_compute_global_address.orchestration_ui_ip.name
-      temporal_ui_ip = google_compute_global_address.temporal_ui_ip.address
-      temporal_ui_ip_name = google_compute_global_address.temporal_ui_ip.name
-      orchestration_hub_ip = google_compute_global_address.orchestration_hub_ip.address
+      orchestration_ui_ip       = google_compute_global_address.orchestration_ui_ip.address
+      orchestration_ui_ip_name  = google_compute_global_address.orchestration_ui_ip.name
+      temporal_ui_ip            = google_compute_global_address.temporal_ui_ip.address
+      temporal_ui_ip_name       = google_compute_global_address.temporal_ui_ip.name
+      orchestration_hub_ip      = google_compute_global_address.orchestration_hub_ip.address
       orchestration_hub_ip_name = google_compute_global_address.orchestration_hub_ip.name
 
       zipline_ui_domain = var.zipline_ui_domain
-      temporal_domain = var.temporal_domain
-      hub_domain = var.hub_domain
+      temporal_domain   = var.temporal_domain
+      hub_domain        = var.hub_domain
     })
   ]
 
