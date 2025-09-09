@@ -164,6 +164,10 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
       ]
       override_properties = {
         "flink:env.java.opts.client" = "-Djava.net.preferIPv4Stack=true -Djava.security.properties=/etc/flink/conf/java.security"
+        "dataproc:dataproc.logging.stackdriver.enable" = "true"
+        "dataproc:jobs.file-backed-output.enable" = "true"
+        "dataproc:dataproc.logging.stackdriver.job.driver.enable" = "true"
+        "dataproc:dataproc.logging.stackdriver.job.yarn.container.enable" = "true"
       }
     }
     endpoint_config {
