@@ -292,6 +292,7 @@ CLI Access:
 To use the CLI, add the following to ENVIRONMENT_VARIABLES in teams.py:
 "FRONTEND_URL": "${var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io"}"
 "HUB_URL": "${var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${google_compute_global_address.orchestration_hub_ip.address}.nip.io"}"
+"SA_NAME": "${google_service_account.zipline_user_sa.name}"
 
 EOT
 }

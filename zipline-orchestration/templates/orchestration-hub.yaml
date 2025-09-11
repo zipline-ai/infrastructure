@@ -92,5 +92,5 @@ spec:
     unhealthyThreshold: 3
     type: HTTP
     requestPath: /ping
-{{/*  iap:*/}}
-{{/*    enabled: true*/}}
+  iap:
+    enabled: true
