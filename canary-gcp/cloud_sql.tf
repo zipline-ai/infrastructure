@@ -256,6 +256,11 @@ resource "google_sql_database_instance" "dev_temporal_gke_instance" {
       private_network = google_compute_network.zipline_vpc.id
     }
 
+    backup_configuration {
+      enabled                        = true
+      point_in_time_recovery_enabled = true
+    }
+
     database_flags {
       name  = "max_connections"
       value = "200"
@@ -291,6 +296,11 @@ resource "google_sql_database_instance" "dev_orchestration_gke_instance" {
     ip_configuration {
       ipv4_enabled    = true
       private_network = google_compute_network.zipline_vpc.id
+    }
+
+    backup_configuration {
+      enabled                        = true
+      point_in_time_recovery_enabled = true
     }
 
     database_flags {
