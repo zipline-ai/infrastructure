@@ -529,6 +529,10 @@ resource "google_cloud_run_v2_service" "dev_zipline_ui" {
           }
         }
       }
+      env {
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = data.google_project.zipline.project_id
+      }
 
       resources {
         limits = {
