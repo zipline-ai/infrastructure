@@ -160,7 +160,7 @@ resource "google_service_account" "zipline_user_sa" {
 resource "google_project_iam_member" "zipline_user_iap" {
   project = data.google_project.zipline.project_id
   role    = "roles/iap.httpsResourceAccessor"
-  member  = "group:${var.personnel_email}"
+  member  = "serviceAccount:${google_service_account.zipline_user_sa.email}"
 }
 
 resource "google_service_account_iam_member" "impersonation_binding" {
