@@ -104,3 +104,4 @@ ingress:
   annotations:
     kubernetes.io/ingress.class: "gce"
     ingress.gcp.kubernetes.io/redirect-to-https: "true"
+  sslPolicy: ""

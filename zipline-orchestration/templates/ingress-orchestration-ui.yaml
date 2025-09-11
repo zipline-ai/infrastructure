@@ -11,6 +11,7 @@ metadata:
     {{- end }}
     kubernetes.io/ingress.global-static-ip-name: {{ .Values.staticIPs.orchestrationUIName | quote }}
     networking.gke.io/managed-certificates: "zipline-ui-ssl"
+    networking.gke.io/v1beta1.FrontendConfig: "ingress-frontend-config"
 spec:
   rules:
     - host: {{ include "zipline-orchestration.orchestrationUIDomain" . }}

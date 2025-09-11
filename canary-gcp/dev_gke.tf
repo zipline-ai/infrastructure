@@ -177,6 +177,17 @@ resource "google_compute_global_address" "dev_orchestration_hub_ip" {
 }
 
 ###########################################################
+
+resource "google_compute_ssl_policy" "ingress_ssl_policy" {
+  name    = "gke-ingress-ssl-policy"
+  project = data.google_project.zipline.project_id
+
+  # Modern profile with strong security
+  profile         = "MODERN"
+  min_tls_version = "TLS_1_2"
+}
+
+###########################################################
 # Deploy Zipline Orchestration using Helm
 
 resource "helm_release" "dev_zipline_orchestration" {
@@ -217,6 +228,8 @@ resource "helm_release" "dev_zipline_orchestration" {
       orchestration_hub_ip = google_compute_global_address.dev_orchestration_hub_ip.address
       orchestration_hub_ip_name = google_compute_global_address.dev_orchestration_hub_ip.name
 
+      gke_ssl_policy_name = google_compute_ssl_policy.ingress_ssl_policy.name
+
       zipline_ui_domain = var.zipline_ui_domain
       temporal_domain = var.temporal_domain
       hub_domain = var.hub_domain
@@ -242,36 +255,6 @@ resource "helm_release" "dev_zipline_orchestration" {
 
 ###########################################################
 # IAP Setup for Secure Access
-resource "google_beyondcorp_app_connection" "orchestration_hub" {
-  name = "orchestration-hub-connection"
-  region = var.region
-  type = "TCP_PROXY"
-
-  application_endpoint {
-    host =  var.hub_domain != "" ? var.hub_domain : "${google_compute_global_address.dev_orchestration_hub_ip.address}.nip.io"
-    port = 443
-  }
-
-  depends_on = [
-    google_project_service.beyondcorp,
-    google_container_cluster.dev_orchestration_cluster
-  ]
-}
-
-resource "google_beyondcorp_app_gateway" "orchestration_hub" {
-  name = "orchestration-hub-gateway"
-  region = var.region
-  type = "TCP_PROXY"
-
-  depends_on = [
-    google_project_service.beyondcorp
-  ]
-  lifecycle {
-    ignore_changes = [
-      host_type,
-    ]
-  }
-}
 
 # Grant IAP access to the orchestration service account and personnel group
 resource "google_project_iam_member" "sa_iap_access" {

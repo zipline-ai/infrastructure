@@ -39,3 +39,6 @@ staticIPs:
   temporalUIName: "${temporal_ui_ip_name}"
   orchestrationHub: "${orchestration_hub_ip}"
   orchestrationHubName: "${orchestration_hub_ip_name}"
+
+ingress:
+    sslPolicy: "${gke_ssl_policy_name}"
