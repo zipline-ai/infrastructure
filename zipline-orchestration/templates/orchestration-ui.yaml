@@ -30,6 +30,8 @@ spec:
                 secretKeyRef:
                   name: orchestration-db-secret
                   key: password
+            - name: GOOGLE_CLOUD_PROJECT
+              value: {{ .Values.global.project_id | quote }}
           resources:
           {{- toYaml .Values.orchestration.ui.resources | nindent 12 }}
           ports:
