@@ -151,6 +151,12 @@ resource "google_service_account_iam_member" "orchestration_impersonation_datapr
   member             = "serviceAccount:${google_service_account.orchestration_sa.email}"
 }
 
+resource "google_project_iam_member" "orchestration_logging" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/logging.viewer"
+  member  = "serviceAccount:${google_service_account.orchestration_sa.email}"
+}
+
 resource "google_service_account" "zipline_user_sa" {
   account_id   = "zipline-user"
   display_name = "Zipline User Service Account"
