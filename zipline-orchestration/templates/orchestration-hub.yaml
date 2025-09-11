@@ -94,5 +94,3 @@ spec:
     requestPath: /ping
 {{/*  iap:*/}}
 {{/*    enabled: true*/}}
-{{/*    oauthclientCredentials:*/}}
-{{/*      secretName: iap-oauth-credentials*/}}

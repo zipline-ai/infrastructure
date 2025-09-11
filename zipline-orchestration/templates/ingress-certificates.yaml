@@ -36,3 +36,11 @@ spec:
   domains:
     - {{ include "zipline-orchestration.orchestrationHubDomain" . }}
 ---
+apiVersion: networking.gke.io/v1beta1
+kind: FrontendConfig
+metadata:
+  name: ingress-frontend-config
+spec:
+  sslPolicy: {{ .Values.ingress.sslPolicy | quote }}
+  redirectToHttps:
+    enabled: true
