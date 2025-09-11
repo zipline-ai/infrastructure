@@ -169,6 +169,12 @@ resource "google_service_account_iam_member" "impersonation_binding" {
   member             = "group:${var.personnel_email}"
 }
 
+resource "google_project_iam_member" "personnel_iap" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/iap.httpsResourceAccessor"
+  member  = "group:${var.personnel_email}"
+}
+
 ###########################################################
 # Static IP Addresses for Load Balancers
 
