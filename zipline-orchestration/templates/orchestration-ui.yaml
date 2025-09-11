@@ -40,8 +40,8 @@ kind: Service
 metadata:
   name: orchestration-ui-service
   namespace: zipline-system
-{{/*  annotations:*/}}
-{{/*    cloud.google.com/backend-config: '{"default": "orchestration-ui-backendconfig"}'*/}}
+  annotations:
+    cloud.google.com/backend-config: '{"default": "orchestration-ui-backendconfig"}'
   labels:
     {{- include "zipline-orchestration.labels" . | nindent 4 }}
 spec:

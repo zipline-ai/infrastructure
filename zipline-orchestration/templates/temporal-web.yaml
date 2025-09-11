@@ -46,8 +46,8 @@ kind: Service
 metadata:
   name: temporal-web-service
   namespace: zipline-system
-{{/*  annotations:*/}}
-{{/*    cloud.google.com/backend-config: '{"default": "temporal-web-backendconfig"}'*/}}
+  annotations:
+    cloud.google.com/backend-config: '{"default": "temporal-web-backendconfig"}'
   labels:
     {{- include "zipline-orchestration.labels" . | nindent 4 }}
 spec:
