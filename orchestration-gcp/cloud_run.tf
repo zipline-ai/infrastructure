@@ -246,8 +246,6 @@ resource "google_cloud_run_v2_service" "temporal_server" {
       scaling,
       client,
       client_version,
-      template[0].containers[0].resources,
-      template[0].containers[1],
     ]
   }
 }
