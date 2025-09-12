@@ -99,3 +99,10 @@ resource "google_storage_bucket_iam_member" "dataproc-spark-libs-binding" {
     google_storage_bucket.spark_libs
   ]
 }
+
+# Make all objects in the bucket publicly readable
+resource "google_storage_bucket_iam_member" "spark_libs_public_access" {
+  bucket = google_storage_bucket.spark_libs.name
+  role   = "roles/storage.objectViewer"
+  member = "allUsers"
+}
