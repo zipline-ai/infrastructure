@@ -569,3 +569,101 @@ resource "google_cloud_run_v2_service_iam_member" "dev_ui_all_access" {
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
+
+################################################################
+# Cloud Run v2 service for Chronon Fetcher
+
+resource "google_cloud_run_v2_service" "dev_chronon_fetcher" {
+  name     = "dev-zipline-chronon-fetcher"
+  location = var.region
+  project  = data.google_project.zipline.project_id
+
+  template {
+    annotations = {
+      "run.googleapis.com/container-dependencies" = "{\"collector\":[\"chronon-fetcher\"]}"
+    }
+
+    vpc_access {
+      network_interfaces {
+        network    = google_compute_network.zipline_vpc.name
+        subnetwork = google_compute_subnetwork.zipline_subnet.name
+      }
+      egress = "ALL_TRAFFIC"
+    }
+
+    service_account = google_service_account.dev_orchestration_service_account.email
+
+    containers {
+      image = "${var.region}-docker.pkg.dev/${data.google_project.zipline.project_id}/${module.base_setup.docker_hub_remote_repository_id}/ziplineai/chronon-fetcher:latest"
+      name  = "chronon-fetcher"
+
+      ports {
+        name           = "http1"
+        container_port = 9000
+      }
+
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = data.google_project.zipline.project_id
+      }
+      env {
+        name  = "GOOGLE_CLOUD_PROJECT"
+        value = data.google_project.zipline.project_id
+      }
+      env {
+        name  = "GCP_BIGTABLE_INSTANCE_ID"
+        value = module.base_setup.bigtable_instance_name
+      }
+      env {
+        name  = "CHRONON_METRICS_READER"
+        value = "http"
+      }
+      env {
+        name  = "FETCHER_OOC_TOPIC_INFO"
+        value = "kafka://test-fetcher-ooc/bootstrap=bootstrap.${google_managed_kafka_cluster.zipline_kafka.cluster_id}.${var.region}.managedkafka.${data.google_project.zipline.project_id}.cloud.goog:9092"
+      }
+
+      resources {
+        limits = {
+          cpu    = "2"
+          memory = "4Gi"
+        }
+      }
+
+      startup_probe {
+        http_get {
+          path = "/ping"
+          port = 9000
+        }
+        initial_delay_seconds = 20
+        period_seconds        = 10
+        timeout_seconds       = 5
+        failure_threshold     = 10
+      }
+    }
+
+    # Google managed Prometheus sidecar container
+    containers {
+      image = "us-docker.pkg.dev/cloud-ops-agents-artifacts/cloud-run-gmp-sidecar/cloud-run-gmp-sidecar:1.2.0"
+      name  = "collector"
+    }
+
+    scaling {
+      min_instance_count = 1
+      max_instance_count = 5
+    }
+  }
+
+  depends_on = [
+    google_service_account.dev_orchestration_service_account,
+  ]
+}
+
+# IAM policy to allow orchestration service account to invoke chronon services
+resource "google_cloud_run_v2_service_iam_member" "dev_chronon_fetcher_access" {
+  location = google_cloud_run_v2_service.dev_chronon_fetcher.location
+  project  = google_cloud_run_v2_service.dev_chronon_fetcher.project
+  name     = google_cloud_run_v2_service.dev_chronon_fetcher.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.dev_orchestration_service_account.email}"
+}
