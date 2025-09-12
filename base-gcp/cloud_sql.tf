@@ -63,6 +63,9 @@ resource "google_sql_database_instance" "temporal_instance" {
 
   lifecycle {
     prevent_destroy = true
+    ignore_changes = [
+      settings[0].ip_configuration[0].authorized_networks
+    ]
   }
 }
 
@@ -107,6 +110,9 @@ resource "google_sql_database_instance" "orchestration_instance" {
   }
   lifecycle {
     prevent_destroy = true
+    ignore_changes = [
+      settings[0].ip_configuration[0].authorized_networks
+    ]
   }
 }
 
