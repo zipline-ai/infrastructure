@@ -70,6 +70,12 @@ resource "google_project_iam_member" "orchestration_service_account_secretmanage
   role    = "roles/secretmanager.secretAccessor"
 }
 
+resource "google_project_iam_member" "orchestration_logging" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/logging.viewer"
+  member  = "serviceAccount:${google_service_account.orchestration_service_account.email}"
+}
+
 # Service Account for Temporal Server
 resource "google_service_account" "temporal_service_account" {
   account_id   = "zipline-temporal-sa"
@@ -333,6 +339,12 @@ resource "google_cloud_run_v2_service" "temporal_ui" {
     }
 
   }
+
+  lifecycle {
+    ignore_changes = [
+      scaling,
+    ]
+  }
 }
 
 # IAM policy to allow unauthenticated access (adjust as needed)
@@ -516,6 +528,14 @@ resource "google_cloud_run_v2_service" "orchestration_temporal_worker" {
         name  = "USE_HTTPS"
         value = "true"
       }
+      env {
+        name  = "MAX_CONCURRENT_ACTIVITY_TASK_POLLERS"
+        value = "50"
+      }
+      env {
+          name  = "MAX_CONCURRENT_WORKFLOW_TASK_POLLERS"
+          value = "50"
+      }
 
       resources {
         limits = {
@@ -531,6 +551,7 @@ resource "google_cloud_run_v2_service" "orchestration_temporal_worker" {
       template[0].containers[1].image,
       client,
       client_version,
+      scaling,
     ]
   }
 }
@@ -643,6 +664,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
       template[0].labels,
       client,
       client_version,
+      scaling,
     ]
   }
 }
@@ -730,6 +752,7 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
       template[0].labels,
       client,
       client_version,
+      scaling,
     ]
   }
 }

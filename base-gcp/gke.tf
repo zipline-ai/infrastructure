@@ -151,10 +151,34 @@ resource "google_service_account_iam_member" "orchestration_impersonation_datapr
   member             = "serviceAccount:${google_service_account.orchestration_sa.email}"
 }
 
+resource "google_project_iam_member" "orchestration_logging" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/logging.viewer"
+  member  = "serviceAccount:${google_service_account.orchestration_sa.email}"
+}
+
+resource "google_service_account" "zipline_user_sa" {
+  account_id   = "zipline-user"
+  display_name = "Zipline User Service Account"
+  project      = data.google_project.zipline.project_id
+}
+
+resource "google_project_iam_member" "zipline_user_iap" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/iap.httpsResourceAccessor"
+  member  = "serviceAccount:${google_service_account.zipline_user_sa.email}"
+}
+
 resource "google_service_account_iam_member" "impersonation_binding" {
-  service_account_id = google_service_account.orchestration_sa.name
+  service_account_id = google_service_account.zipline_user_sa.name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "group:${var.personnel_email}"
+}
+
+resource "google_project_iam_member" "personnel_iap" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/iap.httpsResourceAccessor"
+  member  = "group:${var.personnel_email}"
 }
 
 ###########################################################
@@ -171,6 +195,19 @@ resource "google_compute_global_address" "temporal_ui_ip" {
 resource "google_compute_global_address" "orchestration_hub_ip" {
   name = "zipline-orchestration-hub-ip"
 }
+
+###########################################################
+# SSL Policy
+
+resource "google_compute_ssl_policy" "ingress_ssl_policy" {
+  name    = "gke-ingress-ssl-policy"
+  project = data.google_project.zipline.project_id
+
+  # Modern profile with strong security
+  profile         = "MODERN"
+  min_tls_version = "TLS_1_2"
+}
+
 
 ###########################################################
 # Deploy Zipline Orchestration using Helm
@@ -211,6 +248,8 @@ resource "helm_release" "zipline_orchestration" {
       temporal_ui_ip_name       = google_compute_global_address.temporal_ui_ip.name
       orchestration_hub_ip      = google_compute_global_address.orchestration_hub_ip.address
       orchestration_hub_ip_name = google_compute_global_address.orchestration_hub_ip.name
+
+      gke_ssl_policy_name = google_compute_ssl_policy.ingress_ssl_policy.name
 
       zipline_ui_domain = var.zipline_ui_domain
       temporal_domain   = var.temporal_domain
@@ -265,6 +304,7 @@ CLI Access:
 To use the CLI, add the following to ENVIRONMENT_VARIABLES in teams.py:
 "FRONTEND_URL": "${var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${google_compute_global_address.orchestration_ui_ip.address}.nip.io"}"
 "HUB_URL": "${var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${google_compute_global_address.orchestration_hub_ip.address}.nip.io"}"
+"SA_NAME": "${google_service_account.zipline_user_sa.name}"
 
 EOT
 }

@@ -92,7 +92,5 @@ spec:
     unhealthyThreshold: 3
     type: HTTP
     requestPath: /ping
-{{/*  iap:*/}}
-{{/*    enabled: true*/}}
-{{/*    oauthclientCredentials:*/}}
-{{/*      secretName: iap-oauth-credentials*/}}
+  iap:
+    enabled: true
