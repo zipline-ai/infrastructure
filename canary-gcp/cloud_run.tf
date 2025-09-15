@@ -579,6 +579,11 @@ resource "google_cloud_run_v2_service" "dev_chronon_fetcher" {
   project  = data.google_project.zipline.project_id
 
   template {
+    annotations = {
+      "run.googleapis.com/container-dependencies" = jsonencode({
+        collector = ["chronon-fetcher"]
+      })
+    }
 
     vpc_access {
       network_interfaces {
@@ -611,6 +616,14 @@ resource "google_cloud_run_v2_service" "dev_chronon_fetcher" {
         name  = "GCP_BIGTABLE_INSTANCE_ID"
         value = module.base_setup.bigtable_instance_name
       }
+      env {
+        name  = "CHRONON_METRICS_READER"
+        value = "http"
+      }
+      env {
+        name  = "EXPORTER_OTLP_ENDPOINT"
+        value = "http://localhost:4318"
+      }
 
       resources {
         limits = {
@@ -631,6 +644,87 @@ resource "google_cloud_run_v2_service" "dev_chronon_fetcher" {
       }
     }
 
+    # OTEL Collector sidecar for metrics export
+    containers {
+      image = "otel/opentelemetry-collector-contrib:0.91.0"
+      name  = "collector"
+
+
+      env {
+        name  = "OTEL_CONFIG_YAML"
+        value = yamlencode({
+          receivers = {
+            otlp = {
+              protocols = {
+                grpc = {
+                  endpoint = "0.0.0.0:4317"
+                }
+                http = {
+                  endpoint = "0.0.0.0:4318"
+                }
+              }
+            }
+          }
+          processors = {
+            resourcedetection = {
+              detectors = ["env", "gcp"]
+              timeout = "5s"
+              override = false
+            }
+            resource = {
+              attributes = [
+                {
+                  key = "location"
+                  value = var.region
+                  action = "upsert"
+                },
+                {
+                  key = "namespace"
+                  value = var.name
+                  action = "upsert"
+                },
+                {
+                  key = "cluster"
+                  value = "zipline-${var.name}"
+                  action = "upsert"
+                }
+              ]
+            }
+          }
+          exporters = {
+            googlemanagedprometheus = {
+              project = data.google_project.zipline.project_id
+            }
+          }
+          service = {
+            pipelines = {
+              metrics = {
+                receivers = ["otlp"]
+                processors = ["resourcedetection", "resource"]
+                exporters = ["googlemanagedprometheus"]
+              }
+            }
+          }
+        })
+      }
+
+      resources {
+        limits = {
+          cpu    = "500m"
+          memory = "512Mi"
+        }
+      }
+
+      startup_probe {
+        tcp_socket {
+          port = 4317
+        }
+        initial_delay_seconds = 10
+        period_seconds        = 5
+        timeout_seconds       = 3
+        failure_threshold     = 5
+      }
+    }
 
     scaling {
       min_instance_count = 1
