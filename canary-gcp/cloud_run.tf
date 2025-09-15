@@ -579,9 +579,6 @@ resource "google_cloud_run_v2_service" "dev_chronon_fetcher" {
   project  = data.google_project.zipline.project_id
 
   template {
-    annotations = {
-      "run.googleapis.com/container-dependencies" = "{\"collector\":[\"chronon-fetcher\"]}"
-    }
 
     vpc_access {
       network_interfaces {
@@ -614,14 +611,6 @@ resource "google_cloud_run_v2_service" "dev_chronon_fetcher" {
         name  = "GCP_BIGTABLE_INSTANCE_ID"
         value = module.base_setup.bigtable_instance_name
       }
-      env {
-        name  = "CHRONON_METRICS_READER"
-        value = "http"
-      }
-      env {
-        name  = "FETCHER_OOC_TOPIC_INFO"
-        value = "kafka://test-fetcher-ooc/bootstrap=bootstrap.${google_managed_kafka_cluster.zipline_kafka.cluster_id}.${var.region}.managedkafka.${data.google_project.zipline.project_id}.cloud.goog:9092"
-      }
 
       resources {
         limits = {
@@ -642,11 +631,6 @@ resource "google_cloud_run_v2_service" "dev_chronon_fetcher" {
       }
     }
 
-    # Google managed Prometheus sidecar container
-    containers {
-      image = "us-docker.pkg.dev/cloud-ops-agents-artifacts/cloud-run-gmp-sidecar/cloud-run-gmp-sidecar:1.2.0"
-      name  = "collector"
-    }
 
     scaling {
       min_instance_count = 1
@@ -666,4 +650,13 @@ resource "google_cloud_run_v2_service_iam_member" "dev_chronon_fetcher_access" {
   name     = google_cloud_run_v2_service.dev_chronon_fetcher.name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.dev_orchestration_service_account.email}"
+}
+
+# IAM policy to allow all users to invoke chronon services (public access)
+resource "google_cloud_run_v2_service_iam_member" "dev_chronon_fetcher_all_access" {
+  location = google_cloud_run_v2_service.dev_chronon_fetcher.location
+  project  = google_cloud_run_v2_service.dev_chronon_fetcher.project
+  name     = google_cloud_run_v2_service.dev_chronon_fetcher.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
 }
