@@ -23,5 +23,5 @@ variable "zipline_ui_domain" {
 }
 
 variable "artifact_prefix" {
-  default = "gs://zipline-canary-artifacts"
+  default = "gs://zipline-artifacts-canary"
 }
