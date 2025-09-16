@@ -655,6 +655,7 @@ resource "google_cloud_run_v2_service" "dev_chronon_fetcher" {
       image = "otel/opentelemetry-collector-contrib:0.91.0"
       name  = "collector"
 
+      args = ["--config=env:OTEL_CONFIG_YAML"]
 
       env {
         name  = "OTEL_CONFIG_YAML"
@@ -721,15 +722,6 @@ resource "google_cloud_run_v2_service" "dev_chronon_fetcher" {
         }
       }
 
-      startup_probe {
-        tcp_socket {
-          port = 4317
-        }
-        initial_delay_seconds = 10
-        period_seconds        = 5
-        timeout_seconds       = 3
-        failure_threshold     = 5
-      }
     }
 
     scaling {
