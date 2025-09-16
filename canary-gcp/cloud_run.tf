@@ -38,6 +38,12 @@ resource "google_project_iam_member" "dev_orchestration_service_account_secretma
   role    = "roles/secretmanager.secretAccessor"
 }
 
+resource "google_project_iam_member" "dev_orchestration_service_account_monitoring" {
+  project = data.google_project.zipline.project_id
+  member  = "serviceAccount:${google_service_account.dev_orchestration_service_account.email}"
+  role    = "roles/monitoring.metricWriter"
+}
+
 # Service Account for Temporal Server
 resource "google_service_account" "dev_temporal_service_account" {
   account_id   = "dev-zipline-temporal-sa"
