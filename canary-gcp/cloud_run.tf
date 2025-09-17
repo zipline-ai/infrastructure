@@ -8,6 +8,13 @@ resource "google_service_account" "dev_orchestration_service_account" {
   project      = data.google_project.zipline.project_id
 }
 
+resource "google_service_account_key" "dev_orchestration_service_account_key" {
+  service_account_id = google_service_account.dev_orchestration_service_account.name
+  keepers = {
+    timestamp = timestamp()
+  }
+}
+
 resource "google_project_iam_member" "dev_orchestration_service_account_dataproc" {
   project = data.google_project.zipline.project_id
   member  = "serviceAccount:${google_service_account.dev_orchestration_service_account.email}"
@@ -42,6 +49,12 @@ resource "google_project_iam_member" "dev_orchestration_service_account_monitori
   project = data.google_project.zipline.project_id
   member  = "serviceAccount:${google_service_account.dev_orchestration_service_account.email}"
   role    = "roles/monitoring.metricWriter"
+}
+
+resource "google_project_iam_member" "dev_orchestration_service_account_kafka" {
+  project = data.google_project.zipline.project_id
+  member  = "serviceAccount:${google_service_account.dev_orchestration_service_account.email}"
+  role    = "roles/managedkafka.client"
 }
 
 # Service Account for Temporal Server
@@ -592,11 +605,8 @@ resource "google_cloud_run_v2_service" "dev_chronon_fetcher" {
     }
 
     vpc_access {
-      network_interfaces {
-        network    = google_compute_network.zipline_vpc.name
-        subnetwork = google_compute_subnetwork.zipline_subnet.name
-      }
-      egress = "ALL_TRAFFIC"
+      connector = google_vpc_access_connector.kafka_connector.id
+      egress    = "ALL_TRAFFIC"
     }
 
     service_account = google_service_account.dev_orchestration_service_account.email
@@ -629,6 +639,10 @@ resource "google_cloud_run_v2_service" "dev_chronon_fetcher" {
       env {
         name  = "EXPORTER_OTLP_ENDPOINT"
         value = "http://localhost:4318"
+      }
+      env {
+        name  = "FETCHER_OOC_TOPIC_INFO"
+        value = "kafka://${google_managed_kafka_topic.chronon_ooc_responses.topic_id}/bootstrap=bootstrap.${google_managed_kafka_cluster.zipline_kafka.cluster_id}.${var.region}.managedkafka.${data.google_project.zipline.project_id}.cloud.goog:9192/security.protocol=SASL_SSL/sasl.mechanism=PLAIN/sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${google_service_account.dev_orchestration_service_account.email}\" password=\"${google_service_account_key.dev_orchestration_service_account_key.private_key}\";"
       }
 
       resources {

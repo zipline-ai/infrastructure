@@ -40,18 +40,19 @@ resource "google_compute_firewall" "zipline_internal" {
 
   allow {
     protocol = "tcp"
-    ports    = ["7233", "8080", "3903", "3000", "443", "10250"] # Added GKE ports
+    ports    = ["7233", "8080", "3903", "3000", "443", "10250", "9092"] # Added GKE ports and Kafka
   }
 
   allow {
     protocol = "icmp"
   }
 
-  # Expanded source ranges for GKE
+  # Expanded source ranges for GKE and VPC connector
   source_ranges = [
-    "10.0.0.0/24", # Original subnet
-    "10.1.0.0/16", # GKE pods
-    "10.2.0.0/16"  # GKE services
+    "10.0.0.0/24",   # Original subnet
+    "10.1.0.0/16",   # GKE pods
+    "10.2.0.0/16",   # GKE services
+    "10.132.0.0/28"  # VPC connector for Kafka access
   ]
   direction = "INGRESS"
 }
@@ -92,4 +93,23 @@ resource "google_service_networking_connection" "private_vpc_connection" {
   depends_on = [
     google_compute_global_address.private_ip_range
   ]
+}
+
+# VPC Access Connector for Cloud Run to access Kafka
+resource "google_vpc_access_connector" "kafka_connector" {
+  name          = "kafka-connector"
+  region        = var.region
+  network       = google_compute_network.zipline_vpc.name
+  ip_cidr_range = "10.132.0.0/28"
+  project       = data.google_project.zipline.project_id
+  min_throughput = 200  # Mbps (minimum allowed value)
+  max_throughput = 300  # Mbps
+
+  depends_on = [
+    google_compute_network.zipline_vpc
+  ]
+
+  lifecycle {
+    ignore_changes = [min_instances, max_instances]
+  }
 }
