@@ -642,7 +642,7 @@ resource "google_cloud_run_v2_service" "dev_chronon_fetcher" {
       }
       env {
         name  = "FETCHER_OOC_TOPIC_INFO"
-        value = "kafka://${google_managed_kafka_topic.chronon_ooc_responses.topic_id}/bootstrap=bootstrap.${google_managed_kafka_cluster.zipline_kafka.cluster_id}.${var.region}.managedkafka.${data.google_project.zipline.project_id}.cloud.goog:9192/security.protocol=SASL_SSL/sasl.mechanism=PLAIN/sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username=\"${google_service_account.dev_orchestration_service_account.email}\" password=\"${google_service_account_key.dev_orchestration_service_account_key.private_key}\";"
+        value = "kafka://${google_managed_kafka_topic.chronon_ooc_responses.topic_id}/bootstrap=bootstrap.${google_managed_kafka_cluster.zipline_kafka.cluster_id}.${var.region}.managedkafka.${data.google_project.zipline.project_id}.cloud.goog:9192/security.protocol=SASL_SSL/sasl.mechanism=OAUTHBEARER/sasl.login.callback.handler.class=com.google.cloud.hosted.kafka.auth.GcpLoginCallbackHandler/sasl.jaas.config=org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule required;"
       }
 
       resources {
