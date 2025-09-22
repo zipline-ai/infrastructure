@@ -45,6 +45,8 @@ spec:
                 secretKeyRef:
                   name: temporal-db-secret
                   key: database
+            - name: DEFAULT_NAMESPACE_RETENTION
+              value: "720h"
             - name: SKIP_DEFAULT_NAMESPACE_CREATION
               value: "false"
             - name: SKIP_SCHEMA_SETUP
