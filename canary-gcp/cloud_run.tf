@@ -44,6 +44,12 @@ resource "google_project_iam_member" "dev_orchestration_service_account_monitori
   role    = "roles/monitoring.metricWriter"
 }
 
+resource "google_project_iam_member" "dev_orchestration_service_account_pubsub" {
+  project = data.google_project.zipline.project_id
+  member  = "serviceAccount:${google_service_account.dev_orchestration_service_account.email}"
+  role    = "roles/pubsub.publisher"
+}
+
 # Service Account for Temporal Server
 resource "google_service_account" "dev_temporal_service_account" {
   account_id   = "dev-zipline-temporal-sa"
@@ -630,6 +636,10 @@ resource "google_cloud_run_v2_service" "dev_chronon_fetcher" {
         name  = "EXPORTER_OTLP_ENDPOINT"
         value = "http://localhost:4318"
       }
+      env {
+        name  = "FETCHER_OOC_TOPIC_INFO"
+        value = "pubsub://${google_pubsub_topic.canary_logging_ooc.name}"
+      }
 
       resources {
         limits = {
@@ -752,3 +762,4 @@ resource "google_cloud_run_v2_service_iam_member" "dev_chronon_fetcher_all_acces
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
+
