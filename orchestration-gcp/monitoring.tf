@@ -21,30 +21,30 @@ resource "google_cloud_run_v2_service_iam_member" "uptime_access_to_ui" {
 }
 
 resource "google_monitoring_uptime_check_config" "orch_uptime_check" {
-    display_name = "Zipline Orchestration ${title(var.name_prefix)} Uptime Check"
-    timeout      = "10s"
-    period       = "300s"
+  display_name = "Zipline Orchestration ${title(var.name_prefix)} Uptime Check"
+  timeout      = "10s"
+  period       = "300s"
 
-    http_check {
-      path         = "/ping"
-      port         = 443
-      use_ssl      = true
-      validate_ssl = false
-      accepted_response_status_codes {
-        status_class = "STATUS_CLASS_2XX"
-      }
-      service_agent_authentication {
-        type = "OIDC_TOKEN"
-      }
+  http_check {
+    path         = "/ping"
+    port         = 443
+    use_ssl      = true
+    validate_ssl = false
+    accepted_response_status_codes {
+      status_class = "STATUS_CLASS_2XX"
     }
+    service_agent_authentication {
+      type = "OIDC_TOKEN"
+    }
+  }
 
-    monitored_resource {
-      type = "uptime_url"
-        labels = {
-          project_id = data.google_project.zipline.project_id
-          host = trimprefix(google_cloud_run_v2_service.orchestration.uri, "https://")
-        }
+  monitored_resource {
+    type = "uptime_url"
+    labels = {
+      project_id = data.google_project.zipline.project_id
+      host       = trimprefix(google_cloud_run_v2_service.orchestration.uri, "https://")
     }
+  }
 
   depends_on = [
     google_cloud_run_v2_service.orchestration,
@@ -73,7 +73,7 @@ resource "google_monitoring_uptime_check_config" "ui_uptime_check" {
     type = "uptime_url"
     labels = {
       project_id = data.google_project.zipline.project_id
-      host = trimprefix(google_cloud_run_v2_service.zipline_ui.uri, "https://")
+      host       = trimprefix(google_cloud_run_v2_service.zipline_ui.uri, "https://")
     }
   }
 
@@ -85,8 +85,8 @@ resource "google_monitoring_uptime_check_config" "ui_uptime_check" {
 
 resource "google_monitoring_notification_channel" "alert_email" {
   display_name = "Zipline ${title(var.name_prefix)} Alerts"
-  description = "Email notifications for uptime check failures"
-  type = "email"
+  description  = "Email notifications for uptime check failures"
+  type         = "email"
   labels = {
     email_address = var.alerting_email
   }
@@ -101,23 +101,24 @@ resource "google_monitoring_alert_policy" "orch_uptime_alert" {
     display_name = "Orchestration Uptime Check Failure"
 
     condition_threshold {
-      filter         = join(" AND ", [
+      filter = join(" AND ", [
         "resource.type=\"uptime_url\"",
         "metric.type=\"monitoring.googleapis.com/uptime_check/check_passed\"",
-        "check_id=\"${google_monitoring_uptime_check_config.orch_uptime_check.id}\"",
+        "resource.labels.project_id=\"${data.google_project.zipline.project_id}\"",
+        "resource.labels.host=\"${trimprefix(google_cloud_run_v2_service.orchestration.uri, "https://")}\""
       ])
-      duration       = "300s"  # Alert after 5 minute of failure
-      comparison     = "COMPARISON_EQ"
-      threshold_value = 0
+      duration        = "300s" # Alert after 5 minute of failure
+      comparison      = "COMPARISON_LT"
+      threshold_value = 1
 
       trigger {
         count = 1
       }
 
       aggregations {
-        alignment_period   = "300s"
-        per_series_aligner = "ALIGN_NEXT_OLDER"
-        cross_series_reducer = "REDUCE_COUNT_FALSE"
+        alignment_period     = "300s"
+        per_series_aligner   = "ALIGN_FRACTION_TRUE"
+        cross_series_reducer = "REDUCE_MEAN"
         group_by_fields = [
           "resource.labels.project_id",
           "resource.labels.host"
@@ -133,17 +134,13 @@ resource "google_monitoring_alert_policy" "orch_uptime_alert" {
 
   # Optional: Documentation for the alert
   documentation {
-    content = "The Zipline Orchestration Service for ${title(var.name_prefix)} uptime check has failed. Please investigate the service availability."
+    content   = "The Zipline Orchestration Service for ${title(var.name_prefix)} uptime check has failed for at least 5 minutes. Please investigate the service availability."
     mime_type = "text/markdown"
   }
 
   # Alert when resolved as well
   alert_strategy {
-    auto_close = "3600s"  # Auto-close after 1 hour if resolved
-
-    notification_rate_limit {
-      period = "1800s"  # Limit notifications to once every 30 minutes
-    }
+    auto_close = "3600s" # Auto-close after 1 hour if resolved
   }
 
   depends_on = [
@@ -160,23 +157,25 @@ resource "google_monitoring_alert_policy" "ui_uptime_alert" {
     display_name = "UI Uptime Check Failure"
 
     condition_threshold {
-      filter         = join(" AND ", [
+      filter = join(" AND ", [
         "resource.type=\"uptime_url\"",
         "metric.type=\"monitoring.googleapis.com/uptime_check/check_passed\"",
-        "check_id=\"${google_monitoring_uptime_check_config.ui_uptime_check.id}\"",
+        "resource.labels.project_id=\"${data.google_project.zipline.project_id}\"",
+        "resource.labels.host=\"${trimprefix(google_cloud_run_v2_service.zipline_ui.uri, "https://")}\""
+
       ])
-      duration       = "300s"
-      comparison     = "COMPARISON_EQ"
-      threshold_value = 0
+      duration        = "300s"
+      comparison      = "COMPARISON_LT"
+      threshold_value = 1
 
       trigger {
         count = 1
       }
 
       aggregations {
-        alignment_period   = "300s"
-        per_series_aligner = "ALIGN_NEXT_OLDER"
-        cross_series_reducer = "REDUCE_COUNT_FALSE"
+        alignment_period     = "300s"
+        per_series_aligner   = "ALIGN_FRACTION_TRUE"
+        cross_series_reducer = "REDUCE_MEAN"
         group_by_fields = [
           "resource.labels.project_id",
           "resource.labels.host"
@@ -190,16 +189,12 @@ resource "google_monitoring_alert_policy" "ui_uptime_alert" {
   ]
 
   documentation {
-    content = "The Zipline UI service for ${title(var.name_prefix)} uptime check has failed. Please investigate the service availability."
+    content   = "The Zipline UI service for ${title(var.name_prefix)} uptime check has failed for at least 5 minutes. Please investigate the service availability."
     mime_type = "text/markdown"
   }
 
   alert_strategy {
     auto_close = "3600s"
-
-    notification_rate_limit {
-      period = "1800s"
-    }
   }
 
   depends_on = [
