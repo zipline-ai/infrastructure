@@ -157,7 +157,7 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
       internal_ip_only = true
     }
     software_config {
-      image_version = "2.2.50-debian12"
+      image_version = "2.2.66-debian12"
       optional_components = [
         "FLINK",
         "JUPYTER",
