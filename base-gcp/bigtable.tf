@@ -57,25 +57,25 @@ resource "google_bigtable_gc_policy" "groupby_streaming_gc_policy" {
   }
 }
 
-resource "google_bigtable_table" "tile_summaries_batch" {
+resource "google_bigtable_table" "data_quality_metrics_batch" {
   instance_name = google_bigtable_instance.zipline_bigtable_instance.name
-  name          = "TILE_SUMMARIES_BATCH"
+  name          = "DATA_QUALITY_METRICS_BATCH"
   column_family {
     family = "cf"
   }
 }
 
-resource "google_bigtable_table" "tile_summaries_streaming" {
+resource "google_bigtable_table" "data_quality_metrics_streaming" {
   instance_name = google_bigtable_instance.zipline_bigtable_instance.name
-  name          = "TILE_SUMMARIES_STREAMING"
+  name          = "DATA_QUALITY_METRICS_STREAMING"
   column_family {
     family = "cf"
   }
 }
 
-resource "google_bigtable_gc_policy" "tile_summaries_batch_gc_policy" {
+resource "google_bigtable_gc_policy" "data_quality_metrics_batch_gc_policy" {
   instance_name = google_bigtable_instance.zipline_bigtable_instance.name
-  table         = google_bigtable_table.tile_summaries_batch.name
+  table         = google_bigtable_table.data_quality_metrics_batch.name
   column_family = "cf"
 
   mode = "UNION"
@@ -87,9 +87,9 @@ resource "google_bigtable_gc_policy" "tile_summaries_batch_gc_policy" {
   }
 }
 
-resource "google_bigtable_gc_policy" "tile_summaries_streaming_gc_policy" {
+resource "google_bigtable_gc_policy" "data_quality_metrics_streaming_gc_policy" {
   instance_name = google_bigtable_instance.zipline_bigtable_instance.name
-  table         = google_bigtable_table.tile_summaries_streaming.name
+  table         = google_bigtable_table.data_quality_metrics_streaming.name
   column_family = "cf"
 
   mode = "UNION"
