@@ -6,6 +6,7 @@ module "orchestration" {
   name_prefix = var.customer_name
   region = var.region
   personnel_email = var.personnel_email
+  alerting_email = var.alerting_email
 
   artifact_prefix = var.artifact_prefix
   bigtable_instance_name = google_bigtable_instance.zipline_bigtable_instance.name
