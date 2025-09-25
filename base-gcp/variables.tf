@@ -59,3 +59,8 @@ variable "table_partitions_dataset" {
   description = "The Bigtable table to use for storing table partitions."
   default     = "TABLE_PARTITIONS"
 }
+
+variable "data_quality_metrics_dataset" {
+  description = "The Bigtable table to use for storing table data quality metrics."
+  default     = "DATA_QUALITY_METRICS"
+}

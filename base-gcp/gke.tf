@@ -238,6 +238,7 @@ resource "helm_release" "zipline_orchestration" {
 
       bigtable_instance_id              = google_bigtable_instance.zipline_bigtable_instance.name
       bigtable_table_partitions_dataset = google_bigtable_table.gke_table_partitions.name
+      bigtable_data_quality_metrics_dataset = var.data_quality_metrics_dataset
 
       temporal_service_account      = google_service_account.temporal_gsa.email
       orchestration_service_account = google_service_account.orchestration_sa.email
