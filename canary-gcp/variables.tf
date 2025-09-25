@@ -30,3 +30,9 @@ variable "data_quality_metrics_dataset" {
   description = "The Bigtable table to use for storing table data quality metrics."
   default     = "DATA_QUALITY_METRICS"
 }
+
+variable "data_quality_metrics_ci_dataset" {
+  description = "The Bigtable table to use for storing table data quality metrics (in CI)."
+  default     = "DATA_QUALITY_METRICS_CI"
+
+}
