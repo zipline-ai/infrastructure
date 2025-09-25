@@ -15,6 +15,11 @@ variable "personnel_email" {
   default = "gcp-admin@zipline.ai"
 }
 
+variable "alerting_email" {
+  description = "Email address to send alerts to."
+  default     = "alerts@zipline.ai"
+}
+
 variable "dataproc_subnetwork" {
   default = ""
 }

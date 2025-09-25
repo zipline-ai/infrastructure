@@ -2,6 +2,8 @@ variable "name_prefix" {}
 
 variable "personnel_email" {}
 
+variable "alerting_email" {}
+
 variable "zipline_version" {}
 
 variable "region" {}
