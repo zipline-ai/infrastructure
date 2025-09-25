@@ -52,6 +52,8 @@ spec:
               value: "{{ .Values.orchestration.hub.port }}"
             - name: TABLE_PARTITIONS_DATASET
               value: "{{ .Values.bigtable.table_partitions_dataset }}"
+            - name: DATA_QUALITY_METRICS_DATASET
+              value: "{{ .Values.bigtable.data_quality_metrics_dataset }}"
             - name: HUB_FRONTEND_URL
               value: "https://{{ include "zipline-orchestration.orchestrationUIDomain" . }}/"
 
