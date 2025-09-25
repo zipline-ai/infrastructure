@@ -23,6 +23,7 @@ database:
 bigtable:
   instance_id: ""
   table_partitions_dataset: ""
+  data_quality_metrics_dataset: ""
 
 # Service account configuration
 serviceAccount:

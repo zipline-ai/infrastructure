@@ -516,6 +516,10 @@ resource "google_cloud_run_v2_service" "orchestration_temporal_worker" {
         value = var.table_partitions_dataset
       }
       env {
+        name  = "DATA_QUALITY_METRICS_DATASET"
+        value = var.data_quality_metrics_dataset
+      }
+      env {
         name  = "BIGTABLE_INITIAL_RPC_TIMEOUT_DURATION"
         value = "PT0.5S"
       }

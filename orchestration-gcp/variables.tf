@@ -19,3 +19,5 @@ variable "logs_bucket_name" {}
 variable "artifact_prefix" {}
 
 variable "table_partitions_dataset" {}
+
+variable "data_quality_metrics_dataset" {}

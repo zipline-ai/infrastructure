@@ -7,6 +7,7 @@ module "base_setup" {
   artifact_prefix = "gs://zipline-artifacts-canary"
   zipline_version = "latest"
   table_partitions_dataset = google_bigtable_table.table_partitions_ci.name
+  data_quality_metrics_dataset = var.data_quality_metrics_ci_dataset
   hub_domain = "canary-gke-orch.zipline.ai"
   temporal_domain = "canary-gke-temporal.zipline.ai"
   zipline_ui_domain = "canary-gke.zipline.ai"

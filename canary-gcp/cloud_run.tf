@@ -346,6 +346,10 @@ resource "google_cloud_run_v2_worker_pool" "dev_orchestration_temporal_worker" {
         value = google_bigtable_table.dev_table_partitions.name
       }
       env {
+        name  = "DATA_QUALITY_METRICS_DATASET"
+        value = var.data_quality_metrics_dataset
+      }
+      env {
         name  = "BIGTABLE_INITIAL_RPC_TIMEOUT_DURATION"
         value = "PT0.5S"
       }

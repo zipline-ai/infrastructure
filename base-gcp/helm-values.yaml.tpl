@@ -20,6 +20,7 @@ database:
 bigtable:
   instance_id: "${bigtable_instance_id}"
   table_partitions_dataset: "${bigtable_table_partitions_dataset}"
+  data_quality_metrics_dataset: "${bigtable_data_quality_metrics_dataset}"
 
 serviceAccount:
   temporal:
