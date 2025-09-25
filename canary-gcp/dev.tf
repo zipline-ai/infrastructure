@@ -58,20 +58,39 @@ resource "google_bigtable_gc_policy" "table_partitions_ci_gc_policy" {
   }
 }
 
-resource "google_bigtable_table" "data_quality_metrics_ci" {
+resource "google_bigtable_table" "data_quality_metrics_ci_batch" {
   instance_name = module.base_setup.bigtable_instance_name
-  name          = "DATA_QUALITY_METRICS_CI"
+  name          = "DATA_QUALITY_METRICS_CI_BATCH"
   column_family {
     family = "cf"
   }
 }
 
-resource "google_bigtable_gc_policy" "data_quality_metrics_ci_gc_policy" {
+resource "google_bigtable_table" "data_quality_metrics_ci_streaming" {
   instance_name = module.base_setup.bigtable_instance_name
-  table         = google_bigtable_table.data_quality_metrics_ci.name
+  name          = "DATA_QUALITY_METRICS_CI_STREAMING"
+  column_family {
+    family = "cf"
+  }
+}
+
+resource "google_bigtable_gc_policy" "data_quality_metrics_ci_batch_gc_policy" {
+  instance_name = module.base_setup.bigtable_instance_name
+  table         = google_bigtable_table.data_quality_metrics_ci_batch.name
   column_family = "cf"
 
   max_age {
     duration = "120h"
   }
 }
+
+resource "google_bigtable_gc_policy" "data_quality_metrics_ci_streaming_gc_policy" {
+  instance_name = module.base_setup.bigtable_instance_name
+  table         = google_bigtable_table.data_quality_metrics_ci_streaming.name
+  column_family = "cf"
+
+  max_age {
+    duration = "120h"
+  }
+}
+
