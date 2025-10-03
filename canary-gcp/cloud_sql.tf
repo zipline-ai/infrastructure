@@ -31,9 +31,9 @@ resource "google_sql_database_instance" "dev_orchestration_instance" {
     }
 
     backup_configuration {
-      enabled = true
+      enabled    = true
       start_time = "03:00" # UTC time for backup start
-      location = var.region
+      location   = var.region
     }
   }
   lifecycle {
@@ -44,50 +44,6 @@ resource "google_sql_database_instance" "dev_orchestration_instance" {
 resource "google_sql_database" "dev_orchestration_database" {
   name     = "execution-info"
   instance = google_sql_database_instance.dev_orchestration_instance.name
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "google_sql_database_instance" "dev_temporal_instance" {
-  database_version = "POSTGRES_16"
-  name             = "dev-temporal-instance"
-  region           = var.region
-
-  settings {
-    tier    = "db-g1-small"
-    edition = "ENTERPRISE"
-
-    ip_configuration {
-      ipv4_enabled    = true
-      private_network = google_compute_network.zipline_vpc.id
-    }
-
-    database_flags {
-      name  = "max_connections"
-      value = "200"
-    }
-
-    backup_configuration {
-      enabled = true
-      start_time = "03:00" # UTC time for backup start
-      location = var.region
-    }
-  }
-
-  depends_on = [
-    google_project_service.cloud_sql,
-    google_service_networking_connection.private_vpc_connection
-  ]
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "google_sql_database" "dev_temporal_database" {
-  name     = "temporal"
-  instance = google_sql_database_instance.dev_temporal_instance.name
   lifecycle {
     prevent_destroy = true
   }
@@ -115,19 +71,6 @@ resource "google_secret_manager_secret_iam_member" "dev_db_password_access" {
   secret_id = google_secret_manager_secret.dev_db_password.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.dev_orchestration_service_account.email}"
-}
-
-
-resource "google_secret_manager_secret_iam_member" "dev_temporal_db_password_access" {
-  secret_id = google_secret_manager_secret.dev_db_password.secret_id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.dev_temporal_service_account.email}"
-}
-
-resource "google_sql_user" "dev_temporal_user" {
-  instance = google_sql_database_instance.dev_temporal_instance.name
-  name     = "locker_user"
-  password = random_password.dev_db_password.result
 }
 
 resource "google_sql_user" "dev_orchestration_user" {

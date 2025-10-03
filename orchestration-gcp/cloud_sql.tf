@@ -31,56 +31,6 @@ resource "random_password" "db_password" {
 }
 
 
-resource "google_sql_database_instance" "temporal_instance" {
-  database_version = "POSTGRES_16"
-  name             = "${var.name_prefix}-zipline-temporal-instance"
-  region           = var.region
-
-  settings {
-    tier    = "db-custom-8-30720"
-    edition = "ENTERPRISE"
-
-    ip_configuration {
-      ipv4_enabled    = true
-      private_network = var.vpc_id
-    }
-
-    database_flags {
-      name  = "max_connections"
-      value = "10000"
-    }
-
-    backup_configuration {
-      enabled    = true
-      start_time = "03:00" # UTC time for backup start
-      location   = var.region
-    }
-  }
-
-  depends_on = [
-    google_project_service.cloud_sql,
-  ]
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "google_sql_database" "temporal_database" {
-  name     = "temporal"
-  instance = google_sql_database_instance.temporal_instance.name
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "google_sql_user" "temporal_user" {
-  instance = google_sql_database_instance.temporal_instance.name
-  name     = "temporal_user"
-  password = random_password.db_password.result
-}
-
-
 resource "google_sql_database_instance" "orchestration_instance" {
   database_version = "POSTGRES_16"
   name             = "${var.name_prefix}-zipline-orchestration-instance"
