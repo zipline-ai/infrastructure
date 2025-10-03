@@ -582,7 +582,7 @@ resource "google_cloud_run_v2_service_iam_member" "chronon_fetcher_access" {
 }
 
 # IAM policy to allow all users to invoke chronon services (public access)
-resource "google_cloud_run_v2_service_iam_member" "dev_chronon_fetcher_all_access" {
+resource "google_cloud_run_v2_service_iam_member" "chronon_fetcher_all_access" {
   location = google_cloud_run_v2_service.chronon_fetcher.location
   project  = google_cloud_run_v2_service.chronon_fetcher.project
   name     = google_cloud_run_v2_service.chronon_fetcher.name

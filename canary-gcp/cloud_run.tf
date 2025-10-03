@@ -476,12 +476,12 @@ resource "google_cloud_run_v2_service" "dev_chronon_fetcher" {
                 },
                 {
                   key    = "namespace"
-                  value  = var.name
+                  value  = "dev"
                   action = "upsert"
                 },
                 {
                   key    = "cluster"
-                  value  = "zipline-${var.name}"
+                  value  = "zipline-dev"
                   action = "upsert"
                 }
               ]
