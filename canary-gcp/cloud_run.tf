@@ -64,7 +64,7 @@ resource "google_project_iam_member" "dev_orchestration_logging_writer" {
 }
 
 # Grant Dataproc access to the Orchestration service account
-resource "google_service_account_iam_member" "orchestration_impersonation_dataproc" {
+resource "google_service_account_iam_member" "dev_orchestration_impersonation_dataproc" {
   service_account_id = module.base_setup.dataproc_service_account_id
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${google_service_account.dev_orchestration_service_account.email}"
