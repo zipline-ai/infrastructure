@@ -23,3 +23,5 @@ variable "artifact_prefix" {}
 variable "table_partitions_dataset" {}
 
 variable "data_quality_metrics_dataset" {}
+
+variable "dataproc_service_account" {}
