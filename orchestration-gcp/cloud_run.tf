@@ -89,6 +89,13 @@ resource "google_project_iam_member" "orchestration_monitoring" {
   member  = "serviceAccount:${google_service_account.orchestration_service_account.email}"
 }
 
+# Grant Dataproc access to the Orchestration service account
+resource "google_service_account_iam_member" "orchestration_impersonation_dataproc" {
+  service_account_id = var.dataproc_service_account
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.orchestration_service_account.email}"
+}
+
 ################################################################
 # Cloud Run v2 service for Orchestration Hub
 
