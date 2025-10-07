@@ -11,15 +11,15 @@ variable "personnel_email" {
 }
 
 variable "hub_domain" {
-  default = ""
-}
-
-variable "temporal_domain" {
-  default = ""
+  default = "canary-orch.zipline.ai"
 }
 
 variable "zipline_ui_domain" {
-  default = ""
+  default = "canary.zipline.ai"
+}
+
+variable "dev_zipline_ui_domain" {
+  default = "dev.zipline.ai"
 }
 
 variable "artifact_prefix" {
