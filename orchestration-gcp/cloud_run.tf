@@ -35,7 +35,7 @@ resource "google_project_service" "iap_api" {
 
 # Service Account for Orchestration
 resource "google_service_account" "orchestration_service_account" {
-  account_id   = "zipline-orchestration-sa"
+  account_id   = "${var.name_prefix}-zipline-orch-sa"
   display_name = "Zipline Cloud Run Service Account"
   project      = data.google_project.zipline.project_id
 }
