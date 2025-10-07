@@ -189,6 +189,10 @@ resource "google_cloud_run_v2_service" "orchestration" {
         name  = "EXPORTER_OTLP_ENDPOINT"
         value = "http://localhost:4318"
       }
+      env {
+        name  = "HUB_FRONTEND_URL"
+        value = "https://${var.zipline_ui_domain ? var.zipline_ui_domain : google_cloud_run_v2_service.zipline_ui.uri}"
+      }
       ports {
         container_port = 3903
       }
