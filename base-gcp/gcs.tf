@@ -21,3 +21,7 @@ resource "google_storage_bucket_iam_member" "zipline-logs-bucket-binding" {
   member = "serviceAccount:${var.control_plane_service_account}"
   role   = "roles/storage.objectViewer"
 }
+
+output "logs_bucket_name" {
+  value = google_storage_bucket.zipline-logs.name
+}

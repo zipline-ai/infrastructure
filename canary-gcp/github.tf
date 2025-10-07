@@ -85,7 +85,7 @@ resource "google_project_iam_member" "service_account_cloudrun" {
 }
 
 resource "google_service_account_iam_member" "github_dev_cloudrun_access" {
-  service_account_id = google_service_account.dev_orchestration_service_account.id
+  service_account_id = module.dev_orch.orchestration_service_account_id
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${google_service_account.github.email}"
 }
@@ -103,14 +103,11 @@ resource "google_project_iam_member" "github_artifact_registry" {
 }
 
 resource "google_cloud_run_service_iam_member" "github_dev_cloud_run_invoker" {
-  service  = google_cloud_run_v2_service.dev_orchestration.name
+  service  = module.dev_orch.orchestration_service_name
   location = var.region
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.github.email}"
 
-  depends_on = [
-    google_cloud_run_v2_service.dev_orchestration
-  ]
 }
 
 resource "google_cloud_run_service_iam_member" "github_cloud_run_invoker" {
@@ -119,9 +116,6 @@ resource "google_cloud_run_service_iam_member" "github_cloud_run_invoker" {
   role     = "roles/run.invoker"
   member   = "serviceAccount:${google_service_account.github.email}"
 
-  depends_on = [
-    google_cloud_run_v2_service.dev_orchestration
-  ]
 }
 
 resource "google_project_iam_member" "github_bigtable_admin" {
