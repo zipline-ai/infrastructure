@@ -24,7 +24,7 @@ module "dev_orch" {
 
   zipline_ui_domain = var.dev_zipline_ui_domain
 
-  artifact_prefix              = "gs://zipline-artifacts-canary"
+  artifact_prefix              = "gs://zipline-artifacts-dev"
   bigtable_instance_name       = module.base_setup.bigtable_instance_name
   logs_bucket_name             = module.base_setup.logs_bucket_name
   table_partitions_dataset     = google_bigtable_table.dev_table_partitions.name
