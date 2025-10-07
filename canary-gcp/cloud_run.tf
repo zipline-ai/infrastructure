@@ -165,7 +165,7 @@ resource "google_cloud_run_v2_service" "dev_orchestration" {
       }
       env {
         name  = "HUB_FRONTEND_URL"
-        value = "https://${var.dev_zipline_ui_domain ? var.dev_zipline_ui_domain : google_cloud_run_v2_service.dev_zipline_ui.uri}"
+        value = "https://${var.dev_zipline_ui_domain}"
       }
       ports {
         container_port = 3903
