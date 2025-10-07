@@ -252,9 +252,9 @@ resource "helm_release" "zipline_orchestration" {
 
       gke_ssl_policy_name = google_compute_ssl_policy.ingress_ssl_policy.name
 
-      zipline_ui_domain = "canary.zipline.ai"
-      temporal_domain   = "canary-temporal.zipline.ai"
-      hub_domain        = "canary-orch.zipline.ai"
+      zipline_ui_domain = "canary-gke.zipline.ai"
+      temporal_domain   = "canary-gke-temporal.zipline.ai"
+      hub_domain        = "canary-gke-orch.zipline.ai"
     })
   ]
 
