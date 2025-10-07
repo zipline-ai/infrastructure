@@ -6,18 +6,18 @@ resource "google_project_service" "service_networking" {
   disable_on_destroy         = false
 }
 
-resource "google_compute_network" "dev_zipline_vpc" {
-  name                    = "dev-zipline-vpc"
+resource "google_compute_network" "zipline_vpc" {
+  name                    = "zipline-vpc"
   auto_create_subnetworks = false
   project                 = data.google_project.zipline.project_id
 }
 
 # Create subnet for Cloud Run services
-resource "google_compute_subnetwork" "dev_zipline_subnet" {
-  name          = "dev-zipline-subnet"
+resource "google_compute_subnetwork" "zipline_subnet" {
+  name          = "zipline-subnet"
   ip_cidr_range = "10.0.0.0/24"
   region        = var.region
-  network       = google_compute_network.dev_zipline_vpc.id
+  network       = google_compute_network.zipline_vpc.id
   project       = data.google_project.zipline.project_id
 
   # Add secondary IP ranges for GKE pods and services
@@ -33,9 +33,9 @@ resource "google_compute_subnetwork" "dev_zipline_subnet" {
 }
 
 # Create firewall rule to allow internal communication
-resource "google_compute_firewall" "dev_zipline_internal" {
+resource "google_compute_firewall" "zipline_internal" {
   name    = "zipline-allow-internal"
-  network = google_compute_network.dev_zipline_vpc.name
+  network = google_compute_network.zipline_vpc.name
   project = data.google_project.zipline.project_id
 
   allow {
@@ -58,9 +58,9 @@ resource "google_compute_firewall" "dev_zipline_internal" {
 
 
 # Create firewall rule to allow health checks
-resource "google_compute_firewall" "dev_zipline_health_checks" {
-  name    = "dev-zipline-allow-health-checks"
-  network = google_compute_network.dev_zipline_vpc.name
+resource "google_compute_firewall" "zipline_health_checks" {
+  name    = "zipline-allow-health-checks"
+  network = google_compute_network.zipline_vpc.name
   project = data.google_project.zipline.project_id
 
   allow {
@@ -75,21 +75,21 @@ resource "google_compute_firewall" "dev_zipline_health_checks" {
 }
 
 # Allocate IP range for private services access
-resource "google_compute_global_address" "dev_private_ip_range" {
-  name          = "dev-zipline-private-ip-range"
+resource "google_compute_global_address" "private_ip_range" {
+  name          = "zipline-private-ip-range"
   purpose       = "VPC_PEERING"
   address_type  = "INTERNAL"
   prefix_length = 16
-  network       = google_compute_network.dev_zipline_vpc.id
+  network       = google_compute_network.zipline_vpc.id
 }
 
 # Create private connection for services
-resource "google_service_networking_connection" "dev_private_vpc_connection" {
-  network                 = google_compute_network.dev_zipline_vpc.id
+resource "google_service_networking_connection" "private_vpc_connection" {
+  network                 = google_compute_network.zipline_vpc.id
   service                 = "servicenetworking.googleapis.com"
-  reserved_peering_ranges = [google_compute_global_address.dev_private_ip_range.name]
+  reserved_peering_ranges = [google_compute_global_address.private_ip_range.name]
 
   depends_on = [
-    google_compute_global_address.dev_private_ip_range
+    google_compute_global_address.private_ip_range
   ]
 }
