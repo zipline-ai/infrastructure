@@ -35,7 +35,7 @@ resource "google_project_service" "iap_api" {
 
 # Service Account for Orchestration
 resource "google_service_account" "orchestration_service_account" {
-  account_id   = "zipline-orchestration-sa"
+  account_id   = "${var.name_prefix}-zipline-orch-sa"
   display_name = "Zipline Cloud Run Service Account"
   project      = data.google_project.zipline.project_id
 }
@@ -188,6 +188,10 @@ resource "google_cloud_run_v2_service" "orchestration" {
       env {
         name  = "EXPORTER_OTLP_ENDPOINT"
         value = "http://localhost:4318"
+      }
+      env {
+        name  = "HUB_FRONTEND_URL"
+        value = "https://${var.zipline_ui_domain}"
       }
       ports {
         container_port = 3903

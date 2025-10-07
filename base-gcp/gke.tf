@@ -236,8 +236,8 @@ resource "helm_release" "zipline_orchestration" {
       orchestration_db_password = google_secret_manager_secret_version.db_password.secret_data
       orchestration_db_database = google_sql_database.orchestration_database.name
 
-      bigtable_instance_id              = google_bigtable_instance.zipline_bigtable_instance.name
-      bigtable_table_partitions_dataset = google_bigtable_table.gke_table_partitions.name
+      bigtable_instance_id                  = google_bigtable_instance.zipline_bigtable_instance.name
+      bigtable_table_partitions_dataset     = google_bigtable_table.gke_table_partitions.name
       bigtable_data_quality_metrics_dataset = var.data_quality_metrics_dataset
 
       temporal_service_account      = google_service_account.temporal_gsa.email
@@ -252,9 +252,9 @@ resource "helm_release" "zipline_orchestration" {
 
       gke_ssl_policy_name = google_compute_ssl_policy.ingress_ssl_policy.name
 
-      zipline_ui_domain = var.zipline_ui_domain
-      temporal_domain   = var.temporal_domain
-      hub_domain        = var.hub_domain
+      zipline_ui_domain = "canary-gke.zipline.ai"
+      temporal_domain   = "canary-gke-temporal.zipline.ai"
+      hub_domain        = "canary-gke-orch.zipline.ai"
     })
   ]
 
