@@ -104,6 +104,11 @@ resource "google_cloud_run_v2_service" "orchestration" {
   location = var.region
 
   template {
+    annotations = {
+      "run.googleapis.com/container-dependencies" = jsonencode({
+        otel-collector = ["orchestration-hub"]
+      })
+    }
 
     vpc_access {
       network_interfaces {
@@ -184,6 +189,10 @@ resource "google_cloud_run_v2_service" "orchestration" {
       env {
         name  = "USE_HTTPS"
         value = "true"
+      }
+      env {
+        name  = "CHRONON_METRICS_READER"
+        value = "http"
       }
       env {
         name  = "EXPORTER_OTLP_ENDPOINT"
