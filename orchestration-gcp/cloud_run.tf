@@ -103,6 +103,10 @@ resource "google_cloud_run_v2_service" "orchestration" {
   name     = "${var.name_prefix}-zipline-orchestration"
   location = var.region
 
+  custom_audiences = [
+    var.hub_domain ? "https://${var.hub_domain}" : "https://${var.name_prefix}-zipline-orchestration-${data.google_project.zipline.number}.${var.region}.run.app"
+  ]
+
   template {
     annotations = {
       "run.googleapis.com/container-dependencies" = jsonencode({
@@ -332,6 +336,9 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
   name     = "${var.name_prefix}-zipline-ui"
   location = var.region
 
+  custom_audiences = [
+    var.zipline_ui_domain ? "https://${var.zipline_ui_domain}" : "https://${var.name_prefix}-zipline-ui-${data.google_project.zipline.number}.${var.region}.run.app"
+  ]
   template {
     vpc_access {
       network_interfaces {
@@ -636,4 +643,12 @@ resource "google_cloud_run_domain_mapping" "orchestration_domain_mapping" {
   depends_on = [
     google_cloud_run_v2_service.orchestration
   ]
+}
+
+output "UI_DNS_Instructions" {
+  value = var.zipline_ui_domain != "" ? "Create a CNAME record pointing ${var.zipline_ui_domain} to ghs.googlehosted.com. For more details, see https://cloud.google.com/run/docs/mapping-custom-domains#dns_update" : null
+}
+
+output "Hub_DNS_Instructions" {
+  value = var.hub_domain != "" ? "Create a CNAME record pointing ${var.hub_domain} to ghs.googlehosted.com. For more details, see https://cloud.google.com/run/docs/mapping-custom-domains#dns_update" : null
 }
