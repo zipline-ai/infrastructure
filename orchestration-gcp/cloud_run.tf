@@ -104,7 +104,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
   location = var.region
 
   custom_audiences = [
-    var.hub_domain ? "https://${var.hub_domain}" : "https://${var.name_prefix}-zipline-orchestration-${data.google_project.zipline.number}.${var.region}.run.app"
+    var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${var.name_prefix}-zipline-orchestration-${data.google_project.zipline.number}.${var.region}.run.app"
   ]
 
   template {
@@ -337,7 +337,7 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
   location = var.region
 
   custom_audiences = [
-    var.zipline_ui_domain ? "https://${var.zipline_ui_domain}" : "https://${var.name_prefix}-zipline-ui-${data.google_project.zipline.number}.${var.region}.run.app"
+    var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${var.name_prefix}-zipline-ui-${data.google_project.zipline.number}.${var.region}.run.app"
   ]
   template {
     vpc_access {
