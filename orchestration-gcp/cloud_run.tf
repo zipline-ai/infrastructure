@@ -191,7 +191,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
       }
       env {
         name  = "HUB_FRONTEND_URL"
-        value = "https://${var.zipline_ui_domain}"
+        value = var.zipline_ui_domain ? "https://${var.zipline_ui_domain}" : "https://${var.name_prefix}-zipline-ui-${data.google_project.zipline.number}.${var.region}.run.app"
       }
       ports {
         container_port = 3903
@@ -401,13 +401,6 @@ resource "google_cloud_run_v2_service_iam_member" "ui_personnel_access" {
   member   = "group:${var.personnel_email}"
 }
 
-resource "google_cloud_run_v2_service_iam_member" "ui_all_access" {
-  name     = google_cloud_run_v2_service.zipline_ui.name
-  location = google_cloud_run_v2_service.zipline_ui.location
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}
-
 output "docker_hub_remote_repository_id" {
   value = google_artifact_registry_repository.docker_hub_remote_repository.repository_id
 }
@@ -599,4 +592,33 @@ resource "google_cloud_run_v2_service_iam_member" "chronon_fetcher_all_access" {
   name     = google_cloud_run_v2_service.chronon_fetcher.name
   role     = "roles/run.invoker"
   member   = "allUsers"
+}
+
+################################################################
+# Domain Mapping for Cloud Run services
+
+resource "google_cloud_run_domain_mapping" "ui_domain_mapping" {
+  count    = var.zipline_ui_domain != "" ? 1 : 0
+  name     = var.zipline_ui_domain
+  location = var.region
+  spec {
+    route_name = google_cloud_run_v2_service.zipline_ui.name
+  }
+
+  depends_on = [
+    google_cloud_run_v2_service.zipline_ui
+  ]
+}
+
+resource "google_cloud_run_domain_mapping" "orchestration_domain_mapping" {
+  count    = var.hub_domain != "" ? 1 : 0
+  name     = var.hub_domain
+  location = var.region
+  spec {
+    route_name = google_cloud_run_v2_service.orchestration.name
+  }
+
+  depends_on = [
+    google_cloud_run_v2_service.orchestration
+  ]
 }

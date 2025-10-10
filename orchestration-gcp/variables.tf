@@ -9,11 +9,12 @@ variable "zipline_version" {}
 variable "region" {}
 
 variable "hub_domain" {
-  default = ""
+  description = "The URL for the Zipline hub."
+  default     = ""
 }
 
 variable "zipline_ui_domain" {
-  description = "The URL for the Zipline frontend. This is used for setting up CORS access."
+  description = "The URL for the Zipline frontend."
   default     = ""
 }
 

@@ -23,6 +23,7 @@ module "dev_orch" {
   alerting_email  = var.personnel_email
 
   zipline_ui_domain = var.dev_zipline_ui_domain
+  hub_domain        = var.dev_hub_domain
 
   artifact_prefix              = "gs://zipline-artifacts-dev"
   bigtable_instance_name       = module.base_setup.bigtable_instance_name
