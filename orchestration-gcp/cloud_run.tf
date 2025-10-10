@@ -200,7 +200,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
       }
       env {
         name  = "HUB_FRONTEND_URL"
-        value = var.zipline_ui_domain ? "https://${var.zipline_ui_domain}" : "https://${var.name_prefix}-zipline-ui-${data.google_project.zipline.number}.${var.region}.run.app"
+        value = var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${var.name_prefix}-zipline-ui-${data.google_project.zipline.number}.${var.region}.run.app"
       }
       ports {
         container_port = 3903
@@ -613,6 +613,9 @@ resource "google_cloud_run_domain_mapping" "ui_domain_mapping" {
   spec {
     route_name = google_cloud_run_v2_service.zipline_ui.name
   }
+  metadata {
+    namespace = data.google_project.zipline.project_id
+  }
 
   depends_on = [
     google_cloud_run_v2_service.zipline_ui
@@ -625,6 +628,9 @@ resource "google_cloud_run_domain_mapping" "orchestration_domain_mapping" {
   location = var.region
   spec {
     route_name = google_cloud_run_v2_service.orchestration.name
+  }
+  metadata {
+    namespace = data.google_project.zipline.project_id
   }
 
   depends_on = [
