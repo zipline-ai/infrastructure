@@ -9,12 +9,12 @@ variable "zipline_version" {}
 variable "region" {}
 
 variable "hub_domain" {
-  description = "The URL for the Zipline hub."
+  description = "Set to provided a URL for the Zipline hub."
   default     = ""
 }
 
 variable "zipline_ui_domain" {
-  description = "The URL for the Zipline frontend."
+  description = "Set to provided a URL for the Zipline frontend."
   default     = ""
 }
 
