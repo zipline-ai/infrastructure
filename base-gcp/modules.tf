@@ -9,6 +9,7 @@ module "orchestration" {
   alerting_email  = var.alerting_email
 
   zipline_ui_domain = var.zipline_ui_domain
+  hub_domain        = var.hub_domain
 
   artifact_prefix              = var.artifact_prefix
   bigtable_instance_name       = google_bigtable_instance.zipline_bigtable_instance.name

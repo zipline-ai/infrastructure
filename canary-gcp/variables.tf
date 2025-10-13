@@ -18,6 +18,10 @@ variable "zipline_ui_domain" {
   default = "canary.zipline.ai"
 }
 
+variable "dev_hub_domain" {
+  default = "dev-orch.zipline.ai"
+}
+
 variable "dev_zipline_ui_domain" {
   default = "dev.zipline.ai"
 }
