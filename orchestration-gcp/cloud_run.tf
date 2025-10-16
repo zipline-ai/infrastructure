@@ -104,7 +104,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
   location = var.region
 
   custom_audiences = [
-    var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${var.name_prefix}-zipline-orchestration-${data.google_project.zipline.number}.${var.region}.run.app"
+      var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${var.name_prefix}-zipline-orchestration-${data.google_project.zipline.number}.${var.region}.run.app"
   ]
 
   template {
@@ -333,14 +333,12 @@ resource "google_cloud_run_v2_service_iam_member" "orchestration_ui_hub_access" 
 # Cloud Run v2 service for Orchestration UI
 
 resource "google_cloud_run_v2_service" "zipline_ui" {
-  provider     = google-beta
   name         = "${var.name_prefix}-zipline-ui"
   location     = var.region
-  launch_stage = "BETA"
-  iap_enabled  = true
 
+  invoker_iam_disabled = true
   custom_audiences = [
-    var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${var.name_prefix}-zipline-ui-${data.google_project.zipline.number}.${var.region}.run.app"
+      var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${var.name_prefix}-zipline-ui-${data.google_project.zipline.number}.${var.region}.run.app"
   ]
   template {
     vpc_access {
@@ -413,30 +411,6 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
   }
 }
 
-resource "google_cloud_run_v2_service_iam_member" "ui_personnel_access" {
-  name     = google_cloud_run_v2_service.zipline_ui.name
-  location = google_cloud_run_v2_service.zipline_ui.location
-  role     = "roles/run.invoker"
-  member   = "group:${var.personnel_email}"
-}
-
-resource "google_cloud_run_v2_service_iam_member" "ui_iap_access" {
-  name     = google_cloud_run_v2_service.zipline_ui.name
-  location = google_cloud_run_v2_service.zipline_ui.location
-  role     = "roles/run.invoker"
-  member   = "serviceAccount:service-${data.google_project.zipline.number}@gcp-sa-iap.iam.gserviceaccount.com"
-}
-
-resource "google_iap_web_iam_member" "ui_iap_user_access" {
-  project = data.google_project.zipline.project_id
-  role    = "roles/iap.httpsResourceAccessor"
-  member  = "group:${var.personnel_email}"
-
-  depends_on = [
-    google_cloud_run_v2_service.zipline_ui,
-    google_cloud_run_v2_service_iam_member.ui_iap_access
-  ]
-}
 
 output "docker_hub_remote_repository_id" {
   value = google_artifact_registry_repository.docker_hub_remote_repository.repository_id
