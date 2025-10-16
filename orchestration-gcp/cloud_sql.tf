@@ -56,7 +56,10 @@ resource "google_sql_database_instance" "orchestration_instance" {
     }
   }
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
+    ignore_changes = [
+     settings[0].ip_configuration[0].authorized_networks,
+    ]
   }
 }
 
@@ -64,7 +67,7 @@ resource "google_sql_database" "orchestration_database" {
   name     = "execution-info"
   instance = google_sql_database_instance.orchestration_instance.name
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
   }
 }
 
