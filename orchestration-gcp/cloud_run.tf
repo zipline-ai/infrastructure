@@ -339,7 +339,6 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
   launch_stage = "BETA"
   iap_enabled  = true
 
-  invoker_iam_disabled = true
   custom_audiences = [
       var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${var.name_prefix}-zipline-ui-${data.google_project.zipline.number}.${var.region}.run.app"
   ]
