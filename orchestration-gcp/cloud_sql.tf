@@ -33,7 +33,7 @@ resource "random_password" "db_password" {
 
 resource "google_sql_database_instance" "orchestration_instance" {
   database_version = "POSTGRES_16"
-  name             = "${var.name_prefix}-zipline-orchestration-instance"
+  name             = "${var.name_prefix}-zipline-orch-instance"
   region           = var.region
   settings {
     tier    = "db-custom-8-30720"
@@ -58,7 +58,7 @@ resource "google_sql_database_instance" "orchestration_instance" {
   lifecycle {
     prevent_destroy = false
     ignore_changes = [
-     settings[0].ip_configuration[0].authorized_networks,
+      settings[0].ip_configuration[0].authorized_networks,
     ]
   }
 }
