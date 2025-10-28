@@ -69,3 +69,18 @@ variable "data_quality_metrics_dataset" {
   description = "The Bigtable table to use for storing table data quality metrics."
   default     = "DATA_QUALITY_METRICS"
 }
+
+variable "vpc_network_name" {
+  description = "The name of the VPC network to deploy resources into. If not set, one will be created."
+  default = ""
+}
+
+variable "vpc_network_id" {
+  description = "The id of the VPC network to deploy resources into. If not set, one will be created."
+  default = ""
+}
+
+variable "vpc_subnet_name" {
+  description = "The name of the VPC subnet to deploy resources into. If not set, one will be created."
+  default = ""
+}

@@ -37,54 +37,54 @@ resource "google_project_service" "iap_api" {
 resource "google_service_account" "orchestration_service_account" {
   account_id   = "${var.name_prefix}-zipline-orch-sa"
   display_name = "Zipline Cloud Run Service Account"
-  project      = data.google_project.zipline.project_id
+  project      = var.project_id
 }
 
 resource "google_project_iam_member" "orchestration_service_account_dataproc" {
-  project = data.google_project.zipline.project_id
+  project = var.project_id
   member  = "serviceAccount:${google_service_account.orchestration_service_account.email}"
   role    = "roles/dataproc.editor"
 }
 
 resource "google_project_iam_member" "orchestration_service_account_storage" {
-  project = data.google_project.zipline.project_id
+  project = var.project_id
   member  = "serviceAccount:${google_service_account.orchestration_service_account.email}"
   role    = "roles/storage.objectAdmin"
 }
 
 resource "google_project_iam_member" "orchestration_service_account_cloudsql" {
-  project = data.google_project.zipline.project_id
+  project = var.project_id
   member  = "serviceAccount:${google_service_account.orchestration_service_account.email}"
   role    = "roles/cloudsql.client"
 }
 
 resource "google_project_iam_member" "orchestration_service_account_bigtable" {
-  project = data.google_project.zipline.project_id
+  project = var.project_id
   member  = "serviceAccount:${google_service_account.orchestration_service_account.email}"
   role    = "roles/bigtable.user"
 }
 
 resource "google_project_iam_member" "orchestration_service_account_secretmanager" {
-  project = data.google_project.zipline.project_id
+  project = var.project_id
   member  = "serviceAccount:${google_service_account.orchestration_service_account.email}"
   role    = "roles/secretmanager.secretAccessor"
 }
 
 resource "google_project_iam_member" "orchestration_logging" {
-  project = data.google_project.zipline.project_id
+  project = var.project_id
   role    = "roles/logging.viewer"
   member  = "serviceAccount:${google_service_account.orchestration_service_account.email}"
 }
 
 
 resource "google_project_iam_member" "orchestration_logging_writer" {
-  project = data.google_project.zipline.project_id
+  project = var.project_id
   role    = "roles/logging.logWriter"
   member  = "serviceAccount:${google_service_account.orchestration_service_account.email}"
 }
 
 resource "google_project_iam_member" "orchestration_monitoring" {
-  project = data.google_project.zipline.project_id
+  project = var.project_id
   role    = "roles/monitoring.metricWriter"
   member  = "serviceAccount:${google_service_account.orchestration_service_account.email}"
 }
@@ -94,6 +94,15 @@ resource "google_service_account_iam_member" "orchestration_impersonation_datapr
   service_account_id = var.dataproc_service_account
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${google_service_account.orchestration_service_account.email}"
+}
+
+resource "google_compute_ssl_policy" "ingress_ssl_policy" {
+  name    = "cloud-run-ingress-ssl-policy"
+  project = data.google_project.zipline.project_id
+
+  # Modern profile with strong security
+  profile         = "MODERN"
+  min_tls_version = "TLS_1_2"
 }
 
 ################################################################
@@ -106,6 +115,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
   custom_audiences = [
       var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${var.name_prefix}-zipline-orchestration-${data.google_project.zipline.number}.${var.region}.run.app"
   ]
+  ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
 
   template {
     annotations = {
@@ -124,7 +134,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
     # Main orchestration container
     containers {
       name  = "orchestration-hub"
-      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/orchestration-hub:${var.zipline_version}"
+      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/orchestration-hub:${var.zipline_version}"
       env {
         name  = "DB_URL"
         value = "jdbc:postgresql://${google_sql_database_instance.orchestration_instance.private_ip_address}:5432/${google_sql_database.orchestration_database.name}"
@@ -148,7 +158,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
       }
       env {
         name  = "GCP_PROJECT_ID"
-        value = data.google_project.zipline.project_id
+        value = var.project_id
       }
       env {
         name  = "GCP_BIGTABLE_INSTANCE_ID"
@@ -266,7 +276,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
           }
           exporters = {
             googlemanagedprometheus = {
-              project = data.google_project.zipline.project_id
+              project = var.project_id
             }
           }
           service = {
@@ -333,12 +343,10 @@ resource "google_cloud_run_v2_service_iam_member" "orchestration_ui_hub_access" 
 # Cloud Run v2 service for Orchestration UI
 
 resource "google_cloud_run_v2_service" "zipline_ui" {
-  provider     = google-beta
   name         = "${var.name_prefix}-zipline-ui"
   location     = var.region
-  launch_stage = "BETA"
-  iap_enabled  = true
 
+  ingress = "INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"
   custom_audiences = [
       var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${var.name_prefix}-zipline-ui-${data.google_project.zipline.number}.${var.region}.run.app"
   ]
@@ -354,7 +362,7 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
 
     containers {
       name  = "web-ui"
-      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/web-ui:${var.zipline_version}"
+      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/web-ui:${var.zipline_version}"
 
       env {
         name  = "API_BASE_URL"
@@ -375,7 +383,7 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
       }
       env {
         name  = "GOOGLE_CLOUD_PROJECT"
-        value = data.google_project.zipline.project_id
+        value = var.project_id
       }
       env {
         name  = "PUBLIC_ORCHESTRATION_VERSION"
@@ -428,7 +436,7 @@ resource "google_cloud_run_v2_service_iam_member" "ui_iap_access" {
 }
 
 resource "google_iap_web_iam_member" "ui_iap_user_access" {
-  project = data.google_project.zipline.project_id
+  project = var.project_id
   role    = "roles/iap.httpsResourceAccessor"
   member  = "group:${var.personnel_email}"
 
@@ -452,12 +460,194 @@ output "orchestration_service_account_id" {
 }
 
 ################################################################
+# Load Balancer Backend Services for Cloud Run services
+
+resource "google_compute_region_network_endpoint_group" "orchestration_neg" {
+  name                  = "${var.name_prefix}-zipline-orch-neg"
+  project               = var.project_id
+  region                = var.region
+  network_endpoint_type = "SERVERLESS"
+
+  cloud_run {
+    service = google_cloud_run_v2_service.orchestration.name
+  }
+}
+
+resource "google_compute_backend_service" "orchestration_backend_service" {
+  name        = "${var.name_prefix}-zipline-orch-backend-service"
+  project     = var.project_id
+  protocol    = var.hub_domain != "" && var.use_https ? "HTTPS" : "HTTP"
+  timeout_sec = 30
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+
+  backend {
+    group = google_compute_region_network_endpoint_group.orchestration_neg.id
+  }
+
+  log_config {
+    enable = true
+    sample_rate = 1.0
+  }
+
+  depends_on = [
+    google_cloud_run_v2_service.orchestration,
+  ]
+}
+
+resource "google_compute_url_map" "orchestration_url_map" {
+  name    = "${var.name_prefix}-zipline-orch-url-map"
+  project = var.project_id
+
+  default_service = google_compute_backend_service.orchestration_backend_service.id
+}
+
+resource "google_compute_managed_ssl_certificate" "orchestration_ssl_cert" {
+  count    = var.hub_domain != "" && var.use_https ? 1 : 0
+  name     = "${var.name_prefix}-zipline-orch-ssl-cert"
+  project  = var.project_id
+
+  managed {
+    domains = [var.hub_domain]
+  }
+}
+
+resource "google_compute_target_https_proxy" "orchestration_https_proxy" {
+  count   = var.hub_domain != "" && var.use_https ? 1 : 0
+  name    = "${var.name_prefix}-zipline-orch-https-proxy"
+  project = var.project_id
+
+  url_map = google_compute_url_map.orchestration_url_map.id
+  ssl_certificates = [google_compute_managed_ssl_certificate.orchestration_ssl_cert[0].id]
+  ssl_policy = google_compute_ssl_policy.ingress_ssl_policy.id
+}
+
+resource "google_compute_target_http_proxy" "orchestration_http_proxy" {
+  count   = var.hub_domain == "" || !var.use_https ? 1 : 0
+  name    = "${var.name_prefix}-zipline-orch-http-proxy"
+  project = var.project_id
+
+  url_map = google_compute_url_map.orchestration_url_map.id
+}
+
+resource "google_compute_global_address" "orchestration_address" {
+    name    = "${var.name_prefix}-zipline-orch-lb-ip"
+    project = var.project_id
+}
+
+resource "google_compute_global_forwarding_rule" "orchestration_forwarding_rule" {
+    name        = "${var.name_prefix}-zipline-orch-forwarding-rule"
+    project     = var.project_id
+    ip_address  = google_compute_global_address.orchestration_address.address
+    ip_protocol = "TCP"
+    port_range  = var.hub_domain != "" && var.use_https ? "443" : "80"
+
+    load_balancing_scheme = "EXTERNAL_MANAGED"
+    target = var.hub_domain != "" && var.use_https ? google_compute_target_https_proxy.orchestration_https_proxy[0].id : google_compute_target_http_proxy.orchestration_http_proxy[0].id
+}
+
+
+resource "google_compute_region_network_endpoint_group" "zipline_ui_neg" {
+    name                  = "${var.name_prefix}-zipline-ui-neg"
+    project               = var.project_id
+    region                = var.region
+    network_endpoint_type = "SERVERLESS"
+
+    cloud_run {
+        service = google_cloud_run_v2_service.zipline_ui.name
+    }
+}
+
+resource "google_compute_backend_service" "zipline_ui_backend_service" {
+  name        = "${var.name_prefix}-zipline-ui-backend-service"
+  project     = var.project_id
+  protocol    = var.zipline_ui_domain != "" && var.use_https ? "HTTPS" : "HTTP"
+  timeout_sec = 30
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+
+  backend {
+    group = google_compute_region_network_endpoint_group.zipline_ui_neg.id
+  }
+
+  iap {
+    enabled = var.zipline_ui_domain != "" && var.use_https ? true : false
+  }
+
+  log_config {
+    enable = true
+    sample_rate = 1.0
+  }
+
+  depends_on = [
+    google_cloud_run_v2_service.zipline_ui,
+  ]
+}
+
+resource "google_compute_url_map" "zipline_ui_url_map" {
+  name    = "${var.name_prefix}-zipline-ui-url-map"
+  project = var.project_id
+
+  default_service = google_compute_backend_service.zipline_ui_backend_service.id
+}
+
+resource "google_compute_managed_ssl_certificate" "zipline_ui_ssl_cert" {
+  count    = var.zipline_ui_domain != "" && var.use_https ? 1 : 0
+  name     = "${var.name_prefix}-zipline-ui-ssl-cert"
+  project  = var.project_id
+
+  managed {
+    domains = [var.zipline_ui_domain]
+  }
+}
+
+resource "google_compute_target_https_proxy" "zipline_ui_https_proxy" {
+  count   = var.zipline_ui_domain != "" && var.use_https ? 1 : 0
+  name    = "${var.name_prefix}-zipline-ui-https-proxy"
+  project = var.project_id
+
+  url_map = google_compute_url_map.zipline_ui_url_map.id
+  ssl_certificates = [google_compute_managed_ssl_certificate.zipline_ui_ssl_cert[0].id]
+  ssl_policy = google_compute_ssl_policy.ingress_ssl_policy.id
+}
+
+resource "google_compute_target_http_proxy" "zipline_ui_http_proxy" {
+  count   = var.zipline_ui_domain == "" || !var.use_https ? 1 : 0
+  name    = "${var.name_prefix}-zipline-ui-http-proxy"
+  project = var.project_id
+
+  url_map = google_compute_url_map.zipline_ui_url_map.id
+}
+
+resource "google_compute_global_address" "zipline_ui_address" {
+  name    = "${var.name_prefix}-zipline-ui-lb-ip"
+  project = var.project_id
+}
+
+resource "google_compute_global_forwarding_rule" "zipline_ui_forwarding_rule" {
+  name        = "${var.name_prefix}-zipline-ui-forwarding-rule"
+  project     = var.project_id
+  ip_address  = google_compute_global_address.zipline_ui_address.address
+  ip_protocol = "TCP"
+  port_range  = var.zipline_ui_domain != "" && var.use_https ? "443" : "80"
+
+  load_balancing_scheme = "EXTERNAL_MANAGED"
+  target = var.zipline_ui_domain != "" && var.use_https ? google_compute_target_https_proxy.zipline_ui_https_proxy[0].id : google_compute_target_http_proxy.zipline_ui_http_proxy[0].id
+}
+
+output "hub_address" {
+  value = var.hub_domain != "" && var.use_https ? var.hub_domain : google_compute_global_address.orchestration_address.address
+}
+
+output "ui_address" {
+  value = var.zipline_ui_domain != "" && var.use_https ? var.zipline_ui_domain : google_compute_global_address.zipline_ui_address.address
+}
+
+################################################################
 # Cloud Run v2 service for Chronon Fetcher
 
 resource "google_cloud_run_v2_service" "chronon_fetcher" {
   name     = "${var.name_prefix}-zipline-chronon-fetcher"
   location = var.region
-  project  = data.google_project.zipline.project_id
+  project  = var.project_id
 
   template {
     annotations = {
@@ -477,7 +667,7 @@ resource "google_cloud_run_v2_service" "chronon_fetcher" {
     service_account = google_service_account.orchestration_service_account.email
 
     containers {
-      image = "${var.region}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/chronon-fetcher:latest"
+      image = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/chronon-fetcher:latest"
       name  = "chronon-fetcher"
 
       ports {
@@ -487,11 +677,11 @@ resource "google_cloud_run_v2_service" "chronon_fetcher" {
 
       env {
         name  = "GCP_PROJECT_ID"
-        value = data.google_project.zipline.project_id
+        value = var.project_id
       }
       env {
         name  = "GOOGLE_CLOUD_PROJECT"
-        value = data.google_project.zipline.project_id
+        value = var.project_id
       }
       env {
         name  = "GCP_BIGTABLE_INSTANCE_ID"
@@ -579,7 +769,7 @@ resource "google_cloud_run_v2_service" "chronon_fetcher" {
           }
           exporters = {
             googlemanagedprometheus = {
-              project = data.google_project.zipline.project_id
+              project = var.project_id
             }
           }
           service = {
@@ -635,42 +825,42 @@ resource "google_cloud_run_v2_service_iam_member" "chronon_fetcher_all_access" {
 ################################################################
 # Domain Mapping for Cloud Run services
 
-resource "google_cloud_run_domain_mapping" "ui_domain_mapping" {
-  count    = var.zipline_ui_domain != "" ? 1 : 0
-  name     = var.zipline_ui_domain
-  location = var.region
-  spec {
-    route_name = google_cloud_run_v2_service.zipline_ui.name
-  }
-  metadata {
-    namespace = data.google_project.zipline.project_id
-  }
-
-  depends_on = [
-    google_cloud_run_v2_service.zipline_ui
-  ]
-}
-
-resource "google_cloud_run_domain_mapping" "orchestration_domain_mapping" {
-  count    = var.hub_domain != "" ? 1 : 0
-  name     = var.hub_domain
-  location = var.region
-  spec {
-    route_name = google_cloud_run_v2_service.orchestration.name
-  }
-  metadata {
-    namespace = data.google_project.zipline.project_id
-  }
-
-  depends_on = [
-    google_cloud_run_v2_service.orchestration
-  ]
-}
+# resource "google_cloud_run_domain_mapping" "ui_domain_mapping" {
+#   count    = var.zipline_ui_domain != "" ? 1 : 0
+#   name     = var.zipline_ui_domain
+#   location = var.region
+#   spec {
+#     route_name = google_cloud_run_v2_service.zipline_ui.name
+#   }
+#   metadata {
+#     namespace = var.project_id
+#   }
+#
+#   depends_on = [
+#     google_cloud_run_v2_service.zipline_ui
+#   ]
+# }
+#
+# resource "google_cloud_run_domain_mapping" "orchestration_domain_mapping" {
+#   count    = var.hub_domain != "" ? 1 : 0
+#   name     = var.hub_domain
+#   location = var.region
+#   spec {
+#     route_name = google_cloud_run_v2_service.orchestration.name
+#   }
+#   metadata {
+#     namespace = var.project_id
+#   }
+#
+#   depends_on = [
+#     google_cloud_run_v2_service.orchestration
+#   ]
+# }
 
 output "UI_DNS_Instructions" {
-  value = var.zipline_ui_domain != "" ? "Create a CNAME record pointing ${var.zipline_ui_domain} to ghs.googlehosted.com. For more details, see https://cloud.google.com/run/docs/mapping-custom-domains#dns_update" : null
+  value = var.zipline_ui_domain != "" ? "Create an A record pointing ${var.zipline_ui_domain} to ${google_compute_global_address.orchestration_address.address}. For more details, see https://cloud.google.com/load-balancing/docs/https/setting-up-https-serverless#update_dns" : null
 }
 
 output "Hub_DNS_Instructions" {
-  value = var.hub_domain != "" ? "Create a CNAME record pointing ${var.hub_domain} to ghs.googlehosted.com. For more details, see https://cloud.google.com/run/docs/mapping-custom-domains#dns_update" : null
+  value = var.hub_domain != "" ? "Create an A record pointing ${var.hub_domain} to ${google_compute_global_address.zipline_ui_address.address}. For more details, see https://cloud.google.com/load-balancing/docs/https/setting-up-https-serverless#update_dns" : null
 }

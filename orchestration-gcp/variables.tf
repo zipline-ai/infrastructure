@@ -1,3 +1,5 @@
+variable "project_id" {}
+
 variable "name_prefix" {}
 
 variable "personnel_email" {}
@@ -35,3 +37,9 @@ variable "table_partitions_dataset" {}
 variable "data_quality_metrics_dataset" {}
 
 variable "dataproc_service_account" {}
+
+variable "use_https" {
+  description = "Whether to use HTTPS for the Zipline UI and Hub domains."
+  type        = bool
+  default     = true
+}

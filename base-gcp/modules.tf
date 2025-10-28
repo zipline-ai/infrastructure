@@ -1,6 +1,7 @@
 module "orchestration" {
   source = "../orchestration-gcp"
 
+  project_id = data.google_project.zipline.project_id
   zipline_version = var.zipline_version
 
   name_prefix     = var.customer_name
@@ -18,9 +19,9 @@ module "orchestration" {
   data_quality_metrics_dataset = var.data_quality_metrics_dataset
   dataproc_service_account     = google_service_account.dataproc_sa.id
 
-  vpc_id      = google_compute_network.zipline_vpc.id
-  vpc_name    = google_compute_network.zipline_vpc.name
-  subnet_name = google_compute_subnetwork.zipline_subnet.name
+  vpc_id      = var.vpc_network_id != "" ? var.vpc_network_id : google_compute_network.zipline_vpc[0].id
+  vpc_name    = var.vpc_network_name != "" ? var.vpc_network_name : google_compute_network.zipline_vpc[0].name
+  subnet_name = var.vpc_subnet_name != "" ? var.vpc_subnet_name : google_compute_subnetwork.zipline_subnet[0].name
 }
 
 output "docker_hub_remote_repository_id" {

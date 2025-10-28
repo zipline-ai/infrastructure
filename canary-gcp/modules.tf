@@ -15,6 +15,7 @@ module "base_setup" {
 module "dev_orch" {
   source = "../orchestration-gcp"
 
+  project_id = data.google_project.zipline.project_id
   zipline_version = "latest"
 
   name_prefix     = "dev"
