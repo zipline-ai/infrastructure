@@ -39,3 +39,9 @@ variable "data_quality_metrics_ci_dataset" {
   description = "The Bigtable table to use for storing table data quality metrics (in CI)."
   default     = "DATA_QUALITY_METRICS_CI"
 }
+
+variable "eval_impersonation_users" {
+  description = "List of users/groups who can impersonate the eval service account"
+  type        = list(string)
+  default     = ["domain:zipline.ai"]
+}
