@@ -378,8 +378,8 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
         value = data.google_project.zipline.project_id
       }
       env {
-        name  = "PUBLIC_ORCHESTRATION_VERSION"
-        value = "2"
+        name  = "PUBLIC_ORCH_SERVER_NAME"
+        value = google_cloud_run_v2_service.orchestration.name
       }
 
       resources {
