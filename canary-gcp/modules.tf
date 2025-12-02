@@ -10,4 +10,5 @@ module "base_setup" {
   data_quality_metrics_dataset = var.data_quality_metrics_ci_dataset
   hub_domain                   = var.hub_domain
   zipline_ui_domain            = var.zipline_ui_domain
+  eval_impersonation_users      = var.eval_impersonation_users
 }

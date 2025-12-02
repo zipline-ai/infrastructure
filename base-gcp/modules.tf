@@ -21,6 +21,8 @@ module "orchestration" {
   vpc_id      = google_compute_network.zipline_vpc.id
   vpc_name    = google_compute_network.zipline_vpc.name
   subnet_name = google_compute_subnetwork.zipline_subnet.name
+
+  eval_impersonation_users = var.eval_impersonation_users
 }
 
 output "docker_hub_remote_repository_id" {
