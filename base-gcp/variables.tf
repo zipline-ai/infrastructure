@@ -69,3 +69,9 @@ variable "data_quality_metrics_dataset" {
   description = "The Bigtable table to use for storing table data quality metrics."
   default     = "DATA_QUALITY_METRICS"
 }
+
+variable "eval_impersonation_users" {
+  description = "List of users/groups who can impersonate the eval service account (e.g., user:alice@example.com, group:data-team@example.com)"
+  type        = list(string)
+  default     = []
+}

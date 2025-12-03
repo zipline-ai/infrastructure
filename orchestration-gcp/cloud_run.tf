@@ -40,6 +40,70 @@ resource "google_service_account" "orchestration_service_account" {
   project      = data.google_project.zipline.project_id
 }
 
+##############################################################
+# Service Account for Eval (Metadata-only access)
+
+resource "google_service_account" "eval_service_account" {
+  account_id   = "${var.name_prefix}-zipline-eval-sa"
+  display_name = "Chronon Eval Metadata Reader"
+  description  = "Service account for Chronon eval with metadata-only access (no data access)"
+  project      = data.google_project.zipline.project_id
+}
+
+# Grant BigQuery metadata viewer role (read table schemas, partitions)
+resource "google_project_iam_member" "eval_metadata_viewer" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/bigquery.metadataViewer"
+  member  = "serviceAccount:${google_service_account.eval_service_account.email}"
+}
+
+# Grant BigQuery job user role (run metadata queries)
+resource "google_project_iam_member" "eval_job_user" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.eval_service_account.email}"
+}
+
+# Grant Cloud SQL client access for eval database connection
+resource "google_project_iam_member" "eval_cloudsql" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.eval_service_account.email}"
+}
+
+# Grant logging permissions
+resource "google_project_iam_member" "eval_logging_writer" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.eval_service_account.email}"
+}
+
+# Grant monitoring permissions
+resource "google_project_iam_member" "eval_monitoring" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.eval_service_account.email}"
+}
+
+# Grant secret manager access for database credentials
+resource "google_project_iam_member" "eval_secretmanager" {
+  project = data.google_project.zipline.project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${google_service_account.eval_service_account.email}"
+}
+
+# Grant service account token creator to specified users/groups for impersonation
+resource "google_service_account_iam_member" "eval_impersonation" {
+  for_each = toset(var.eval_impersonation_users)
+
+  service_account_id = google_service_account.eval_service_account.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = each.value
+}
+
+##############################################################
+# Orchestration Service Account IAM Roles
+
 resource "google_project_iam_member" "orchestration_service_account_dataproc" {
   project = data.google_project.zipline.project_id
   member  = "serviceAccount:${google_service_account.orchestration_service_account.email}"
@@ -633,6 +697,118 @@ resource "google_cloud_run_v2_service_iam_member" "chronon_fetcher_all_access" {
 }
 
 ################################################################
+# Cloud Run v2 service for Chronon Eval
+
+resource "google_cloud_run_v2_service" "chronon_eval" {
+  name                = "${var.name_prefix}-zipline-chronon-eval"
+  location            = var.region
+  project             = data.google_project.zipline.project_id
+  deletion_protection = false
+
+  template {
+    vpc_access {
+      network_interfaces {
+        network    = var.vpc_name
+        subnetwork = var.subnet_name
+      }
+      egress = "ALL_TRAFFIC"
+    }
+
+    service_account = google_service_account.eval_service_account.email
+
+    containers {
+      image = "${var.region}-docker.pkg.dev/${data.google_project.zipline.project_id}/canary-images/ziplineai/chronon-eval:latest"
+      name  = "chronon-eval"
+
+      ports {
+        name           = "http1"
+        container_port = 3904
+      }
+
+      env {
+        name  = "DB_URL"
+        value = "jdbc:postgresql://${google_sql_database_instance.orchestration_instance.private_ip_address}:5432/${google_sql_database.orchestration_database.name}"
+      }
+      env {
+        name  = "DB_USERNAME"
+        value = google_sql_user.orchestration_user.name
+      }
+      env {
+        name = "DB_PASSWORD"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.db_password.secret_id
+            version = "latest"
+          }
+        }
+      }
+      env {
+        name  = "GCP_REGION"
+        value = var.region
+      }
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = data.google_project.zipline.project_id
+      }
+      env {
+        name  = "GCP_BIGTABLE_INSTANCE_ID"
+        value = var.bigtable_instance_name
+      }
+      env {
+        name  = "EVAL_SERVICE_ACCOUNT_EMAIL"
+        value = google_service_account.eval_service_account.email
+      }
+
+      resources {
+        limits = {
+          cpu    = "4"
+          memory = "8Gi"
+        }
+      }
+
+      startup_probe {
+        http_get {
+          path = "/ping"
+          port = 3904
+        }
+        initial_delay_seconds = 30
+        period_seconds        = 10
+        timeout_seconds       = 5
+        failure_threshold     = 10
+      }
+    }
+
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 3
+    }
+  }
+
+  depends_on = [
+    google_service_account.eval_service_account,
+    google_sql_database.orchestration_database
+  ]
+}
+
+# IAM policy to allow orchestration service account to invoke eval service
+resource "google_cloud_run_v2_service_iam_member" "eval_orchestration_access" {
+  location = google_cloud_run_v2_service.chronon_eval.location
+  project  = google_cloud_run_v2_service.chronon_eval.project
+  name     = google_cloud_run_v2_service.chronon_eval.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.orchestration_service_account.email}"
+}
+
+# IAM policy to allow personnel group to invoke eval service
+resource "google_cloud_run_v2_service_iam_member" "eval_personnel_access" {
+  location = google_cloud_run_v2_service.chronon_eval.location
+  project  = google_cloud_run_v2_service.chronon_eval.project
+  name     = google_cloud_run_v2_service.chronon_eval.name
+  role     = "roles/run.invoker"
+  member   = "group:${var.personnel_email}"
+}
+
+################################################################
 # Domain Mapping for Cloud Run services
 
 resource "google_cloud_run_domain_mapping" "ui_domain_mapping" {
@@ -673,4 +849,14 @@ output "UI_DNS_Instructions" {
 
 output "Hub_DNS_Instructions" {
   value = var.hub_domain != "" ? "Create a CNAME record pointing ${var.hub_domain} to ghs.googlehosted.com. For more details, see https://cloud.google.com/run/docs/mapping-custom-domains#dns_update" : null
+}
+
+output "eval_service_url" {
+  value       = google_cloud_run_v2_service.chronon_eval.uri
+  description = "URL of the Chronon Eval service"
+}
+
+output "eval_service_account_email" {
+  value       = google_service_account.eval_service_account.email
+  description = "Email of the Chronon Eval metadata service account"
 }

@@ -35,3 +35,9 @@ variable "table_partitions_dataset" {}
 variable "data_quality_metrics_dataset" {}
 
 variable "dataproc_service_account" {}
+
+variable "eval_impersonation_users" {
+  description = "List of users/groups who can impersonate the eval service account (e.g., user:alice@example.com, group:data-team@example.com)"
+  type        = list(string)
+  default     = []
+}
