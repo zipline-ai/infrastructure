@@ -442,8 +442,8 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
         value = data.google_project.zipline.project_id
       }
       env {
-        name  = "PUBLIC_ORCHESTRATION_VERSION"
-        value = "2"
+        name  = "PUBLIC_ORCH_SERVER_NAME"
+        value = "canary-zipline-orchestration"
       }
 
       resources {
@@ -717,7 +717,7 @@ resource "google_cloud_run_v2_service" "chronon_eval" {
     service_account = google_service_account.eval_service_account.email
 
     containers {
-      image = "${var.region}-docker.pkg.dev/${data.google_project.zipline.project_id}/canary-images/ziplineai/chronon-eval:latest"
+      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/chronon-eval:${var.zipline_version}"
       name  = "chronon-eval"
 
       ports {
@@ -788,6 +788,11 @@ resource "google_cloud_run_v2_service" "chronon_eval" {
     google_service_account.eval_service_account,
     google_sql_database.orchestration_database
   ]
+  lifecycle {
+    ignore_changes = [
+      template[0].containers[0].image,
+    ]
+  }
 }
 
 # IAM policy to allow orchestration service account to invoke eval service
