@@ -10,7 +10,35 @@ resource "google_artifact_registry_repository" "docker_hub_remote_repository" {
     docker_repository {
       public_repository = "DOCKER_HUB"
     }
+
+    upstream_credentials {
+      username_password_credentials {
+        username                = "ziplineai"
+        password_secret_version = google_secret_manager_secret_version.docker_token_version.name
+      }
+    }
   }
+  depends_on = [
+    google_secret_manager_secret_iam_member.artifact_registry_secret_access
+  ]
+}
+
+resource "google_secret_manager_secret" "docker_token" {
+  secret_id = "${var.name_prefix}-zipline-docker-token"
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_version" "docker_token_version" {
+  secret      = google_secret_manager_secret.docker_token.id
+  secret_data = var.docker_hub_token
+}
+
+resource "google_secret_manager_secret_iam_member" "artifact_registry_secret_access" {
+  secret_id = google_secret_manager_secret.docker_token.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:service-${var.project_number}@gcp-sa-artifactregistry.iam.gserviceaccount.com"
 }
 
 data "google_project" "zipline" {}
@@ -168,7 +196,7 @@ resource "google_cloud_run_v2_service" "orchestration" {
   location = var.region
 
   custom_audiences = [
-      var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${var.name_prefix}-zipline-orchestration-${data.google_project.zipline.number}.${var.region}.run.app"
+    var.hub_domain != "" ? "https://${var.hub_domain}" : "https://${var.name_prefix}-zipline-orchestration-${data.google_project.zipline.number}.${var.region}.run.app"
   ]
 
   template {
@@ -404,7 +432,7 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
   iap_enabled  = true
 
   custom_audiences = [
-      var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${var.name_prefix}-zipline-ui-${data.google_project.zipline.number}.${var.region}.run.app"
+    var.zipline_ui_domain != "" ? "https://${var.zipline_ui_domain}" : "https://${var.name_prefix}-zipline-ui-${data.google_project.zipline.number}.${var.region}.run.app"
   ]
   template {
     vpc_access {
@@ -442,8 +470,8 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
         value = data.google_project.zipline.project_id
       }
       env {
-        name  = "PUBLIC_ORCHESTRATION_VERSION"
-        value = "2"
+        name  = "PUBLIC_ORCH_SERVER_NAME"
+        value = "canary-zipline-orchestration"
       }
 
       resources {
@@ -717,7 +745,7 @@ resource "google_cloud_run_v2_service" "chronon_eval" {
     service_account = google_service_account.eval_service_account.email
 
     containers {
-      image = "${var.region}-docker.pkg.dev/${data.google_project.zipline.project_id}/canary-images/ziplineai/chronon-eval:latest"
+      image = "${google_artifact_registry_repository.docker_hub_remote_repository.location}-docker.pkg.dev/${data.google_project.zipline.project_id}/${google_artifact_registry_repository.docker_hub_remote_repository.repository_id}/ziplineai/chronon-eval:${var.zipline_version}"
       name  = "chronon-eval"
 
       ports {
@@ -788,6 +816,11 @@ resource "google_cloud_run_v2_service" "chronon_eval" {
     google_service_account.eval_service_account,
     google_sql_database.orchestration_database
   ]
+  lifecycle {
+    ignore_changes = [
+      template[0].containers[0].image,
+    ]
+  }
 }
 
 # IAM policy to allow orchestration service account to invoke eval service

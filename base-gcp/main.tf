@@ -8,8 +8,8 @@ resource "google_project_service" "bigtable_admin" {
 }
 
 resource "google_project_service" "cloud_profiler" {
-  project = data.google_project.zipline.project_id
-  service = "cloudprofiler.googleapis.com"
+  project            = data.google_project.zipline.project_id
+  service            = "cloudprofiler.googleapis.com"
   disable_on_destroy = false
 }
 

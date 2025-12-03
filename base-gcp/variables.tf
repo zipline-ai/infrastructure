@@ -40,6 +40,10 @@ variable "artifact_prefix" {
   description = "The GCS path prefix for storing artifacts. e.g. gs://my-bucket/artifacts"
 }
 
+variable "docker_hub_token" {
+  description = "Docker Hub token for pulling Zipline images."
+}
+
 variable "hub_domain" {
   description = "Optional custom domain for hub. If not set, a default domain will be used."
   default     = ""

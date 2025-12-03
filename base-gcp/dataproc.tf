@@ -16,21 +16,21 @@ resource "google_project_iam_member" "dataproc_worker" {
 
 # BigQuery Roles
 
-resource "google_project_iam_member" "dataproc_bigquery_admin" {
+resource "google_project_iam_member" "dataproc_bigquery" {
   project = data.google_project.zipline.project_id
-  role    = "roles/bigquery.admin"
+  role    = "roles/bigquery.user"
   member  = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
-resource "google_project_iam_member" "dataproc_bigquery_connection_admin" {
+resource "google_project_iam_member" "dataproc_bigquery_connection" {
   project = data.google_project.zipline.project_id
-  role    = "roles/bigquery.connectionAdmin"
+  role    = "roles/bigquery.connectionUser"
   member  = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
-resource "google_project_iam_member" "dataproc_bigquery_data_owner" {
+resource "google_project_iam_member" "dataproc_bigquery_data_editor" {
   project = data.google_project.zipline.project_id
-  role    = "roles/bigquery.dataOwner"
+  role    = "roles/bigquery.dataEditor"
   member  = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
@@ -44,10 +44,16 @@ resource "google_project_iam_member" "dataproc_bigtable_user" {
 
 # Storage Roles
 
-resource "google_project_iam_member" "dataproc_storage_object_admin" {
-  project = data.google_project.zipline.project_id
-  role    = "roles/storage.objectAdmin"
-  member  = "serviceAccount:${google_service_account.dataproc_sa.email}"
+resource "google_storage_bucket_iam_member" "dataproc-bucket-binding" {
+  bucket = google_storage_bucket.zipline.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.dataproc_sa.email}"
+}
+
+resource "google_storage_bucket_iam_member" "dataproc-bucket-viewer-binding" {
+  bucket = trimprefix(var.artifact_prefix, "gs://")
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.dataproc_sa.email}"
 }
 
 # PubSub Roles
@@ -163,10 +169,10 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
         "JUPYTER",
       ]
       override_properties = {
-        "flink:env.java.opts.client" = "-Djava.net.preferIPv4Stack=true -Djava.security.properties=/etc/flink/conf/java.security"
-        "dataproc:dataproc.logging.stackdriver.enable" = "true"
-        "dataproc:jobs.file-backed-output.enable" = "true"
-        "dataproc:dataproc.logging.stackdriver.job.driver.enable" = "true"
+        "flink:env.java.opts.client"                                      = "-Djava.net.preferIPv4Stack=true -Djava.security.properties=/etc/flink/conf/java.security"
+        "dataproc:dataproc.logging.stackdriver.enable"                    = "true"
+        "dataproc:jobs.file-backed-output.enable"                         = "true"
+        "dataproc:dataproc.logging.stackdriver.job.driver.enable"         = "true"
         "dataproc:dataproc.logging.stackdriver.job.yarn.container.enable" = "true"
       }
     }
