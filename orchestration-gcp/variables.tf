@@ -1,4 +1,10 @@
+variable "project_id" {}
+
+variable "project_number" {}
+
 variable "name_prefix" {}
+
+variable "docker_hub_token" {}
 
 variable "personnel_email" {}
 

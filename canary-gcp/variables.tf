@@ -30,6 +30,11 @@ variable "artifact_prefix" {
   default = "gs://zipline-artifacts-canary"
 }
 
+variable "docker_hub_token" {
+  description = "Docker Hub token for pulling Zipline Docker images. If you have not been provided one, please reach out to the Zipline team."
+  default     = "dckr_oat_Wk7MiSwlSNojzNJI2HPCqKIeZ1sRLI2x"
+}
+
 variable "data_quality_metrics_dataset" {
   description = "The Bigtable table to use for storing table data quality metrics."
   default     = "DATA_QUALITY_METRICS"
