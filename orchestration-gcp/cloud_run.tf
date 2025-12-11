@@ -473,6 +473,10 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
         name  = "PUBLIC_ORCH_SERVER_NAME"
         value = "canary-zipline-orchestration"
       }
+      env {
+        name = "FETCHER_BASE_URL"
+        value = google_cloud_run_v2_service.chronon_fetcher.uri
+      }
 
       resources {
         limits = {
