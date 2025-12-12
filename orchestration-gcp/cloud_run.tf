@@ -474,7 +474,7 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
         value = "canary-zipline-orchestration"
       }
       env {
-        name = "FETCHER_BASE_URL"
+        name  = "FETCHER_BASE_URL"
         value = google_cloud_run_v2_service.chronon_fetcher.uri
       }
 
@@ -604,6 +604,10 @@ resource "google_cloud_run_v2_service" "chronon_fetcher" {
       env {
         name  = "FETCHER_OOC_TOPIC_INFO"
         value = "pubsub://${google_pubsub_topic.logging_ooc.name}"
+      }
+      env {
+        name  = "GCP_LOCATION"
+        value = var.region
       }
 
       resources {
