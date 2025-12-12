@@ -9,7 +9,7 @@ terraform {
   backend "s3" {
     bucket = "zipline-ai-opentofu-state-bucket"
     key    = "opentofu-canary-state"
-    region = var.region
+    region = "us-west-1"
   }
 }
 
@@ -23,4 +23,5 @@ module "base_setup" {
   source = "../base-aws"
 
   customer_name = var.customer_name
+  region        = var.region
 }

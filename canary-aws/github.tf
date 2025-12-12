@@ -2,10 +2,6 @@ data "aws_iam_role" "iam_github_actions_role" {
   name = "github_actions"
 }
 
-data "aws_s3_bucket" "zipline_warehouse_bucket" {
-  bucket = "zipline-warehouse-${lower(var.customer_name)}"
-}
-
 data "aws_iam_policy_document" "github_actions_access" {
   statement {
     effect = "Allow"
@@ -16,8 +12,8 @@ data "aws_iam_policy_document" "github_actions_access" {
       "s3:DeleteObject",
     ]
     resources = [
-      "${data.aws_s3_bucket.zipline_warehouse_bucket.arn}",
-      "${data.aws_s3_bucket.zipline_warehouse_bucket.arn}/*",
+      "${module.base_setup.aws_s3_bucket_arn}",
+      "${module.base_setup.aws_s3_bucket_arn}/*",
     ]
   }
   statement {

@@ -31,7 +31,7 @@ resource "aws_eks_node_group" "arm_spot_node_group" {
   node_role_arn   = aws_iam_role.ec2_role.arn
   subnet_ids      = [module.base_setup.main_subnet_id]
 
-  ami_type = "AL2_x86_64"
+  ami_type = "AL2023_x86_64_STANDARD"
 
   instance_types = ["t3.large"]
 
