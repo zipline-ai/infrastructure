@@ -477,6 +477,10 @@ resource "google_cloud_run_v2_service" "zipline_ui" {
         name  = "FETCHER_BASE_URL"
         value = google_cloud_run_v2_service.chronon_fetcher.uri
       }
+      env {
+        name = "PROMETHEUS_NAMESPACE"
+        value = var.name_prefix
+      }
 
       resources {
         limits = {
