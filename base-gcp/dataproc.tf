@@ -114,7 +114,7 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
   cluster_config {
     master_config {
       num_instances = 1
-      machine_type  = "n2-highmem-64"
+      machine_type  = "n2-highmem-16"
       disk_config {
         boot_disk_type    = "pd-standard"
         boot_disk_size_gb = 1024
@@ -130,12 +130,12 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
     }
 
     initialization_action {
-      script = "gs://zipline-jars/copy_java_security.sh"
+      script = "${var.artifact_prefix}/scripts/copy_java_security.sh"
     }
 
     # Add initialization action to install ops agent for Flink metrics
     initialization_action {
-      script = "gs://zipline-jars/opsagent_flink_install.sh"
+      script = "${var.artifact_prefix}/scripts/opsagent_setup.sh"
     }
 
     dynamic "initialization_action" {
@@ -159,6 +159,7 @@ resource "google_dataproc_cluster" "zipline_dataproc" {
       metadata = {
         hive-version           = "3.1.2",
         SPARK_BQ_CONNECTOR_URL = "gs://spark-lib/bigquery/spark-3.5-bigquery-0.42.1.jar",
+        artifact_prefix        = var.artifact_prefix,
       }
       internal_ip_only = true
     }
