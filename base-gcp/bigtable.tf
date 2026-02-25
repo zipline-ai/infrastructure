@@ -7,7 +7,7 @@ resource "google_bigtable_instance" "zipline_bigtable_instance" {
     autoscaling_config {
       cpu_target = 50
       max_nodes  = 10
-      min_nodes  = 2
+      min_nodes  = 1
     }
   }
   depends_on = [google_project_service.bigtable_admin]
