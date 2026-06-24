@@ -36,7 +36,7 @@ spec:
               value: "http://fetcher-service"
             {{- end }}
             - name: DB_HOST
-              value: {{ .Values.database.host | quote }}
+              value: {{ include "zipline-orchestration.databaseHostWithPort" . | quote }}
             - name: DB_NAME
               value: {{ .Values.database.name | quote }}
             - name: PGPASSWORD

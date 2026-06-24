@@ -3,3 +3,18 @@
 # Terraform/OpenTofu directories
 **/.terraform/
 **/.terraform.lock.hcl
+
+# Local Terraform/OpenTofu configuration and plans
+*.tfvars
+*.tfvars.json
+*.auto.tfvars
+*.auto.tfvars.json
+tfplan*
+
+# Environment-specific canary configuration pulled from remote storage.
+aws/zipline-orchestration/.crucible-config/
+aws/zipline-orchestration/backend.hcl
+aws/zipline-orchestration/current-helm-values.*
+aws/zipline-orchestration/cloudflare.tf
+aws/zipline-orchestration/github.tf
+aws/zipline-orchestration/crucible-config/

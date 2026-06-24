@@ -295,6 +295,9 @@ spec:
                       storage["allowedLocations"] = [default_base_location]
                   return storage
 
+              def is_duplicate_write_error(payload):
+                  return "duplicate key value violates unique constraint" in payload
+
               def http_json(method, url, token=None, body=None, ok=(200,), retry_conflict=False, retry_not_found=False):
                   data = None
                   headers = {"Polaris-Realm": realm, "realm": realm}
@@ -313,6 +316,8 @@ spec:
                   except urllib.error.HTTPError as error:
                       payload = error.read().decode("utf-8", "replace")
                       if error.code == 409 and retry_conflict:
+                          return error.code, None
+                      if error.code == 500 and retry_conflict and is_duplicate_write_error(payload):
                           return error.code, None
                       if error.code == 404 and retry_not_found:
                           return error.code, None

@@ -1,6 +1,8 @@
 terraform {
   required_version = ">= 1.9.0"
 
+  backend "s3" {}
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -8,7 +10,7 @@ terraform {
     }
     helm = {
       source  = "hashicorp/helm"
-      version = ">= 2.13.0"
+      version = ">= 2.13.0, < 3.0.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"

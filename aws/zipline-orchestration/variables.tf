@@ -16,6 +16,18 @@ variable "namespace_annotations" {
   default     = {}
 }
 
+variable "helm_wait" {
+  description = "Whether Helm waits for all resources to become ready."
+  type        = bool
+  default     = true
+}
+
+variable "helm_timeout" {
+  description = "Helm operation timeout in seconds."
+  type        = number
+  default     = 300
+}
+
 variable "customer_name" {
   description = "Zipline customer/environment name."
   type        = string
@@ -34,6 +46,12 @@ variable "zipline_version" {
 variable "region" {
   description = "AWS region."
   type        = string
+}
+
+variable "aws_account_id" {
+  description = "Optional AWS account ID guard for provider operations."
+  type        = string
+  default     = ""
 }
 
 variable "cluster_name" {
@@ -70,6 +88,18 @@ variable "database_ssl_mode" {
   default     = ""
 }
 
+variable "database_jdbc_url" {
+  description = "Optional explicit JDBC URL for orchestration services."
+  type        = string
+  default     = ""
+}
+
+variable "database_url" {
+  description = "Optional explicit Postgres URL for services that use DATABASE_URL."
+  type        = string
+  default     = ""
+}
+
 variable "database_secret_arn" {
   description = "AWS Secrets Manager secret ARN containing password and username JSON fields."
   type        = string
@@ -93,6 +123,12 @@ variable "orchestration_role_arn" {
 variable "spark_compute_role_arn" {
   description = "IAM role ARN annotated on Spark and Flink compute service accounts."
   type        = string
+}
+
+variable "flink_compute_role_arn" {
+  description = "IAM role ARN annotated on Flink compute service accounts. Defaults to spark_compute_role_arn."
+  type        = string
+  default     = ""
 }
 
 variable "hub_domain" {
@@ -147,6 +183,66 @@ variable "eval_tls_secret_name" {
   description = "Kubernetes TLS secret for eval. Leave empty to render no TLS block."
   type        = string
   default     = ""
+}
+
+variable "ui_ingress_class_name" {
+  description = "IngressClass used by the UI Ingress."
+  type        = string
+  default     = "nginx-ui"
+}
+
+variable "hub_ingress_class_name" {
+  description = "IngressClass used by the Hub Ingress."
+  type        = string
+  default     = "nginx-hub"
+}
+
+variable "fetcher_ingress_class_name" {
+  description = "IngressClass used by the fetcher Ingress."
+  type        = string
+  default     = "nginx-fetcher"
+}
+
+variable "eval_ingress_class_name" {
+  description = "IngressClass used by the eval Ingress."
+  type        = string
+  default     = "nginx-eval"
+}
+
+variable "polaris_ingress_class_name" {
+  description = "IngressClass used by the Polaris catalog Ingress."
+  type        = string
+  default     = "nginx-ui"
+}
+
+variable "ui_ingress_path" {
+  description = "Path used by the UI Ingress."
+  type        = string
+  default     = "/"
+}
+
+variable "hub_ingress_path" {
+  description = "Path used by the Hub Ingress."
+  type        = string
+  default     = "/"
+}
+
+variable "fetcher_ingress_path" {
+  description = "Path used by the fetcher Ingress."
+  type        = string
+  default     = "/"
+}
+
+variable "eval_ingress_path" {
+  description = "Path used by the eval Ingress."
+  type        = string
+  default     = "/"
+}
+
+variable "polaris_ingress_path" {
+  description = "Path used by the Polaris catalog Ingress."
+  type        = string
+  default     = "/services/catalog"
 }
 
 variable "cert_manager_cluster_issuer" {
@@ -232,6 +328,18 @@ variable "spark_event_log_dir" {
   default     = ""
 }
 
+variable "spark_nvme_enabled" {
+  description = "Whether to run the NVMe setup DaemonSet for Spark instance-store nodes."
+  type        = bool
+  default     = false
+}
+
+variable "spark_nvme_setup_image" {
+  description = "Image used by the NVMe setup DaemonSet when spark_nvme_enabled is true."
+  type        = string
+  default     = ""
+}
+
 variable "compute_rbac_create" {
   description = "Whether the chart creates compute namespace RBAC."
   type        = bool
@@ -242,6 +350,18 @@ variable "compute_image_prepull_enabled" {
   description = "Whether the chart should prepull compute images."
   type        = bool
   default     = true
+}
+
+variable "compute_image_prepull_images" {
+  description = "Images prepulled onto compute nodes."
+  type        = list(string)
+  default     = []
+}
+
+variable "spark_history_extra_spark_opts" {
+  description = "Additional Spark History Server JVM/Spark options."
+  type        = list(string)
+  default     = []
 }
 
 variable "polaris_storage_type" {
@@ -262,10 +382,28 @@ variable "polaris_allowed_locations" {
   default     = []
 }
 
+variable "polaris_default_base_location" {
+  description = "Default base location for the bootstrapped Polaris catalog."
+  type        = string
+  default     = ""
+}
+
 variable "polaris_bootstrap_credentials_secret" {
   description = "Secret name containing or receiving Polaris bootstrap credentials."
   type        = string
   default     = "polaris-bootstrap-credentials"
+}
+
+variable "polaris_database_init_image" {
+  description = "Image used by the Polaris database bootstrap init container."
+  type        = string
+  default     = "postgres:16-alpine"
+}
+
+variable "secret_provider_class_name" {
+  description = "SecretProviderClass name mounted into orchestration pods."
+  type        = string
+  default     = "zipline-secret-provider"
 }
 
 variable "prometheus_query_endpoint" {
@@ -292,20 +430,14 @@ variable "kv_replica_regions" {
   default     = []
 }
 
-variable "emr_serverless_execution_role_arn" {
-  description = "Optional EMR Serverless execution role ARN for legacy AWS runtime compatibility."
+variable "chronon_metrics_reader" {
+  description = "Chronon metrics reader mode passed to Hub."
   type        = string
-  default     = ""
+  default     = "http"
 }
 
-variable "emr_log_uri" {
-  description = "Optional EMR log URI for legacy AWS runtime compatibility."
-  type        = string
-  default     = ""
-}
-
-variable "emr_cloudwatch_log_group" {
-  description = "Optional EMR CloudWatch log group for legacy AWS runtime compatibility."
+variable "aws_eks_log_group" {
+  description = "Optional EKS container log group passed to the UI."
   type        = string
   default     = ""
 }
@@ -338,6 +470,24 @@ variable "runtime_env" {
 
 variable "hub_env" {
   description = "Additional env vars passed only to Hub."
+  type        = any
+  default     = []
+}
+
+variable "eval_env" {
+  description = "Additional env vars passed only to eval."
+  type        = any
+  default     = []
+}
+
+variable "ui_env" {
+  description = "Additional env vars passed only to the UI."
+  type        = any
+  default     = []
+}
+
+variable "fetcher_env" {
+  description = "Additional env vars passed only to fetcher."
   type        = any
   default     = []
 }
@@ -421,8 +571,38 @@ variable "aws_load_balancer_scheme" {
   default     = "internet-facing"
 }
 
+variable "ui_ingress_nginx_enabled" {
+  description = "Whether to install the UI ingress-nginx controller dependency."
+  type        = bool
+  default     = true
+}
+
+variable "hub_ingress_nginx_enabled" {
+  description = "Whether to install the Hub ingress-nginx controller dependency."
+  type        = bool
+  default     = true
+}
+
+variable "fetcher_ingress_nginx_enabled" {
+  description = "Whether to install the fetcher ingress-nginx controller dependency. Defaults to deploy_fetcher when null."
+  type        = bool
+  default     = null
+}
+
+variable "eval_ingress_nginx_enabled" {
+  description = "Whether to install the eval ingress-nginx controller dependency."
+  type        = bool
+  default     = true
+}
+
 variable "ingress_service_annotations" {
   description = "Extra annotations applied to every ingress-nginx controller Service."
+  type        = map(string)
+  default     = {}
+}
+
+variable "ingress_service_target_ports" {
+  description = "Target ports applied to every ingress-nginx controller Service."
   type        = map(string)
   default     = {}
 }
@@ -433,8 +613,20 @@ variable "ui_ingress_service_annotations" {
   default     = {}
 }
 
+variable "ui_ingress_service_target_ports" {
+  description = "Target ports for the UI ingress-nginx controller Service."
+  type        = map(string)
+  default     = {}
+}
+
 variable "hub_ingress_service_annotations" {
   description = "Extra annotations for the Hub ingress-nginx controller Service."
+  type        = map(string)
+  default     = {}
+}
+
+variable "hub_ingress_service_target_ports" {
+  description = "Target ports for the Hub ingress-nginx controller Service."
   type        = map(string)
   default     = {}
 }
@@ -445,8 +637,20 @@ variable "fetcher_ingress_service_annotations" {
   default     = {}
 }
 
+variable "fetcher_ingress_service_target_ports" {
+  description = "Target ports for the fetcher ingress-nginx controller Service."
+  type        = map(string)
+  default     = {}
+}
+
 variable "eval_ingress_service_annotations" {
   description = "Extra annotations for the eval ingress-nginx controller Service."
+  type        = map(string)
+  default     = {}
+}
+
+variable "eval_ingress_service_target_ports" {
+  description = "Target ports for the eval ingress-nginx controller Service."
   type        = map(string)
   default     = {}
 }

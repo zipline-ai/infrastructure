@@ -113,6 +113,8 @@ module "zipline_orchestration" {
   values            = local.values
   extra_values      = var.extra_values
   extra_values_yaml = var.extra_values_yaml
+  wait              = var.helm_wait
+  timeout           = var.helm_timeout
 
   depends_on = [
     terraform_data.configuration_validation,

@@ -138,6 +138,13 @@ Postgres URL for services that expect a non-JDBC DATABASE_URL.
 {{- end }}
 
 {{/*
+Postgres host:port for UI configuration.
+*/}}
+{{- define "zipline-orchestration.databaseHostWithPort" -}}
+{{- printf "%s:%v" .Values.database.host (.Values.database.port | default 5432) -}}
+{{- end }}
+
+{{/*
 Database credentials Secret references.
 */}}
 {{- define "zipline-orchestration.databaseCredentialsSecretName" -}}
