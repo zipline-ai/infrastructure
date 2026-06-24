@@ -131,118 +131,21 @@ variable "flink_compute_role_arn" {
   default     = ""
 }
 
-variable "hub_domain" {
-  description = "Public hostname for the orchestration Hub."
+variable "domain" {
+  description = "Unified public hostname for Zipline. Services are exposed under paths on this host."
+  type        = string
+}
+
+variable "tls_secret_name" {
+  description = "Kubernetes TLS secret for the unified public hostname. Leave empty to render no TLS blocks."
   type        = string
   default     = ""
 }
 
-variable "hub_external_url" {
-  description = "Explicit public Hub URL. When unset the chart derives it from hub_domain."
-  type        = string
-  default     = ""
-}
-
-variable "ui_domain" {
-  description = "Public hostname for the orchestration UI."
-  type        = string
-  default     = ""
-}
-
-variable "fetcher_domain" {
-  description = "Public hostname for fetcher."
-  type        = string
-  default     = ""
-}
-
-variable "eval_domain" {
-  description = "Public hostname for eval."
-  type        = string
-  default     = ""
-}
-
-variable "ui_tls_secret_name" {
-  description = "Kubernetes TLS secret for the UI ingress. Leave empty to render no TLS block."
-  type        = string
-  default     = ""
-}
-
-variable "hub_tls_secret_name" {
-  description = "Kubernetes TLS secret for the Hub ingress. Leave empty to render no TLS block."
-  type        = string
-  default     = ""
-}
-
-variable "fetcher_tls_secret_name" {
-  description = "Kubernetes TLS secret for fetcher. Leave empty to render no TLS block."
-  type        = string
-  default     = ""
-}
-
-variable "eval_tls_secret_name" {
-  description = "Kubernetes TLS secret for eval. Leave empty to render no TLS block."
-  type        = string
-  default     = ""
-}
-
-variable "ui_ingress_class_name" {
-  description = "IngressClass used by the UI Ingress."
+variable "ingress_class_name" {
+  description = "IngressClass used by all Zipline application ingresses."
   type        = string
   default     = "nginx-ui"
-}
-
-variable "hub_ingress_class_name" {
-  description = "IngressClass used by the Hub Ingress."
-  type        = string
-  default     = "nginx-hub"
-}
-
-variable "fetcher_ingress_class_name" {
-  description = "IngressClass used by the fetcher Ingress."
-  type        = string
-  default     = "nginx-fetcher"
-}
-
-variable "eval_ingress_class_name" {
-  description = "IngressClass used by the eval Ingress."
-  type        = string
-  default     = "nginx-eval"
-}
-
-variable "polaris_ingress_class_name" {
-  description = "IngressClass used by the Polaris catalog Ingress."
-  type        = string
-  default     = "nginx-ui"
-}
-
-variable "ui_ingress_path" {
-  description = "Path used by the UI Ingress."
-  type        = string
-  default     = "/"
-}
-
-variable "hub_ingress_path" {
-  description = "Path used by the Hub Ingress."
-  type        = string
-  default     = "/"
-}
-
-variable "fetcher_ingress_path" {
-  description = "Path used by the fetcher Ingress."
-  type        = string
-  default     = "/"
-}
-
-variable "eval_ingress_path" {
-  description = "Path used by the eval Ingress."
-  type        = string
-  default     = "/"
-}
-
-variable "polaris_ingress_path" {
-  description = "Path used by the Polaris catalog Ingress."
-  type        = string
-  default     = "/services/catalog"
 }
 
 variable "cert_manager_cluster_issuer" {
@@ -571,30 +474,6 @@ variable "aws_load_balancer_scheme" {
   default     = "internet-facing"
 }
 
-variable "ui_ingress_nginx_enabled" {
-  description = "Whether to install the UI ingress-nginx controller dependency."
-  type        = bool
-  default     = true
-}
-
-variable "hub_ingress_nginx_enabled" {
-  description = "Whether to install the Hub ingress-nginx controller dependency."
-  type        = bool
-  default     = true
-}
-
-variable "fetcher_ingress_nginx_enabled" {
-  description = "Whether to install the fetcher ingress-nginx controller dependency. Defaults to deploy_fetcher when null."
-  type        = bool
-  default     = null
-}
-
-variable "eval_ingress_nginx_enabled" {
-  description = "Whether to install the eval ingress-nginx controller dependency."
-  type        = bool
-  default     = true
-}
-
 variable "ingress_service_annotations" {
   description = "Extra annotations applied to every ingress-nginx controller Service."
   type        = map(string)
@@ -603,54 +482,6 @@ variable "ingress_service_annotations" {
 
 variable "ingress_service_target_ports" {
   description = "Target ports applied to every ingress-nginx controller Service."
-  type        = map(string)
-  default     = {}
-}
-
-variable "ui_ingress_service_annotations" {
-  description = "Extra annotations for the UI ingress-nginx controller Service."
-  type        = map(string)
-  default     = {}
-}
-
-variable "ui_ingress_service_target_ports" {
-  description = "Target ports for the UI ingress-nginx controller Service."
-  type        = map(string)
-  default     = {}
-}
-
-variable "hub_ingress_service_annotations" {
-  description = "Extra annotations for the Hub ingress-nginx controller Service."
-  type        = map(string)
-  default     = {}
-}
-
-variable "hub_ingress_service_target_ports" {
-  description = "Target ports for the Hub ingress-nginx controller Service."
-  type        = map(string)
-  default     = {}
-}
-
-variable "fetcher_ingress_service_annotations" {
-  description = "Extra annotations for the fetcher ingress-nginx controller Service."
-  type        = map(string)
-  default     = {}
-}
-
-variable "fetcher_ingress_service_target_ports" {
-  description = "Target ports for the fetcher ingress-nginx controller Service."
-  type        = map(string)
-  default     = {}
-}
-
-variable "eval_ingress_service_annotations" {
-  description = "Extra annotations for the eval ingress-nginx controller Service."
-  type        = map(string)
-  default     = {}
-}
-
-variable "eval_ingress_service_target_ports" {
-  description = "Target ports for the eval ingress-nginx controller Service."
   type        = map(string)
   default     = {}
 }

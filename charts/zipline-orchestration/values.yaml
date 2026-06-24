@@ -205,6 +205,8 @@ polaris:
     psqlParams: ""
     create: true
     initImage: "postgres:16-alpine"
+    # Defaults to database.credentialsSecret when unset.
+    credentialsSecret: {}
   service:
     type: ClusterIP
   managementService:
@@ -343,7 +345,7 @@ orchestration:
         cpu: "2"
         memory: "8Gi"
 
-# Ingress NGINX for UI
+# Shared Ingress NGINX controller for all Zipline routes
 ingress-nginx-ui:
   enabled: true
   controller:
@@ -365,73 +367,6 @@ ingress-nginx-ui:
     electionID: ingress-controller-leader-ui
     namespaceOverride: ingress-nginx-ui
 
-# Ingress NGINX for Fetcher
-ingress-nginx-fetcher:
-  enabled: true
-  fullnameOverride: nginx-fetcher
-  controller:
-    ingressClassResource:
-      name: nginx-fetcher
-      enabled: true
-      default: false
-      controllerValue: "k8s.io/ingress-nginx-fetcher"
-    ingressClass: nginx-fetcher
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
-      limits:
-        cpu: 200m
-        memory: 256Mi
-    service:
-      annotations: {}
-    electionID: ingress-controller-leader-fetcher
-    namespaceOverride: ingress-nginx-fetcher
-
-# Ingress NGINX for Eval
-ingress-nginx-eval:
-  enabled: true
-  controller:
-    ingressClassResource:
-      name: nginx-eval
-      enabled: true
-      default: false
-      controllerValue: "k8s.io/ingress-nginx-eval"
-    ingressClass: nginx-eval
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
-      limits:
-        cpu: 200m
-        memory: 256Mi
-    service:
-      annotations: {}
-    electionID: ingress-controller-leader-eval
-    namespaceOverride: ingress-nginx-eval
-
-# Ingress NGINX for Hub
-ingress-nginx-hub:
-  enabled: true
-  controller:
-    ingressClassResource:
-      name: nginx-hub
-      enabled: true
-      default: false
-      controllerValue: "k8s.io/ingress-nginx-hub"
-    ingressClass: nginx-hub
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
-      limits:
-        cpu: 200m
-        memory: 256Mi
-    service:
-      annotations: {}
-    electionID: ingress-controller-leader-hub
-    namespaceOverride: ingress-nginx-hub
-
 # Ingress configuration
 ingress:
   ui:
@@ -441,27 +376,32 @@ ingress:
     tls: []
     annotations: {}
   hub:
-    className: nginx-hub
+    className: nginx-ui
     host: ""
     externalUrl: ""  # Override HUB_BASE_URL directly when a custom load balancer or proxy sits in front of nginx.
-    path: "/"
+    path: "/services/hub"
     tls: []
     annotations:
       nginx.ingress.kubernetes.io/health-check-path: "/ping"
       nginx.ingress.kubernetes.io/proxy-body-size: "20m"
+      nginx.ingress.kubernetes.io/rewrite-target: "/$2"
   fetcher:
-    className: nginx-fetcher
+    className: nginx-ui
     host: ""
-    path: "/"
+    path: "/services/fetcher"
     tls: []
     annotations:
       nginx.ingress.kubernetes.io/health-check-path: "/ping"
+      nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+      nginx.ingress.kubernetes.io/use-regex: "true"
   eval:
-    className: nginx-eval
+    className: nginx-ui
     host: ""
-    path: "/"
+    path: "/services/eval"
     tls: []
-    annotations: {}
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+      nginx.ingress.kubernetes.io/use-regex: "true"
   polaris:
     className: nginx-ui
     path: "/services/catalog"

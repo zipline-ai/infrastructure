@@ -16,6 +16,33 @@ variable "namespace_annotations" {
   default     = {}
 }
 
+variable "subscription_id" {
+  description = "Azure subscription ID."
+  type        = string
+}
+
+variable "aks_resource_group" {
+  description = "Resource group containing the AKS cluster."
+  type        = string
+}
+
+variable "aks_cluster_name" {
+  description = "AKS cluster name."
+  type        = string
+}
+
+variable "helm_wait" {
+  description = "Whether Helm waits for all resources to become ready."
+  type        = bool
+  default     = true
+}
+
+variable "helm_timeout" {
+  description = "Helm operation timeout in seconds."
+  type        = number
+  default     = 300
+}
+
 variable "customer_name" {
   description = "Zipline customer/environment name."
   type        = string
@@ -62,6 +89,30 @@ variable "database_ssl_mode" {
   description = "Optional Postgres sslmode."
   type        = string
   default     = "require"
+}
+
+variable "database_credentials_secret_name" {
+  description = "Kubernetes secret containing database credentials."
+  type        = string
+  default     = "db-credentials"
+}
+
+variable "database_username_secret_key" {
+  description = "Secret key containing the database username."
+  type        = string
+  default     = "username"
+}
+
+variable "database_password_secret_key" {
+  description = "Secret key containing the database password."
+  type        = string
+  default     = "password"
+}
+
+variable "secrets_enabled" {
+  description = "Whether the chart renders a SecretProviderClass and mounts the Secrets Store CSI volume."
+  type        = bool
+  default     = true
 }
 
 variable "database_password_secret_name" {
@@ -118,58 +169,15 @@ variable "storage_path_prefix" {
   default     = ""
 }
 
-variable "hub_domain" {
-  description = "Public hostname for the orchestration Hub."
+variable "domain" {
+  description = "Unified public hostname for Zipline. Services are exposed under paths on this host."
   type        = string
-  default     = ""
 }
 
-variable "hub_external_url" {
-  description = "Explicit public Hub URL. When unset the chart derives it from hub_domain."
+variable "tls_secret_name" {
+  description = "Kubernetes TLS secret for the unified public hostname. Leave empty to render no TLS blocks."
   type        = string
-  default     = ""
-}
-
-variable "ui_domain" {
-  description = "Public hostname for the orchestration UI."
-  type        = string
-  default     = ""
-}
-
-variable "fetcher_domain" {
-  description = "Public hostname for fetcher."
-  type        = string
-  default     = ""
-}
-
-variable "eval_domain" {
-  description = "Public hostname for eval."
-  type        = string
-  default     = ""
-}
-
-variable "ui_tls_secret_name" {
-  description = "Kubernetes TLS secret for the UI ingress. Leave empty to render no TLS block."
-  type        = string
-  default     = "ui-tls-secret"
-}
-
-variable "hub_tls_secret_name" {
-  description = "Kubernetes TLS secret for the Hub ingress. Leave empty to render no TLS block."
-  type        = string
-  default     = "hub-tls-secret"
-}
-
-variable "fetcher_tls_secret_name" {
-  description = "Kubernetes TLS secret for fetcher. Leave empty to render no TLS block."
-  type        = string
-  default     = "fetcher-tls-secret"
-}
-
-variable "eval_tls_secret_name" {
-  description = "Kubernetes TLS secret for eval. Leave empty to render no TLS block."
-  type        = string
-  default     = "eval-tls-secret"
+  default     = "zipline-tls-secret"
 }
 
 variable "cert_manager_cluster_issuer" {
@@ -178,26 +186,14 @@ variable "cert_manager_cluster_issuer" {
   default     = "letsencrypt-prod"
 }
 
-variable "ui_load_balancer_ip" {
-  description = "Static Azure public IP for the UI ingress-nginx Service."
+variable "ingress_class_name" {
+  description = "IngressClass used by all Zipline application ingresses."
   type        = string
-  default     = ""
+  default     = "nginx-ui"
 }
 
-variable "hub_load_balancer_ip" {
-  description = "Static Azure public IP for the Hub ingress-nginx Service."
-  type        = string
-  default     = ""
-}
-
-variable "fetcher_load_balancer_ip" {
-  description = "Static Azure public IP for the fetcher ingress-nginx Service."
-  type        = string
-  default     = ""
-}
-
-variable "eval_load_balancer_ip" {
-  description = "Static Azure public IP for the eval ingress-nginx Service."
+variable "ingress_load_balancer_ip" {
+  description = "Static Azure public IP for the shared ingress-nginx Service."
   type        = string
   default     = ""
 }
@@ -307,30 +303,6 @@ variable "compute_image_prepull_enabled" {
   description = "Whether the chart should prepull compute images."
   type        = bool
   default     = true
-}
-
-variable "polaris_storage_type" {
-  description = "Polaris catalog storage type."
-  type        = string
-  default     = "AZURE"
-}
-
-variable "polaris_storage_config" {
-  description = "Provider-specific Polaris storageConfigInfo fields."
-  type        = any
-  default     = {}
-}
-
-variable "polaris_allowed_locations" {
-  description = "Allowed storage locations for the bootstrapped Polaris catalog."
-  type        = list(string)
-  default     = []
-}
-
-variable "polaris_bootstrap_credentials_secret" {
-  description = "Secret name containing or receiving Polaris bootstrap credentials."
-  type        = string
-  default     = "polaris-bootstrap-credentials"
 }
 
 variable "prometheus_query_endpoint" {
@@ -452,30 +424,6 @@ variable "install_opentelemetry_operator" {
 
 variable "ingress_service_annotations" {
   description = "Extra annotations applied to every ingress-nginx controller Service."
-  type        = map(string)
-  default     = {}
-}
-
-variable "ui_ingress_service_annotations" {
-  description = "Extra annotations for the UI ingress-nginx controller Service."
-  type        = map(string)
-  default     = {}
-}
-
-variable "hub_ingress_service_annotations" {
-  description = "Extra annotations for the Hub ingress-nginx controller Service."
-  type        = map(string)
-  default     = {}
-}
-
-variable "fetcher_ingress_service_annotations" {
-  description = "Extra annotations for the fetcher ingress-nginx controller Service."
-  type        = map(string)
-  default     = {}
-}
-
-variable "eval_ingress_service_annotations" {
-  description = "Extra annotations for the eval ingress-nginx controller Service."
   type        = map(string)
   default     = {}
 }

@@ -1,11 +1,10 @@
 locals {
-  image_pull_secret_name        = var.create_image_pull_secret ? kubernetes_secret_v1.docker_hub_creds[0].metadata[0].name : var.image_pull_secret_name
-  spark_event_log_dir           = var.spark_event_log_dir != "" ? var.spark_event_log_dir : "s3a://${var.warehouse_bucket}/spark-events"
-  flink_compute_role_arn        = var.flink_compute_role_arn != "" ? var.flink_compute_role_arn : var.spark_compute_role_arn
-  fetcher_ingress_nginx_enabled = var.fetcher_ingress_nginx_enabled != null ? var.fetcher_ingress_nginx_enabled : var.deploy_fetcher
-  compute_image_prepull_images  = length(var.compute_image_prepull_images) > 0 ? var.compute_image_prepull_images : (var.compute_image_prepull_enabled ? [var.spark_image] : [])
-  database_host_with_port       = "${var.database_host}:${var.database_port}"
-  database_url                  = var.database_url != "" ? var.database_url : "postgres://$(DB_USERNAME)@${local.database_host_with_port}/${var.database_name}?sslmode=require"
+  image_pull_secret_name       = var.create_image_pull_secret ? kubernetes_secret_v1.docker_hub_creds[0].metadata[0].name : var.image_pull_secret_name
+  spark_event_log_dir          = var.spark_event_log_dir != "" ? var.spark_event_log_dir : "s3a://${var.warehouse_bucket}/spark-events"
+  flink_compute_role_arn       = var.flink_compute_role_arn != "" ? var.flink_compute_role_arn : var.spark_compute_role_arn
+  compute_image_prepull_images = length(var.compute_image_prepull_images) > 0 ? var.compute_image_prepull_images : (var.compute_image_prepull_enabled ? [var.spark_image] : [])
+  database_host_with_port      = "${var.database_host}:${var.database_port}"
+  database_url                 = var.database_url != "" ? var.database_url : "postgres://$(DB_USERNAME)@${local.database_host_with_port}/${var.database_name}?sslmode=require"
 
   cert_manager_annotations = var.cert_manager_cluster_issuer == "" ? {} : {
     "cert-manager.io/cluster-issuer" = var.cert_manager_cluster_issuer
@@ -16,65 +15,18 @@ locals {
     "service.beta.kubernetes.io/aws-load-balancer-scheme" = var.aws_load_balancer_scheme
   }, var.ingress_service_annotations)
 
-  ui_lb_annotations      = merge(local.aws_lb_annotations, var.ui_ingress_service_annotations)
-  hub_lb_annotations     = merge(local.aws_lb_annotations, var.hub_ingress_service_annotations)
-  fetcher_lb_annotations = merge(local.aws_lb_annotations, var.fetcher_ingress_service_annotations)
-  eval_lb_annotations    = merge(local.aws_lb_annotations, var.eval_ingress_service_annotations)
-
-  ui_lb_service = merge(
+  ingress_lb_service = merge(
     {
-      annotations = local.ui_lb_annotations
+      annotations = local.aws_lb_annotations
     },
-    length(merge(var.ingress_service_target_ports, var.ui_ingress_service_target_ports)) == 0 ? {} : {
-      targetPorts = merge(var.ingress_service_target_ports, var.ui_ingress_service_target_ports)
+    length(var.ingress_service_target_ports) == 0 ? {} : {
+      targetPorts = var.ingress_service_target_ports
     },
   )
 
-  hub_lb_service = merge(
-    {
-      annotations = local.hub_lb_annotations
-    },
-    length(merge(var.ingress_service_target_ports, var.hub_ingress_service_target_ports)) == 0 ? {} : {
-      targetPorts = merge(var.ingress_service_target_ports, var.hub_ingress_service_target_ports)
-    },
-  )
-
-  fetcher_lb_service = merge(
-    {
-      annotations = local.fetcher_lb_annotations
-    },
-    length(merge(var.ingress_service_target_ports, var.fetcher_ingress_service_target_ports)) == 0 ? {} : {
-      targetPorts = merge(var.ingress_service_target_ports, var.fetcher_ingress_service_target_ports)
-    },
-  )
-
-  eval_lb_service = merge(
-    {
-      annotations = local.eval_lb_annotations
-    },
-    length(merge(var.ingress_service_target_ports, var.eval_ingress_service_target_ports)) == 0 ? {} : {
-      targetPorts = merge(var.ingress_service_target_ports, var.eval_ingress_service_target_ports)
-    },
-  )
-
-  ui_tls = var.ui_domain != "" && var.ui_tls_secret_name != "" ? [{
-    hosts      = [var.ui_domain]
-    secretName = var.ui_tls_secret_name
-  }] : []
-
-  hub_tls = var.hub_domain != "" && var.hub_tls_secret_name != "" ? [{
-    hosts      = [var.hub_domain]
-    secretName = var.hub_tls_secret_name
-  }] : []
-
-  fetcher_tls = var.fetcher_domain != "" && var.fetcher_tls_secret_name != "" ? [{
-    hosts      = [var.fetcher_domain]
-    secretName = var.fetcher_tls_secret_name
-  }] : []
-
-  eval_tls = var.eval_domain != "" && var.eval_tls_secret_name != "" ? [{
-    hosts      = [var.eval_domain]
-    secretName = var.eval_tls_secret_name
+  app_tls = var.tls_secret_name != "" ? [{
+    hosts      = [var.domain]
+    secretName = var.tls_secret_name
   }] : []
 
   auth_enabled = try(var.auth.enabled, false)
@@ -428,10 +380,9 @@ locals {
 
     ingress = {
       ui = {
-        className = var.ui_ingress_class_name
-        host      = var.ui_domain
-        path      = var.ui_ingress_path
-        tls       = local.ui_tls
+        className = var.ingress_class_name
+        host      = var.domain
+        tls       = local.app_tls
         annotations = merge(
           local.cert_manager_annotations,
           var.ingress_annotations,
@@ -439,40 +390,29 @@ locals {
         )
       }
       hub = {
-        className   = var.hub_ingress_class_name
-        host        = var.hub_domain
-        externalUrl = var.hub_external_url
-        path        = var.hub_ingress_path
-        tls         = local.hub_tls
+        className = var.ingress_class_name
+        host      = var.domain
+        tls       = local.app_tls
         annotations = merge(
-          {
-            "nginx.ingress.kubernetes.io/health-check-path" = "/ping"
-            "nginx.ingress.kubernetes.io/proxy-body-size"   = "20m"
-          },
           local.cert_manager_annotations,
           var.ingress_annotations,
           var.hub_ingress_annotations,
         )
       }
       fetcher = {
-        className = var.fetcher_ingress_class_name
-        host      = var.fetcher_domain
-        path      = var.fetcher_ingress_path
-        tls       = local.fetcher_tls
+        className = var.ingress_class_name
+        host      = var.domain
+        tls       = local.app_tls
         annotations = merge(
-          {
-            "nginx.ingress.kubernetes.io/health-check-path" = "/ping"
-          },
           local.cert_manager_annotations,
           var.ingress_annotations,
           var.fetcher_ingress_annotations,
         )
       }
       eval = {
-        className = var.eval_ingress_class_name
-        host      = var.eval_domain
-        path      = var.eval_ingress_path
-        tls       = local.eval_tls
+        className = var.ingress_class_name
+        host      = var.domain
+        tls       = local.app_tls
         annotations = merge(
           local.cert_manager_annotations,
           var.ingress_annotations,
@@ -480,36 +420,13 @@ locals {
         )
       }
       polaris = {
-        className = var.polaris_ingress_class_name
-        path      = var.polaris_ingress_path
+        className = var.ingress_class_name
       }
     }
 
     "ingress-nginx-ui" = {
-      enabled = var.ui_ingress_nginx_enabled
       controller = {
-        service = local.ui_lb_service
-      }
-    }
-
-    "ingress-nginx-hub" = {
-      enabled = var.hub_ingress_nginx_enabled
-      controller = {
-        service = local.hub_lb_service
-      }
-    }
-
-    "ingress-nginx-fetcher" = {
-      enabled = local.fetcher_ingress_nginx_enabled
-      controller = {
-        service = local.fetcher_lb_service
-      }
-    }
-
-    "ingress-nginx-eval" = {
-      enabled = var.eval_ingress_nginx_enabled
-      controller = {
-        service = local.eval_lb_service
+        service = local.ingress_lb_service
       }
     }
 

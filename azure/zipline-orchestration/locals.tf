@@ -7,6 +7,7 @@ locals {
   spark_event_log_dir          = var.spark_event_log_dir != "" ? var.spark_event_log_dir : "${local.abfs_base_uri}spark-events"
   warehouse_prefix             = var.warehouse_prefix != "" ? var.warehouse_prefix : "${local.abfs_base_uri}warehouse"
   flink_state_uri              = var.flink_state_uri != "" ? var.flink_state_uri : "${local.abfs_base_uri}flink-state"
+  polaris_base_location        = "${local.abfs_base_uri}polaris/polaris_${var.customer_name}/"
 
   cert_manager_annotations = var.cert_manager_cluster_issuer == "" ? {} : {
     "cert-manager.io/cluster-issuer" = var.cert_manager_cluster_issuer
@@ -36,60 +37,18 @@ locals {
     var.ingress_service_annotations,
   )
 
-  ui_service = merge(
+  ingress_service = merge(
     {
-      annotations = merge(local.azure_lb_annotations, var.ui_ingress_service_annotations)
+      annotations = local.azure_lb_annotations
     },
-    var.ui_load_balancer_ip == "" ? {} : {
-      loadBalancerIP = var.ui_load_balancer_ip
+    var.ingress_load_balancer_ip == "" ? {} : {
+      loadBalancerIP = var.ingress_load_balancer_ip
     },
   )
 
-  hub_service = merge(
-    {
-      annotations = merge(local.azure_lb_annotations, var.hub_ingress_service_annotations)
-    },
-    var.hub_load_balancer_ip == "" ? {} : {
-      loadBalancerIP = var.hub_load_balancer_ip
-    },
-  )
-
-  fetcher_service = merge(
-    {
-      annotations = merge(local.azure_lb_annotations, var.fetcher_ingress_service_annotations)
-    },
-    var.fetcher_load_balancer_ip == "" ? {} : {
-      loadBalancerIP = var.fetcher_load_balancer_ip
-    },
-  )
-
-  eval_service = merge(
-    {
-      annotations = merge(local.azure_lb_annotations, var.eval_ingress_service_annotations)
-    },
-    var.eval_load_balancer_ip == "" ? {} : {
-      loadBalancerIP = var.eval_load_balancer_ip
-    },
-  )
-
-  ui_tls = var.ui_domain != "" && var.ui_tls_secret_name != "" ? [{
-    hosts      = [var.ui_domain]
-    secretName = var.ui_tls_secret_name
-  }] : []
-
-  hub_tls = var.hub_domain != "" && var.hub_tls_secret_name != "" ? [{
-    hosts      = [var.hub_domain]
-    secretName = var.hub_tls_secret_name
-  }] : []
-
-  fetcher_tls = var.fetcher_domain != "" && var.fetcher_tls_secret_name != "" ? [{
-    hosts      = [var.fetcher_domain]
-    secretName = var.fetcher_tls_secret_name
-  }] : []
-
-  eval_tls = var.eval_domain != "" && var.eval_tls_secret_name != "" ? [{
-    hosts      = [var.eval_domain]
-    secretName = var.eval_tls_secret_name
+  app_tls = var.tls_secret_name != "" ? [{
+    hosts      = [var.domain]
+    secretName = var.tls_secret_name
   }] : []
 
   auth_enabled = try(var.auth.enabled, false)
@@ -271,14 +230,14 @@ locals {
       name    = var.database_name
       sslMode = var.database_ssl_mode
       credentialsSecret = {
-        name        = "db-credentials"
-        usernameKey = "username"
-        passwordKey = "password"
+        name        = var.database_credentials_secret_name
+        usernameKey = var.database_username_secret_key
+        passwordKey = var.database_password_secret_key
       }
     }
 
     secrets = {
-      enabled       = true
+      enabled       = var.secrets_enabled
       provider      = "azure"
       className     = "zipline-secret-provider"
       secretObjects = local.secret_objects
@@ -324,16 +283,16 @@ locals {
 
     polaris = {
       bootstrap = {
-        credentialsSecret = {
-          name = var.polaris_bootstrap_credentials_secret
-        }
         rbac = {
           catalog = {
+            defaultBaseLocation = local.polaris_base_location
             storage = {
-              type             = var.polaris_storage_type
+              type             = "AZURE"
               region           = var.location
-              allowedLocations = var.polaris_allowed_locations
-              config           = var.polaris_storage_config
+              allowedLocations = [local.polaris_base_location]
+              config = {
+                storageAccount = var.azure_storage_account_name
+              }
             }
           }
         }
@@ -356,8 +315,9 @@ locals {
 
     ingress = {
       ui = {
-        host = var.ui_domain
-        tls  = local.ui_tls
+        className = var.ingress_class_name
+        host      = var.domain
+        tls       = local.app_tls
         annotations = merge(
           local.cert_manager_annotations,
           var.ingress_annotations,
@@ -365,67 +325,43 @@ locals {
         )
       }
       hub = {
-        host        = var.hub_domain
-        externalUrl = var.hub_external_url
-        tls         = local.hub_tls
+        className = var.ingress_class_name
+        host      = var.domain
+        tls       = local.app_tls
         annotations = merge(
-          {
-            "nginx.ingress.kubernetes.io/health-check-path" = "/ping"
-            "nginx.ingress.kubernetes.io/proxy-body-size"   = "20m"
-          },
           local.cert_manager_annotations,
           var.ingress_annotations,
           var.hub_ingress_annotations,
         )
       }
       fetcher = {
-        host = var.fetcher_domain
-        tls  = local.fetcher_tls
+        className = var.ingress_class_name
+        host      = var.domain
+        tls       = local.app_tls
         annotations = merge(
-          {
-            "nginx.ingress.kubernetes.io/health-check-path" = "/ping"
-          },
           local.cert_manager_annotations,
           var.ingress_annotations,
           var.fetcher_ingress_annotations,
         )
       }
       eval = {
-        host = var.eval_domain
-        tls  = local.eval_tls
+        className = var.ingress_class_name
+        host      = var.domain
+        tls       = local.app_tls
         annotations = merge(
           local.cert_manager_annotations,
           var.ingress_annotations,
           var.eval_ingress_annotations,
         )
       }
+      polaris = {
+        className = var.ingress_class_name
+      }
     }
 
     "ingress-nginx-ui" = {
-      enabled = true
       controller = {
-        service = local.ui_service
-      }
-    }
-
-    "ingress-nginx-hub" = {
-      enabled = true
-      controller = {
-        service = local.hub_service
-      }
-    }
-
-    "ingress-nginx-fetcher" = {
-      enabled = var.deploy_fetcher
-      controller = {
-        service = local.fetcher_service
-      }
-    }
-
-    "ingress-nginx-eval" = {
-      enabled = true
-      controller = {
-        service = local.eval_service
+        service = local.ingress_service
       }
     }
 

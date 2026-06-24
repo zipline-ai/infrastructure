@@ -31,6 +31,10 @@
 {{- end -}}
 {{- $bootstrapCredentialsSecretName := default "polaris-bootstrap-credentials" $polaris.bootstrap.credentialsSecret.name -}}
 {{- $bootstrapCredentialsSecretKey := default "credentials" $polaris.bootstrap.credentialsSecret.key -}}
+{{- $polarisDatabaseCredentialsSecret := default dict $polaris.database.credentialsSecret -}}
+{{- $polarisDatabaseCredentialsSecretName := default (include "zipline-orchestration.databaseCredentialsSecretName" .) (index $polarisDatabaseCredentialsSecret "name") -}}
+{{- $polarisDatabaseCredentialsUsernameKey := default (include "zipline-orchestration.databaseCredentialsUsernameKey" .) (index $polarisDatabaseCredentialsSecret "usernameKey") -}}
+{{- $polarisDatabaseCredentialsPasswordKey := default (include "zipline-orchestration.databaseCredentialsPasswordKey" .) (index $polarisDatabaseCredentialsSecret "passwordKey") -}}
 {{- $existingBootstrapSecret := lookup "v1" "Secret" .Release.Namespace $bootstrapCredentialsSecretName -}}
 {{- $existingBootstrapSecretData := dict -}}
 {{- if $existingBootstrapSecret -}}
@@ -128,18 +132,18 @@ spec:
             - name: PGUSER
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
-                  key: {{ include "zipline-orchestration.databaseCredentialsUsernameKey" . }}
+                  name: {{ $polarisDatabaseCredentialsSecretName }}
+                  key: {{ $polarisDatabaseCredentialsUsernameKey }}
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
-                  key: {{ include "zipline-orchestration.databaseCredentialsPasswordKey" . }}
+                  name: {{ $polarisDatabaseCredentialsSecretName }}
+                  key: {{ $polarisDatabaseCredentialsPasswordKey }}
             - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
-                  key: {{ include "zipline-orchestration.databaseCredentialsUsernameKey" . }}
+                  name: {{ $polarisDatabaseCredentialsSecretName }}
+                  key: {{ $polarisDatabaseCredentialsUsernameKey }}
             - name: POLARIS_DB_NAME
               value: {{ $databaseName | quote }}
             - name: PG_ADMIN_URL
@@ -197,13 +201,13 @@ spec:
             - name: QUARKUS_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
-                  key: {{ include "zipline-orchestration.databaseCredentialsUsernameKey" . }}
+                  name: {{ $polarisDatabaseCredentialsSecretName }}
+                  key: {{ $polarisDatabaseCredentialsUsernameKey }}
             - name: QUARKUS_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
-                  key: {{ include "zipline-orchestration.databaseCredentialsPasswordKey" . }}
+                  name: {{ $polarisDatabaseCredentialsSecretName }}
+                  key: {{ $polarisDatabaseCredentialsPasswordKey }}
             - name: QUARKUS_DATASOURCE_JDBC_URL
               value: {{ $jdbcUrl | quote }}
           command:
@@ -550,18 +554,18 @@ spec:
             - name: PGUSER
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
-                  key: {{ include "zipline-orchestration.databaseCredentialsUsernameKey" . }}
+                  name: {{ $polarisDatabaseCredentialsSecretName }}
+                  key: {{ $polarisDatabaseCredentialsUsernameKey }}
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
-                  key: {{ include "zipline-orchestration.databaseCredentialsPasswordKey" . }}
+                  name: {{ $polarisDatabaseCredentialsSecretName }}
+                  key: {{ $polarisDatabaseCredentialsPasswordKey }}
             - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
-                  key: {{ include "zipline-orchestration.databaseCredentialsUsernameKey" . }}
+                  name: {{ $polarisDatabaseCredentialsSecretName }}
+                  key: {{ $polarisDatabaseCredentialsUsernameKey }}
             - name: POLARIS_DB_NAME
               value: {{ $databaseName | quote }}
             - name: PG_ADMIN_URL
@@ -602,13 +606,13 @@ spec:
             - name: QUARKUS_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
-                  key: {{ include "zipline-orchestration.databaseCredentialsUsernameKey" . }}
+                  name: {{ $polarisDatabaseCredentialsSecretName }}
+                  key: {{ $polarisDatabaseCredentialsUsernameKey }}
             - name: QUARKUS_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
-                  key: {{ include "zipline-orchestration.databaseCredentialsPasswordKey" . }}
+                  name: {{ $polarisDatabaseCredentialsSecretName }}
+                  key: {{ $polarisDatabaseCredentialsPasswordKey }}
             - name: QUARKUS_DATASOURCE_JDBC_URL
               value: {{ $jdbcUrl | quote }}
             {{- with $polaris.extraEnv }}

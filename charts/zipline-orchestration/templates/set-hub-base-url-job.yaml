@@ -21,9 +21,9 @@ spec:
         - |
           echo "Waiting for hub load balancer address..."
           until [ -n "$LOAD_BALANCER_ADDRESS" ]; do
-            LOAD_BALANCER_ADDRESS=$(kubectl get svc zipline-orchestration-ingress-nginx-hub-controller -n {{ .Release.Namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            LOAD_BALANCER_ADDRESS=$(kubectl get svc zipline-orchestration-ingress-nginx-ui-controller -n {{ .Release.Namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
             if [ -z "$LOAD_BALANCER_ADDRESS" ]; then
-              LOAD_BALANCER_ADDRESS=$(kubectl get svc zipline-orchestration-ingress-nginx-hub-controller -n {{ .Release.Namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+              LOAD_BALANCER_ADDRESS=$(kubectl get svc zipline-orchestration-ingress-nginx-ui-controller -n {{ .Release.Namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
             fi
             if [ -z "$LOAD_BALANCER_ADDRESS" ]; then
               echo "Load balancer address not yet available, retrying in 10s..."

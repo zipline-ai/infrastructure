@@ -18,3 +18,8 @@ aws/zipline-orchestration/current-helm-values.*
 aws/zipline-orchestration/cloudflare.tf
 aws/zipline-orchestration/github.tf
 aws/zipline-orchestration/crucible-config/
+
+# Azure environment-specific canary configuration pulled from remote storage.
+azure/zipline-orchestration/.crucible-config/
+azure/zipline-orchestration/backend.hcl
+azure/zipline-orchestration/current-helm-values.*
