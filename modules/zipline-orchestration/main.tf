@@ -1,5 +1,5 @@
 locals {
-  chart_path         = coalesce(var.chart_path, abspath("${path.module}/../../charts/zipline-orchestration"))
+  chart_path         = abspath(var.chart_path)
   chart_files        = sort(fileset(local.chart_path, "**"))
   chart_content_hash = sha256(join(",", [for file in local.chart_files : filesha256("${local.chart_path}/${file}")]))
   values_with_chart_hash = merge(var.values, {

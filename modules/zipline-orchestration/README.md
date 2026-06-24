@@ -9,3 +9,6 @@ normal Helm values map from provider resources and pass it through `values`,
 The module owns only the release namespace and `helm_release`. Provider-specific
 controllers such as CSI providers, load balancer controllers, and identity
 bindings belong in cloud-specific wrappers or shared add-on modules.
+
+The cloud installation wrapper must pass `chart_path`; this module should not
+assume the repository layout or which wrapper path is being applied.

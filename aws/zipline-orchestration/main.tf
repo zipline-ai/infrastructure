@@ -108,6 +108,7 @@ resource "helm_release" "aws_load_balancer_controller" {
 module "zipline_orchestration" {
   source = "../../modules/zipline-orchestration"
 
+  chart_path        = abspath("${path.module}/../../charts/zipline-orchestration")
   namespace         = kubernetes_namespace_v1.zipline_system.metadata[0].name
   create_namespace  = false
   values            = local.values

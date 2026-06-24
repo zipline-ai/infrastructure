@@ -29,9 +29,8 @@ variable "namespace_annotations" {
 }
 
 variable "chart_path" {
-  description = "Path to the zipline-orchestration chart. Defaults to the repository top-level charts directory."
+  description = "Path to the zipline-orchestration chart supplied by the cloud installation wrapper."
   type        = string
-  default     = null
 }
 
 variable "values" {
