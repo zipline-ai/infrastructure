@@ -6,6 +6,11 @@ locals {
   database_host_with_port      = "${var.database_host}:${var.database_port}"
   database_url                 = var.database_url != "" ? var.database_url : "postgres://$(DB_USERNAME)@${local.database_host_with_port}/${var.database_name}?sslmode=require"
   image_pull_secrets           = local.image_pull_secret_name == "" ? [] : [{ name = local.image_pull_secret_name }]
+  hub_image                    = "ziplineai/hub-aws"
+  eval_image                   = "ziplineai/eval-aws"
+  hub_verticle_class           = "ai.chronon.hub.AWSOrchestrationVerticle,ai.chronon.hub.AWSWorkflowExecutionVerticle"
+  polaris_base_location        = "s3://${var.warehouse_bucket}/polaris/polaris_${var.customer_name}/"
+  polaris_database_init_image  = "public.ecr.aws/docker/library/postgres:16-alpine"
 
   cert_manager_annotations = var.cert_manager_cluster_issuer == "" ? {} : {
     "cert-manager.io/cluster-issuer" = var.cert_manager_cluster_issuer
@@ -336,18 +341,15 @@ locals {
     polaris = {
       extraEnv = local.aws_runtime_env
       database = {
-        initImage = var.polaris_database_init_image
+        initImage = local.polaris_database_init_image
       }
       bootstrap = {
-        credentialsSecret = {
-          name = var.polaris_bootstrap_credentials_secret
-        }
         rbac = {
           catalog = {
-            defaultBaseLocation = var.polaris_default_base_location
+            defaultBaseLocation = local.polaris_base_location
             storage = {
-              type             = var.polaris_storage_type
-              allowedLocations = var.polaris_allowed_locations
+              type             = "S3"
+              allowedLocations = [local.polaris_base_location]
               config           = merge({ region = var.region }, var.polaris_storage_config)
             }
           }
@@ -357,19 +359,18 @@ locals {
 
     orchestration = {
       hub = {
-        image         = var.hub_image
-        verticleClass = var.hub_verticle_class
+        image         = local.hub_image
+        verticleClass = local.hub_verticle_class
         env           = concat(local.aws_hub_env, var.hub_env)
       }
       ui = {
         env = concat(local.aws_ui_env, var.ui_env)
       }
       fetcher = {
-        replicas = var.fetcher_replicas
-        env      = var.fetcher_env
+        env = var.fetcher_env
       }
       eval = {
-        image = var.eval_image
+        image = local.eval_image
         env   = concat(local.aws_eval_env, var.eval_env)
       }
     }
@@ -382,7 +383,6 @@ locals {
         annotations = merge(
           local.cert_manager_annotations,
           var.ingress_annotations,
-          var.ui_ingress_annotations,
         )
       }
       hub = {
@@ -392,7 +392,6 @@ locals {
         annotations = merge(
           local.cert_manager_annotations,
           var.ingress_annotations,
-          var.hub_ingress_annotations,
         )
       }
       fetcher = {
@@ -402,7 +401,6 @@ locals {
         annotations = merge(
           local.cert_manager_annotations,
           var.ingress_annotations,
-          var.fetcher_ingress_annotations,
         )
       }
       eval = {
@@ -412,7 +410,6 @@ locals {
         annotations = merge(
           local.cert_manager_annotations,
           var.ingress_annotations,
-          var.eval_ingress_annotations,
         )
       }
       polaris = {

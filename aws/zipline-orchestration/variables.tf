@@ -160,30 +160,6 @@ variable "deploy_fetcher" {
   default     = false
 }
 
-variable "fetcher_replicas" {
-  description = "Fetcher replica count."
-  type        = number
-  default     = 3
-}
-
-variable "hub_image" {
-  description = "Hub image repository."
-  type        = string
-  default     = "ziplineai/hub-aws"
-}
-
-variable "eval_image" {
-  description = "Eval image repository."
-  type        = string
-  default     = "ziplineai/eval-aws"
-}
-
-variable "hub_verticle_class" {
-  description = "Hub Vert.x class list."
-  type        = string
-  default     = "ai.chronon.hub.AWSOrchestrationVerticle,ai.chronon.hub.AWSWorkflowExecutionVerticle"
-}
-
 variable "spark_image" {
   description = "Spark image repository and tag used by Crucible."
   type        = string
@@ -267,40 +243,10 @@ variable "spark_history_extra_spark_opts" {
   default     = []
 }
 
-variable "polaris_storage_type" {
-  description = "Polaris catalog storage type."
-  type        = string
-  default     = "S3"
-}
-
 variable "polaris_storage_config" {
   description = "Provider-specific Polaris storageConfigInfo fields."
   type        = any
   default     = {}
-}
-
-variable "polaris_allowed_locations" {
-  description = "Allowed storage locations for the bootstrapped Polaris catalog."
-  type        = list(string)
-  default     = []
-}
-
-variable "polaris_default_base_location" {
-  description = "Default base location for the bootstrapped Polaris catalog."
-  type        = string
-  default     = ""
-}
-
-variable "polaris_bootstrap_credentials_secret" {
-  description = "Secret name containing or receiving Polaris bootstrap credentials."
-  type        = string
-  default     = "polaris-bootstrap-credentials"
-}
-
-variable "polaris_database_init_image" {
-  description = "Image used by the Polaris database bootstrap init container."
-  type        = string
-  default     = "postgres:16-alpine"
 }
 
 variable "secret_provider_class_name" {
@@ -488,30 +434,6 @@ variable "ingress_service_target_ports" {
 
 variable "ingress_annotations" {
   description = "Extra annotations applied to every application Ingress."
-  type        = map(string)
-  default     = {}
-}
-
-variable "ui_ingress_annotations" {
-  description = "Extra annotations for the UI Ingress."
-  type        = map(string)
-  default     = {}
-}
-
-variable "hub_ingress_annotations" {
-  description = "Extra annotations for the Hub Ingress."
-  type        = map(string)
-  default     = {}
-}
-
-variable "fetcher_ingress_annotations" {
-  description = "Extra annotations for the fetcher Ingress."
-  type        = map(string)
-  default     = {}
-}
-
-variable "eval_ingress_annotations" {
-  description = "Extra annotations for the eval Ingress."
   type        = map(string)
   default     = {}
 }

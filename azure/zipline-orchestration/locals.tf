@@ -11,6 +11,9 @@ locals {
   image_pull_secrets           = local.image_pull_secret_name == "" ? [] : [{ name = local.image_pull_secret_name }]
   database_host_with_port      = "${var.database_host}:${var.database_port}"
   database_url                 = "postgres://$(DB_USERNAME)@${local.database_host_with_port}/${var.database_name}?sslmode=${var.database_ssl_mode}"
+  hub_image                    = "ziplineai/hub-azure"
+  eval_image                   = "ziplineai/eval-azure"
+  hub_verticle_class           = "ai.chronon.hub.AzureCrucibleOrchestrationVerticle,ai.chronon.hub.AzureCrucibleWorkflowExecutionVerticle"
 
   azure_spark_history_extra_spark_opts = [
     "-Dspark.hadoop.fs.azure.account.auth.type=OAuth",
@@ -311,15 +314,12 @@ locals {
 
     orchestration = {
       hub = {
-        image         = var.hub_image
-        verticleClass = var.hub_verticle_class
+        image         = local.hub_image
+        verticleClass = local.hub_verticle_class
         env           = concat(local.azure_hub_env, var.hub_env)
       }
-      fetcher = {
-        replicas = var.fetcher_replicas
-      }
       eval = {
-        image = var.eval_image
+        image = local.eval_image
       }
     }
 
@@ -331,7 +331,6 @@ locals {
         annotations = merge(
           local.cert_manager_annotations,
           var.ingress_annotations,
-          var.ui_ingress_annotations,
         )
       }
       hub = {
@@ -341,7 +340,6 @@ locals {
         annotations = merge(
           local.cert_manager_annotations,
           var.ingress_annotations,
-          var.hub_ingress_annotations,
         )
       }
       fetcher = {
@@ -351,7 +349,6 @@ locals {
         annotations = merge(
           local.cert_manager_annotations,
           var.ingress_annotations,
-          var.fetcher_ingress_annotations,
         )
       }
       eval = {
@@ -361,7 +358,6 @@ locals {
         annotations = merge(
           local.cert_manager_annotations,
           var.ingress_annotations,
-          var.eval_ingress_annotations,
         )
       }
       polaris = {

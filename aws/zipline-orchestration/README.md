@@ -12,6 +12,11 @@ AWS-specific work stays at this layer:
 - Optional AWS Load Balancer Controller.
 - NLB annotations on the shared ingress-nginx controller Services.
 
+The wrapper keeps the Terraform surface to cloud plumbing and shared deployment
+inputs. The chart owns service defaults such as per-service ingress annotations,
+image repositories, fetcher replicas, and Polaris bootstrap defaults. Use
+`extra_values` only for intentional one-off Helm overrides.
+
 Networking intentionally matches Azure at the chart boundary: cloud load
 balancers pass traffic to ingress-nginx, and Kubernetes Ingress TLS secrets own
 TLS termination. ACM-specific load balancer TLS termination can still be layered

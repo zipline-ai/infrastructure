@@ -10,6 +10,11 @@ Azure-specific work stays at this layer:
 - Static IP and resource-group settings for ingress-nginx controller Services.
 - ABFS event log, warehouse, and Flink state paths supplied as runtime values.
 
+The wrapper keeps the Terraform surface to cloud plumbing and shared deployment
+inputs. The chart owns service defaults such as per-service ingress annotations,
+image repositories, and fetcher replicas. Use `extra_values` only for
+intentional one-off Helm overrides, such as a private registry mirror.
+
 Networking intentionally matches AWS at the chart boundary: cloud load balancers
 pass traffic to ingress-nginx, and Kubernetes Ingress TLS secrets own TLS
 termination. Azure Application Gateway or Front Door can still be layered in

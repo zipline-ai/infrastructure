@@ -216,30 +216,6 @@ variable "deploy_fetcher" {
   default     = false
 }
 
-variable "fetcher_replicas" {
-  description = "Fetcher replica count."
-  type        = number
-  default     = 3
-}
-
-variable "hub_image" {
-  description = "Hub image repository."
-  type        = string
-  default     = "ziplineai/hub-azure"
-}
-
-variable "eval_image" {
-  description = "Eval image repository."
-  type        = string
-  default     = "ziplineai/eval-azure"
-}
-
-variable "hub_verticle_class" {
-  description = "Hub Vert.x class list."
-  type        = string
-  default     = "ai.chronon.hub.AzureCrucibleOrchestrationVerticle,ai.chronon.hub.AzureCrucibleWorkflowExecutionVerticle"
-}
-
 variable "spark_image" {
   description = "Spark image repository and tag used by Crucible."
   type        = string
@@ -442,30 +418,6 @@ variable "ingress_service_annotations" {
 
 variable "ingress_annotations" {
   description = "Extra annotations applied to every application Ingress."
-  type        = map(string)
-  default     = {}
-}
-
-variable "ui_ingress_annotations" {
-  description = "Extra annotations for the UI Ingress."
-  type        = map(string)
-  default     = {}
-}
-
-variable "hub_ingress_annotations" {
-  description = "Extra annotations for the Hub Ingress."
-  type        = map(string)
-  default     = {}
-}
-
-variable "fetcher_ingress_annotations" {
-  description = "Extra annotations for the fetcher Ingress."
-  type        = map(string)
-  default     = {}
-}
-
-variable "eval_ingress_annotations" {
-  description = "Extra annotations for the eval Ingress."
   type        = map(string)
   default     = {}
 }
