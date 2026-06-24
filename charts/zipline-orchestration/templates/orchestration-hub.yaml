@@ -1,0 +1,146 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zipline-orchestration-hub
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: orchestration-hub
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.orchestration.hub.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: orchestration-hub
+  template:
+    metadata:
+      labels:
+        app: orchestration-hub
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: orchestration-hub
+          image: "{{ required "orchestration.hub.image is required" .Values.orchestration.hub.image }}:{{ .Values.global.version }}"
+          imagePullPolicy: Always
+          env:
+            - name: VERTICLE_CLASS
+              value: {{ required "orchestration.hub.verticleClass is required" .Values.orchestration.hub.verticleClass | quote }}
+            - name: DB_URL
+              value: {{ include "zipline-orchestration.databaseJdbcUrl" . | quote }}
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
+                  key: {{ include "zipline-orchestration.databaseCredentialsUsernameKey" . }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
+                  key: {{ include "zipline-orchestration.databaseCredentialsPasswordKey" . }}
+            - name: CUSTOMER_ID
+              value: {{ .Values.global.customer_name | quote }}
+            - name: ARTIFACT_PREFIX
+              value: {{ .Values.global.artifact_prefix | quote }}
+            - name: ORCHESTRATION_PORT
+              value: "{{ .Values.orchestration.hub.port }}"
+            - name: HUB_FRONTEND_URL
+              value: "http://orchestration-ui-service/"
+            {{- if .Values.ingress.hub.externalUrl }}
+            - name: HUB_BASE_URL
+              value: {{ .Values.ingress.hub.externalUrl | quote }}
+            {{- else if .Values.ingress.hub.host }}
+            - name: HUB_BASE_URL
+              value: "https://{{ .Values.ingress.hub.host }}{{ if ne (.Values.ingress.hub.path | default "/") "/" }}{{ .Values.ingress.hub.path }}{{ end }}"
+            {{- end }}
+            {{- if .Values.compute.enabled }}
+            - name: IN_CLUSTER_COMPUTE_ENABLED
+              value: "true"
+            - name: CRUCIBLE_CLOUD_PROVIDER
+              value: {{ required "global.cloud_provider is required" .Values.global.cloud_provider | quote }}
+            - name: CRUCIBLE_DEFAULT_NAMESPACE
+              value: {{ include "zipline-orchestration.computeJobNamespace" . | quote }}
+            - name: CRUCIBLE_SPARK_IMAGE
+              value: "{{ .Values.compute.sparkDefaults.image }}"
+            - name: CRUCIBLE_SPARK_SERVICE_ACCOUNT
+              value: "{{ .Values.compute.serviceAccount.sparkName }}"
+            - name: CRUCIBLE_SPARK_HISTORY_PUBLIC_URL
+              value: {{ include "zipline-orchestration.historyServerPublicUrl" . | quote }}
+            - name: CRUCIBLE_SPARK_EVENT_LOG_DIR
+              value: {{ include "zipline-orchestration.sparkEventLogDir" . | quote }}
+            - name: LOKI_URL
+              value: "http://{{ include "zipline-orchestration.fullname" . }}-loki.{{ include "zipline-orchestration.computeSystemNamespace" . }}.svc.cluster.local:3100"
+            - name: CRUCIBLE_LOKI_URL
+              value: "http://{{ include "zipline-orchestration.fullname" . }}-loki.{{ include "zipline-orchestration.computeSystemNamespace" . }}.svc.cluster.local:3100"
+            - name: CRUCIBLE_DRIVER_PRIORITY_CLASS
+              value: "{{ .Values.compute.driverPriorityClass.name }}"
+            - name: CRUCIBLE_FLINK_IMAGE
+              value: "{{ .Values.compute.flinkDefaults.image }}"
+            - name: CRUCIBLE_FLINK_SERVICE_ACCOUNT
+              value: "{{ .Values.compute.flinkDefaults.serviceAccount | default "flink" }}"
+            {{- end }}
+            - name: AUTH_ENABLED
+              value: "{{ .Values.auth.enabled }}"
+            - name: AUTH_JWKS_URL
+              value: "{{ .Values.auth.jwksUrl }}"
+            {{- with .Values.runtime.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.orchestration.hub.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.secrets.enabled }}
+          volumeMounts:
+            - name: secrets-store-inline
+              mountPath: {{ .Values.secrets.mountPath | quote }}
+              readOnly: true
+          {{- end }}
+          ports:
+            - containerPort: {{ .Values.orchestration.hub.port }}
+          resources:
+          {{- toYaml .Values.orchestration.hub.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: {{ .Values.orchestration.hub.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: {{ .Values.orchestration.hub.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      {{- if .Values.secrets.enabled }}
+      volumes:
+        - name: secrets-store-inline
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "zipline-orchestration.secretProviderClassName" . | quote }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestration-hub-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: orchestration-hub
+  ports:
+    - name: http
+      port: 80
+      targetPort: {{ .Values.orchestration.hub.port }}
+      protocol: TCP
+  type: ClusterIP

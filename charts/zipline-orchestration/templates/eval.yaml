@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zipline-eval
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: eval
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.orchestration.eval.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: eval
+  template:
+    metadata:
+      labels:
+        app: eval
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: eval
+          image: "{{ required "orchestration.eval.image is required" .Values.orchestration.eval.image }}:{{ .Values.global.version }}"
+          imagePullPolicy: Always
+          env:
+            - name: ORCHESTRATION_PORT
+              value: "{{ .Values.orchestration.eval.port }}"
+            - name: DB_URL
+              value: {{ include "zipline-orchestration.databaseJdbcUrl" . | quote }}
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
+                  key: {{ include "zipline-orchestration.databaseCredentialsUsernameKey" . }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
+                  key: {{ include "zipline-orchestration.databaseCredentialsPasswordKey" . }}
+            - name: CUSTOMER_ID
+              value: {{ .Values.global.customer_name | quote }}
+            - name: ARTIFACT_PREFIX
+              value: {{ .Values.global.artifact_prefix | quote }}
+            - name: AUTH_ENABLED
+              value: "{{ .Values.auth.enabled }}"
+            - name: AUTH_JWKS_URL
+              value: "{{ .Values.auth.jwksUrl }}"
+            {{- with .Values.runtime.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.orchestration.eval.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.secrets.enabled }}
+          volumeMounts:
+            - name: secrets-store-inline
+              mountPath: {{ .Values.secrets.mountPath | quote }}
+              readOnly: true
+          {{- end }}
+          ports:
+            - containerPort: {{ .Values.orchestration.eval.port }}
+          resources:
+          {{- toYaml .Values.orchestration.eval.resources | nindent 12 }}
+      {{- if .Values.secrets.enabled }}
+      volumes:
+        - name: secrets-store-inline
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "zipline-orchestration.secretProviderClassName" . | quote }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eval-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: eval
+  ports:
+    - name: http
+      port: 80
+      targetPort: {{ .Values.orchestration.eval.port }}
+      protocol: TCP
+  type: ClusterIP

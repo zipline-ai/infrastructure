@@ -1,0 +1,35 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+{{- $hubPath := default "/" (trimSuffix "/" (.Values.ingress.hub.path | default "/")) }}
+metadata:
+  name: orchestration-hub-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    {{- with .Values.ingress.hub.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.hub.className }}
+  rules:
+    {{- if .Values.ingress.hub.host }}
+    - host: {{ .Values.ingress.hub.host }}
+      http:
+    {{- else }}
+    - http:
+    {{- end }}
+        paths:
+          {{- if eq $hubPath "/" }}
+          - path: /
+            pathType: Prefix
+          {{- else }}
+          - path: {{ printf "%s(/|$)(.*)" $hubPath | quote }}
+            pathType: ImplementationSpecific
+          {{- end }}
+            backend:
+              service:
+                name: orchestration-hub-service
+                port:
+                  number: 80

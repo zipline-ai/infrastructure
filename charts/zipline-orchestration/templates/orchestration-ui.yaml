@@ -1,0 +1,201 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zipline-orchestration-ui
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: zipline-ui
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.orchestration.ui.replicas }}
+  selector:
+    matchLabels:
+      app: zipline-ui
+  template:
+    metadata:
+      labels:
+        app: zipline-ui
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: web-ui
+          image: "{{ .Values.orchestration.ui.image }}:{{ .Values.global.version }}"
+          imagePullPolicy: Always
+          env:
+            - name: API_BASE_URL
+              value: "http://orchestration-hub-service"
+            {{- if .Values.global.deploy_fetcher }}
+            - name: FETCHER_BASE_URL
+              value: "http://fetcher-service"
+            {{- end }}
+            - name: DB_HOST
+              value: {{ .Values.database.host | quote }}
+            - name: DB_NAME
+              value: {{ .Values.database.name | quote }}
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
+                  key: {{ include "zipline-orchestration.databaseCredentialsPasswordKey" . }}
+            - name: PUBLIC_ORCH_SERVER_NAME
+              value: "{{ .Values.global.customer_name }}-zipline-orchestration"
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
+                  key: {{ include "zipline-orchestration.databaseCredentialsUsernameKey" . }}
+            - name: DATABASE_URL
+              value: {{ include "zipline-orchestration.databaseUrl" . | quote }}
+            {{- if .Values.compute.enabled }}
+            - name: LOG_PROVIDER
+              value: "loki"
+            - name: LOKI_URL
+              value: "http://{{ include "zipline-orchestration.fullname" . }}-loki.{{ include "zipline-orchestration.computeSystemNamespace" . }}.svc.cluster.local:3100"
+            - name: LOKI_NAMESPACE
+              value: {{ include "zipline-orchestration.computeSystemNamespace" . | quote }}
+            - name: LOG_SERVICE_ENGINE_FILTER
+              value: {{ printf "{\"filters\":[{\"field\":\"namespace\",\"value\":\"%s\"},{\"field\":\"container\",\"value\":\"spark-kubernetes-driver\"},{\"field\":\"pod\",\"value\":\"%s-driver\",\"operator\":\"startsWith\"}]}" (include "zipline-orchestration.computeJobNamespace" .) "{{JOB_ID}}" | quote }}
+            - name: LOG_SERVICE_WORKFLOW_FILTER
+              value: {{ printf "{\"filters\":[{\"field\":\"namespace\",\"value\":\"%s\"},{\"field\":\"container\",\"value\":\"orchestration-hub\"},{\"field\":\"workflowId\",\"value\":\"%s\",\"source\":\"json\"}]}" (include "zipline-orchestration.computeSystemNamespace" .) "{{WORKFLOW_ID}}" | quote }}
+            - name: LOG_SERVICE_NODE_STEP_RUN_FILTER
+              value: {{ printf "{\"filters\":[{\"field\":\"namespace\",\"value\":\"%s\"},{\"field\":\"container\",\"value\":\"orchestration-hub\"},{\"field\":\"stepId\",\"value\":\"%s\",\"source\":\"json\"}]}" (include "zipline-orchestration.computeSystemNamespace" .) "{{STEP_ID}}" | quote }}
+            {{- end }}
+            - name: ORCH_CONTAINER_NAME
+              value: "orchestration-hub"
+            - name: PROMETHEUS_QUERY_ENDPOINT
+              value: "{{ .Values.prometheus.queryEndpoint }}"
+            - name: PROMETHEUS_NAMESPACE
+              value: "{{ .Values.prometheus.namespace }}"
+            - name: AUTH_ENABLED
+              value: "{{ .Values.auth.enabled }}"
+            {{- if .Values.auth.enabled }}
+            - name: AUTH_URL
+              value: "{{ .Values.auth.url }}"
+            - name: AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-secret
+                  key: auth-secret
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: AUTH_ALLOWED_HOSTS
+              value: "$(POD_IP):{{ .Values.orchestration.ui.port }}"
+            - name: GOOGLE_OAUTH_CLIENT_ID
+              value: "{{ .Values.auth.google_oauth_client_id }}"
+            - name: GOOGLE_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-secret
+                  key: google-oauth-client-secret
+            - name: GITHUB_OAUTH_CLIENT_ID
+              value: "{{ .Values.auth.github_oauth_client_id }}"
+            - name: GITHUB_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-secret
+                  key: github-oauth-client-secret
+            - name: MICROSOFT_ENTRA_TENANT_ID
+              value: "{{ .Values.auth.microsoft_entra_tenant_id }}"
+            - name: MICROSOFT_ENTRA_OAUTH_CLIENT_ID
+              value: "{{ .Values.auth.microsoft_entra_oauth_client_id }}"
+            - name: MICROSOFT_ENTRA_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-secret
+                  key: microsoft-entra-oauth-client-secret
+            - name: SSO_PROVIDER_ID
+              value: "{{ .Values.auth.sso_provider_id }}"
+            - name: SSO_DOMAIN
+              value: "{{ .Values.auth.sso_domain }}"
+            {{- if .Values.auth.sso_use_saml }}
+            - name: SSO_SAML_ENTRY_POINT
+              value: {{ .Values.auth.sso_saml_entry_point }}
+            - name: SSO_SAML_ISSUER
+              value: {{ .Values.auth.sso_saml_issuer }}
+            - name: SSO_SAML_CERT
+              valueFrom:
+                secretKeyRef:
+                  name: auth-secret
+                  key: sso-saml-cert
+            - name: SSO_SAML_CALLBACK_URL
+              value: {{ .Values.auth.sso_saml_callback_url }}
+            {{- else }}
+            - name: SSO_ISSUER
+              value: "{{ .Values.auth.sso_issuer }}"
+            - name: SSO_CLIENT_ID
+              value: "{{ .Values.auth.sso_client_id }}"
+            - name: SSO_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: auth-secret
+                  key: sso-client-secret
+            {{- end }}
+            - name: IDP_ROLE_MAPPING
+              value: "{{ .Values.auth.idp_role_mapping }}"
+            - name: IDP_GROUP_CLAIM
+              value: "{{ .Values.auth.idp_group_claim }}"
+            {{- end }}
+
+            {{- with .Values.runtime.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.orchestration.ui.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.secrets.enabled }}
+          volumeMounts:
+            - name: secrets-store-inline
+              mountPath: {{ .Values.secrets.mountPath | quote }}
+              readOnly: true
+          {{- end }}
+          resources:
+          {{- toYaml .Values.orchestration.ui.resources | nindent 12 }}
+          ports:
+            - containerPort: {{ .Values.orchestration.ui.port }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.orchestration.ui.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.orchestration.ui.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      {{- if .Values.secrets.enabled }}
+      volumes:
+        - name: secrets-store-inline
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "zipline-orchestration.secretProviderClassName" . | quote }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestration-ui-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: zipline-ui
+  ports:
+    - name: http
+      port: 80
+      targetPort: {{ .Values.orchestration.ui.port }}
+      protocol: TCP
+  type: ClusterIP

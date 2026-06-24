@@ -1,0 +1,36 @@
+{{ if .Values.global.deploy_fetcher }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+{{- $fetcherPath := default "/" (trimSuffix "/" (.Values.ingress.fetcher.path | default "/")) }}
+metadata:
+  name: fetcher-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.ingress.fetcher.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.fetcher.className }}
+  rules:
+    {{- if .Values.ingress.fetcher.host }}
+    - host: {{ .Values.ingress.fetcher.host }}
+      http:
+    {{- else }}
+    - http:
+    {{- end }}
+        paths:
+          {{- if eq $fetcherPath "/" }}
+          - path: /
+            pathType: Prefix
+          {{- else }}
+          - path: {{ printf "%s(/|$)(.*)" $fetcherPath | quote }}
+            pathType: ImplementationSpecific
+          {{- end }}
+            backend:
+              service:
+                name: fetcher-service
+                port:
+                  number: 80
+{{ end }}

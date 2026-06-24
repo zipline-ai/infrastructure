@@ -1,0 +1,93 @@
+{{ if .Values.global.deploy_fetcher }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zipline-fetcher
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: fetcher
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.orchestration.fetcher.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: fetcher
+  template:
+    metadata:
+      labels:
+        app: fetcher
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: fetcher
+          image: "{{ .Values.orchestration.fetcher.image }}:{{ .Values.global.version }}"
+          imagePullPolicy: Always
+          env:
+            - name: FETCHER_PORT
+              value: "{{ .Values.orchestration.fetcher.port }}"
+            - name: USE_ZGC
+              value: "true"
+            {{- with .Values.runtime.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- with .Values.orchestration.fetcher.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if .Values.secrets.enabled }}
+          volumeMounts:
+            - name: secrets-store-inline
+              mountPath: {{ .Values.secrets.mountPath | quote }}
+              readOnly: true
+          {{- end }}
+          ports:
+            - containerPort: {{ .Values.orchestration.fetcher.port }}
+          resources:
+          {{- toYaml .Values.orchestration.fetcher.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: {{ .Values.orchestration.fetcher.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: {{ .Values.orchestration.fetcher.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      {{- if .Values.secrets.enabled }}
+      volumes:
+        - name: secrets-store-inline
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ include "zipline-orchestration.secretProviderClassName" . | quote }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fetcher-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: fetcher
+  ports:
+    - name: http
+      port: 80
+      targetPort: {{ .Values.orchestration.fetcher.port }}
+      protocol: TCP
+  type: ClusterIP
+{{ end }}
