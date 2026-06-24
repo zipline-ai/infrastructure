@@ -1,41 +1,306 @@
 locals {
-  chart_path         = abspath(var.chart_path)
-  chart_files        = sort(fileset(local.chart_path, "**"))
+  chart_path  = abspath(var.chart_path)
+  chart_files = sort(fileset(local.chart_path, "**"))
+
+  install_defaults = {
+    release_name          = "zipline-orchestration"
+    namespace             = "zipline-system"
+    create_namespace      = true
+    namespace_labels      = {}
+    namespace_annotations = {}
+    helm_wait             = false
+    helm_timeout          = 600
+    atomic                = false
+    cleanup_on_fail       = false
+    dependency_update     = false
+  }
+  install = merge(local.install_defaults, try(var.orchestration.install, {}))
+
+  image_pull_secret_defaults = {
+    name               = ""
+    create             = false
+    dockerhub_username = "ziplineai"
+    dockerhub_token    = ""
+  }
+  image_pull_secret      = merge(local.image_pull_secret_defaults, try(var.orchestration.image_pull_secret, {}))
+  image_pull_secret_name = local.image_pull_secret.create ? kubernetes_secret_v1.docker_hub_creds[0].metadata[0].name : local.image_pull_secret.name
+  image_pull_secrets     = local.image_pull_secret_name == "" ? [] : [{ name = local.image_pull_secret_name }]
+
+  addons_defaults = {
+    install_secrets_store_csi_driver = true
+    install_cert_manager             = true
+    install_flink_operator           = true
+    install_opentelemetry_operator   = false
+  }
+  addons = merge(local.addons_defaults, try(var.orchestration.addons, {}))
+
+  deployment = var.orchestration.deployment
+
+  database_defaults = {
+    jdbc_url = ""
+    url      = ""
+    port     = 5432
+    name     = "execution_info"
+    ssl_mode = ""
+  }
+  database = merge(local.database_defaults, var.orchestration.database)
+
+  database_credentials_secret_defaults = {
+    name         = "db-credentials"
+    username_key = "username"
+    password_key = "password"
+  }
+  database_credentials_secret = merge(local.database_credentials_secret_defaults, try(local.database.credentials_secret, {}))
+
+  ingress_defaults = {
+    class_name                  = "nginx-ui"
+    tls_secret_name             = ""
+    cert_manager_cluster_issuer = ""
+    annotations                 = {}
+  }
+  ingress = merge(local.ingress_defaults, var.orchestration.ingress)
+
+  cert_manager_annotations = local.ingress.cert_manager_cluster_issuer == "" ? {} : {
+    "cert-manager.io/cluster-issuer" = local.ingress.cert_manager_cluster_issuer
+  }
+
+  app_tls = local.ingress.tls_secret_name != "" ? [{
+    hosts      = [local.ingress.domain]
+    secretName = local.ingress.tls_secret_name
+  }] : []
+
+  ingress_annotations = merge(
+    local.cert_manager_annotations,
+    local.ingress.annotations,
+  )
+
+  compute_defaults = {
+    default_namespace       = "zipline-default"
+    namespaces              = [{ name = "zipline-default", team = "default" }]
+    spark_image             = "ziplineai/spark:nightly"
+    flink_image             = "ziplineai/flink:1.20.3"
+    spark_service_account   = "spark-operator-spark"
+    flink_service_account   = "flink"
+    spark_event_log_dir     = ""
+    rbac_create             = true
+    image_prepull_enabled   = true
+    image_prepull_images    = []
+    history_server_image    = ""
+    history_server_options  = []
+    spark_defaults          = {}
+    flink_defaults          = {}
+    service_account         = {}
+    image_prepull_overrides = {}
+  }
+  compute = merge(local.compute_defaults, try(var.orchestration.compute, {}))
+
+  compute_service_account_defaults = {
+    annotations = {}
+  }
+  compute_service_account = merge(local.compute_service_account_defaults, local.compute.service_account)
+
+  compute_spark_defaults = merge(
+    {
+      eventLogDir = local.compute.spark_event_log_dir
+      image       = local.compute.spark_image
+    },
+    local.compute.spark_defaults,
+  )
+
+  compute_flink_defaults = merge(
+    {
+      image          = local.compute.flink_image
+      serviceAccount = local.compute.flink_service_account
+    },
+    local.compute.flink_defaults,
+  )
+
+  compute_image_prepull = merge(
+    {
+      enabled = local.compute.image_prepull_enabled
+      images  = length(local.compute.image_prepull_images) > 0 ? local.compute.image_prepull_images : (local.compute.image_prepull_enabled ? [local.compute.spark_image] : [])
+    },
+    local.compute.image_prepull_overrides,
+  )
+
+  compute_history_server = {
+    image                 = local.compute.history_server_image != "" ? local.compute.history_server_image : local.compute.spark_image
+    extraSparkHistoryOpts = local.compute.history_server_options
+  }
+
+  prometheus_defaults = {
+    query_endpoint = ""
+  }
+  prometheus = merge(local.prometheus_defaults, try(var.orchestration.prometheus, {}))
+
   chart_content_hash = sha256(join(",", [for file in local.chart_files : filesha256("${local.chart_path}/${file}")]))
-  values_with_chart_hash = merge(var.values, {
-    global = merge(try(var.values.global, {}), {
+
+  common_values = {
+    global = {
+      customer_name      = local.deployment.customer_name
+      artifact_prefix    = local.deployment.artifact_prefix
+      version            = local.deployment.zipline_version
+      deploy_fetcher     = try(local.deployment.deploy_fetcher, false)
       chart_content_hash = local.chart_content_hash
-    })
-  })
-}
+    }
 
-resource "kubernetes_namespace_v1" "this" {
-  count = var.create_namespace ? 1 : 0
+    runtime = {
+      env = try(var.orchestration.runtime_env, [])
+    }
 
-  metadata {
-    name        = var.namespace
-    labels      = var.namespace_labels
-    annotations = var.namespace_annotations
+    imagePullSecrets = local.image_pull_secrets
+
+    database = {
+      jdbcUrl = local.database.jdbc_url
+      url     = local.database.url
+      host    = local.database.host
+      port    = local.database.port
+      name    = local.database.name
+      sslMode = local.database.ssl_mode
+      credentialsSecret = {
+        name        = local.database_credentials_secret.name
+        usernameKey = local.database_credentials_secret.username_key
+        passwordKey = local.database_credentials_secret.password_key
+      }
+    }
+
+    compute = {
+      enabled          = true
+      defaultNamespace = local.compute.default_namespace
+      namespaces       = local.compute.namespaces
+      serviceAccount = {
+        sparkName   = local.compute.spark_service_account
+        flinkName   = local.compute.flink_service_account
+        annotations = local.compute_service_account.annotations
+      }
+      rbac = {
+        create = local.compute.rbac_create
+      }
+      sparkDefaults = local.compute_spark_defaults
+      flinkDefaults = local.compute_flink_defaults
+      imagePrepull  = local.compute_image_prepull
+      historyServer = local.compute_history_server
+    }
+
+    ingress = {
+      ui = {
+        className   = local.ingress.class_name
+        host        = local.ingress.domain
+        tls         = local.app_tls
+        annotations = local.ingress_annotations
+      }
+      hub = {
+        className   = local.ingress.class_name
+        host        = local.ingress.domain
+        tls         = local.app_tls
+        annotations = local.ingress_annotations
+      }
+      fetcher = {
+        className   = local.ingress.class_name
+        host        = local.ingress.domain
+        tls         = local.app_tls
+        annotations = local.ingress_annotations
+      }
+      eval = {
+        className   = local.ingress.class_name
+        host        = local.ingress.domain
+        tls         = local.app_tls
+        annotations = local.ingress_annotations
+      }
+      polaris = {
+        className = local.ingress.class_name
+      }
+    }
+
+    prometheus = {
+      queryEndpoint = local.prometheus.query_endpoint
+      namespace     = local.install.namespace
+    }
+
+    auth = try(var.orchestration.auth, { enabled = false })
   }
 }
 
+resource "terraform_data" "configuration_validation" {
+  input = {
+    create_image_pull_secret = local.image_pull_secret.create
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !local.image_pull_secret.create || trimspace(local.image_pull_secret.dockerhub_token) != ""
+      error_message = "orchestration.image_pull_secret.dockerhub_token must be set when orchestration.image_pull_secret.create is true."
+    }
+  }
+}
+
+resource "kubernetes_namespace_v1" "this" {
+  count = local.install.create_namespace ? 1 : 0
+
+  metadata {
+    name        = local.install.namespace
+    labels      = local.install.namespace_labels
+    annotations = local.install.namespace_annotations
+  }
+}
+
+resource "kubernetes_secret_v1" "docker_hub_creds" {
+  count = local.image_pull_secret.create ? 1 : 0
+
+  metadata {
+    name      = local.image_pull_secret.name
+    namespace = local.install.namespace
+  }
+
+  type = "kubernetes.io/dockerconfigjson"
+
+  data = {
+    ".dockerconfigjson" = jsonencode({
+      auths = {
+        "https://index.docker.io/v1/" = {
+          username = local.image_pull_secret.dockerhub_username
+          password = local.image_pull_secret.dockerhub_token
+          auth     = base64encode("${local.image_pull_secret.dockerhub_username}:${local.image_pull_secret.dockerhub_token}")
+        }
+      }
+    })
+  }
+
+  depends_on = [kubernetes_namespace_v1.this]
+}
+
+module "addons" {
+  source = "../zipline-kubernetes-addons"
+
+  install_secrets_store_csi_driver = local.addons.install_secrets_store_csi_driver
+  install_cert_manager             = local.addons.install_cert_manager
+  install_flink_operator           = local.addons.install_flink_operator
+  install_opentelemetry_operator   = local.addons.install_opentelemetry_operator
+}
+
 resource "helm_release" "this" {
-  name             = var.release_name
+  name             = local.install.release_name
   chart            = local.chart_path
-  namespace        = var.namespace
+  namespace        = local.install.namespace
   create_namespace = false
 
-  wait              = var.wait
-  timeout           = var.timeout
-  atomic            = var.atomic
-  cleanup_on_fail   = var.cleanup_on_fail
-  dependency_update = var.dependency_update
+  wait              = local.install.helm_wait
+  timeout           = local.install.helm_timeout
+  atomic            = local.install.atomic
+  cleanup_on_fail   = local.install.cleanup_on_fail
+  dependency_update = local.install.dependency_update
 
   values = concat(
-    [yamlencode(local.values_with_chart_hash)],
+    [yamlencode(local.common_values)],
+    [yamlencode(var.values)],
     [for value in var.extra_values : yamlencode(value)],
     var.extra_values_yaml,
   )
 
-  depends_on = [kubernetes_namespace_v1.this]
+  depends_on = [
+    terraform_data.configuration_validation,
+    kubernetes_namespace_v1.this,
+    kubernetes_secret_v1.docker_hub_creds,
+    module.addons,
+  ]
 }

@@ -12,10 +12,12 @@ AWS-specific work stays at this layer:
 - Optional AWS Load Balancer Controller.
 - NLB annotations on the shared ingress-nginx controller Services.
 
-The wrapper keeps the Terraform surface to cloud plumbing and shared deployment
-inputs. The chart owns service defaults such as per-service ingress annotations,
-image repositories, fetcher replicas, and Polaris bootstrap defaults. Use
-`extra_values` only for intentional one-off Helm overrides.
+The wrapper keeps the Terraform surface to AWS plumbing. Shared install inputs
+live under the `orchestration` object and are consumed by
+`modules/zipline-orchestration`; AWS-specific inputs remain flat in this root.
+The chart owns service defaults such as per-service ingress annotations, image
+repositories, fetcher replicas, and Polaris bootstrap defaults. Use
+`orchestration.extra_values` only for intentional one-off Helm overrides.
 
 Networking intentionally matches Azure at the chart boundary: cloud load
 balancers pass traffic to ingress-nginx, and Kubernetes Ingress TLS secrets own
@@ -35,6 +37,29 @@ The script downloads the raw legacy inputs into `.crucible-config/raw/` without
 placing legacy `github.tf`, `cloudflare.tf`, or `terraform.tfvars` files in this
 Terraform root. Use those raw files plus live Helm values to create a local
 ignored `*.auto.tfvars.json` for this Helm adoption wrapper.
+
+Common canary inputs should be grouped under `orchestration`, for example:
+
+```hcl
+orchestration = {
+  install = {
+    namespace    = "zipline-system"
+    helm_wait    = true
+    helm_timeout = 300
+  }
+  deployment = {
+    customer_name   = "crucible"
+    artifact_prefix = "s3://zipline-artifacts-crucible"
+    zipline_version = "nightly"
+  }
+  database = {
+    host = "example.postgres.amazonaws.com"
+  }
+  ingress = {
+    domain = "crucible-aws.zipline.ai"
+  }
+}
+```
 
 This wrapper should use the dedicated Helm adoption state key, not the old full
 AWS infrastructure state:

@@ -1,14 +1,23 @@
-# Zipline Orchestration Helm Module
+# Zipline Orchestration Module
 
 Installs the shared `charts/zipline-orchestration` chart.
 
-This module is intentionally cloud-neutral. Cloud-specific roots should build a
-normal Helm values map from provider resources and pass it through `values`,
-`extra_values`, or `extra_values_yaml`.
+This module is intentionally cloud-neutral. Cloud-specific roots pass one shared
+`orchestration` object for common install inputs, plus a cloud-specific Helm
+values map through `values`.
 
-The module owns only the release namespace and `helm_release`. Provider-specific
-controllers such as CSI providers, load balancer controllers, and identity
-bindings belong in cloud-specific wrappers or shared add-on modules.
+The module owns common Kubernetes installation mechanics:
+
+- Namespace creation.
+- Shared Kubernetes addons.
+- Optional Docker Hub pull secret creation.
+- Common Helm values for global metadata, database, ingress, compute defaults,
+  auth, and Prometheus.
+- The `helm_release`.
+
+Provider-specific controllers such as the AWS Secrets Store provider, AWS Load
+Balancer Controller, and cloud identity bindings stay in cloud-specific
+wrappers.
 
 The cloud installation wrapper must pass `chart_path`; this module should not
 assume the repository layout or which wrapper path is being applied.

@@ -1,6 +1,6 @@
 output "namespace" {
   description = "Namespace where Zipline orchestration is installed."
-  value       = kubernetes_namespace_v1.zipline_system.metadata[0].name
+  value       = module.zipline_orchestration.namespace
 }
 
 output "release_name" {
