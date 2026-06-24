@@ -16,6 +16,10 @@ metadata:
     {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.polaris.className }}
+  {{- with .Values.ingress.polaris.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   rules:
     - host: {{ .Values.ingress.ui.host }}
       http:

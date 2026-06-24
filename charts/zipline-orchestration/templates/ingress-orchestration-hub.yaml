@@ -13,6 +13,10 @@ metadata:
     {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.hub.className }}
+  {{- with .Values.ingress.hub.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   rules:
     {{- if .Values.ingress.hub.host }}
     - host: {{ .Values.ingress.hub.host }}

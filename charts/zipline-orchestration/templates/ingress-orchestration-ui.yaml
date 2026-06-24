@@ -15,6 +15,10 @@ metadata:
     {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.ui.className }}
+  {{- with .Values.ingress.ui.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   rules:
     {{- if .Values.ingress.ui.host }}
     - host: {{ .Values.ingress.ui.host }}
@@ -55,6 +59,10 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-redirect-to: "$1{{ $historyBase }}/$2"
 spec:
   ingressClassName: {{ .Values.ingress.ui.className }}
+  {{- with .Values.ingress.ui.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   rules:
     {{- if .Values.ingress.ui.host }}
     - host: {{ .Values.ingress.ui.host }}

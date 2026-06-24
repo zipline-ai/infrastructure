@@ -438,12 +438,14 @@ ingress:
     className: nginx-ui
     host: ""
     path: "/"
+    tls: []
     annotations: {}
   hub:
     className: nginx-hub
     host: ""
     externalUrl: ""  # Override HUB_BASE_URL directly when a custom load balancer or proxy sits in front of nginx.
     path: "/"
+    tls: []
     annotations:
       nginx.ingress.kubernetes.io/health-check-path: "/ping"
       nginx.ingress.kubernetes.io/proxy-body-size: "20m"
@@ -451,17 +453,20 @@ ingress:
     className: nginx-fetcher
     host: ""
     path: "/"
+    tls: []
     annotations:
       nginx.ingress.kubernetes.io/health-check-path: "/ping"
   eval:
     className: nginx-eval
     host: ""
     path: "/"
+    tls: []
     annotations: {}
   polaris:
     className: nginx-ui
     path: "/services/catalog"
     pathType: ImplementationSpecific
+    tls: []
     annotations:
       nginx.ingress.kubernetes.io/use-regex: "true"
       nginx.ingress.kubernetes.io/rewrite-target: "/api/catalog/$2"

@@ -20,6 +20,7 @@ The chart does not branch on a cloud provider. Cloud-specific infrastructure is 
 - `compute.objectStore.*`, `compute.sparkDefaults.eventLogDir`, and Loki storage settings for object storage
 - `polaris.bootstrap.rbac.catalog.storage.*` for Polaris storage config
 - ingress controller service annotations for load balancer behavior
+- `ingress.*.tls` for Kubernetes TLS secrets when TLS terminates at ingress-nginx
 - `runtime.env` and service-specific `orchestration.*.env` for application runtime settings
 
 `global.cloud_provider` is a required runtime value passed to Hub as `CRUCIBLE_CLOUD_PROVIDER`; templates must not use it for conditional rendering.

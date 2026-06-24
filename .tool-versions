@@ -1,4 +1,4 @@
-opentofu 1.8.6
+opentofu 1.9.0
 kubectl 1.31.3
 awscli 2.22.6
 python 3.13.0

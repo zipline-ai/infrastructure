@@ -12,6 +12,10 @@ metadata:
     {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.eval.className }}
+  {{- with .Values.ingress.eval.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   rules:
     {{- if .Values.ingress.eval.host }}
     - host: {{ .Values.ingress.eval.host }}
