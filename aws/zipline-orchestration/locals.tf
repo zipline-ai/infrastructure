@@ -5,6 +5,7 @@ locals {
   compute_image_prepull_images = length(var.compute_image_prepull_images) > 0 ? var.compute_image_prepull_images : (var.compute_image_prepull_enabled ? [var.spark_image] : [])
   database_host_with_port      = "${var.database_host}:${var.database_port}"
   database_url                 = var.database_url != "" ? var.database_url : "postgres://$(DB_USERNAME)@${local.database_host_with_port}/${var.database_name}?sslmode=require"
+  image_pull_secrets           = local.image_pull_secret_name == "" ? [] : [{ name = local.image_pull_secret_name }]
 
   cert_manager_annotations = var.cert_manager_cluster_issuer == "" ? {} : {
     "cert-manager.io/cluster-issuer" = var.cert_manager_cluster_issuer
@@ -265,11 +266,7 @@ locals {
       }
     }
 
-    imagePullSecrets = [
-      {
-        name = local.image_pull_secret_name
-      }
-    ]
+    imagePullSecrets = local.image_pull_secrets
 
     database = {
       jdbcUrl = var.database_jdbc_url
@@ -350,9 +347,8 @@ locals {
             defaultBaseLocation = var.polaris_default_base_location
             storage = {
               type             = var.polaris_storage_type
-              region           = var.region
               allowedLocations = var.polaris_allowed_locations
-              config           = var.polaris_storage_config
+              config           = merge({ region = var.region }, var.polaris_storage_config)
             }
           }
         }

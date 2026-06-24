@@ -244,8 +244,6 @@ polaris:
         defaultBaseLocation: ""
         storage:
           type: ""
-          # Defaults to compute.objectStore.region.
-          region: ""
           # Defaults to the catalog defaultBaseLocation.
           allowedLocations: []
           # Provider-specific Polaris storageConfigInfo fields. Terraform should

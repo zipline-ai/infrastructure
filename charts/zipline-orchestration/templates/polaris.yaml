@@ -19,12 +19,7 @@
 {{- $catalogDefaultBaseLocation := default $derivedBaseLocation $rbacCatalog.defaultBaseLocation -}}
 {{- $rbacStorage := default dict $rbacCatalog.storage -}}
 {{- $storageType := required "polaris.bootstrap.rbac.catalog.storage.type is required when compute.enabled is true" $rbacStorage.type -}}
-{{- $storageRegion := default "" .Values.compute.objectStore.region -}}
-{{- $storageRegion = default $storageRegion $rbacStorage.region -}}
 {{- $storageConfig := deepCopy (default dict $rbacStorage.config) -}}
-{{- if $storageRegion -}}
-{{- $_ := set $storageConfig "region" $storageRegion -}}
-{{- end -}}
 {{- $allowedLocations := default (list) $rbacStorage.allowedLocations -}}
 {{- if and (eq (len $allowedLocations) 0) $catalogDefaultBaseLocation -}}
 {{- $allowedLocations = list $catalogDefaultBaseLocation -}}

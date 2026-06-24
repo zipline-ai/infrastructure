@@ -4,6 +4,12 @@ variable "namespace" {
   default     = "zipline-system"
 }
 
+variable "release_name" {
+  description = "Helm release name for the Zipline orchestration chart."
+  type        = string
+  default     = "zipline-orchestration"
+}
+
 variable "namespace_labels" {
   description = "Labels applied to the orchestration namespace."
   type        = map(string)
@@ -281,6 +287,12 @@ variable "spark_event_log_dir" {
   default     = ""
 }
 
+variable "spark_history_extra_spark_opts" {
+  description = "Additional Spark History Server JVM/Spark options."
+  type        = list(string)
+  default     = []
+}
+
 variable "warehouse_prefix" {
   description = "Warehouse URI passed to Azure Crucible runtime. Defaults to the ABFS warehouse path."
   type        = string
@@ -376,7 +388,7 @@ variable "hub_env" {
 variable "image_pull_secret_name" {
   description = "Existing image pull secret name when create_image_pull_secret is false."
   type        = string
-  default     = "docker-hub-creds"
+  default     = ""
 }
 
 variable "create_image_pull_secret" {

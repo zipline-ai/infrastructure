@@ -8,6 +8,17 @@ locals {
   warehouse_prefix             = var.warehouse_prefix != "" ? var.warehouse_prefix : "${local.abfs_base_uri}warehouse"
   flink_state_uri              = var.flink_state_uri != "" ? var.flink_state_uri : "${local.abfs_base_uri}flink-state"
   polaris_base_location        = "${local.abfs_base_uri}polaris/polaris_${var.customer_name}/"
+  image_pull_secrets           = local.image_pull_secret_name == "" ? [] : [{ name = local.image_pull_secret_name }]
+  database_host_with_port      = "${var.database_host}:${var.database_port}"
+  database_url                 = "postgres://$(DB_USERNAME)@${local.database_host_with_port}/${var.database_name}?sslmode=${var.database_ssl_mode}"
+
+  azure_spark_history_extra_spark_opts = [
+    "-Dspark.hadoop.fs.azure.account.auth.type=OAuth",
+    "-Dspark.hadoop.fs.azure.account.oauth.provider.type=org.apache.hadoop.fs.azurebfs.oauth2.WorkloadIdentityTokenProvider",
+    "-Dspark.hadoop.fs.azure.account.oauth2.client.id=${var.workload_identity_client_id}",
+    "-Dspark.hadoop.fs.azure.account.oauth2.msi.tenant=${var.tenant_id}",
+    "-Dspark.sql.catalog.spark_catalog.jdbc.schema-version=V1",
+  ]
 
   cert_manager_annotations = var.cert_manager_cluster_issuer == "" ? {} : {
     "cert-manager.io/cluster-issuer" = var.cert_manager_cluster_issuer
@@ -218,13 +229,10 @@ locals {
 
     podLabels = local.pod_labels
 
-    imagePullSecrets = [
-      {
-        name = local.image_pull_secret_name
-      }
-    ]
+    imagePullSecrets = local.image_pull_secrets
 
     database = {
+      url     = local.database_url
       host    = var.database_host
       port    = var.database_port
       name    = var.database_name
@@ -271,6 +279,9 @@ locals {
         eventLogDir = local.spark_event_log_dir
         image       = var.spark_image
       }
+      historyServer = {
+        extraSparkHistoryOpts = concat(local.azure_spark_history_extra_spark_opts, var.spark_history_extra_spark_opts)
+      }
       flinkDefaults = {
         image                     = var.flink_image
         serviceAccount            = var.flink_service_account_name
@@ -288,10 +299,9 @@ locals {
             defaultBaseLocation = local.polaris_base_location
             storage = {
               type             = "AZURE"
-              region           = var.location
               allowedLocations = [local.polaris_base_location]
               config = {
-                storageAccount = var.azure_storage_account_name
+                tenantId = var.tenant_id
               }
             }
           }
