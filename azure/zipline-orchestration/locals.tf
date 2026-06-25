@@ -56,7 +56,6 @@ locals {
       install_secrets_store_csi_driver = false
     }, try(var.orchestration.addons, {}))
     secrets = merge(try(var.orchestration.secrets, {}), {
-      enabled = true
       database_object_names = merge({
         username = local.azure.database_username_secret_name
         password = local.azure.database_password_secret_name

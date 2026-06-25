@@ -36,7 +36,7 @@ At minimum, each Terraform module should provide:
 - `compute.objectStore.bucket`
 - `compute.sparkDefaults.eventLogDir`
 - `polaris.bootstrap.rbac.catalog.storage.type`
-- `secrets.provider` when `secrets.enabled=true`
+- `secrets.provider`
 
 `compute.objectStore.bucket` is the bucket or container name only. Do not pass an object-store URI there; pass full provider-native paths only to values that expect paths, such as Spark event logs or Polaris base locations.
 

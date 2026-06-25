@@ -11,7 +11,6 @@ runtime:
   env: []
 
 secrets:
-  enabled: true
   provider: ""
   className: zipline-secret-provider
   mountPath: /mnt/secrets-store

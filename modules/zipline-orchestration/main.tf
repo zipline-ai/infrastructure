@@ -65,7 +65,6 @@ locals {
   )
 
   secrets_defaults = {
-    enabled    = true
     class_name = "zipline-secret-provider"
     database_object_names = {
       username = "username"
@@ -294,7 +293,6 @@ locals {
     }
 
     secrets = {
-      enabled       = local.secrets.enabled
       className     = local.secrets.class_name
       secretObjects = local.secret_objects
     }

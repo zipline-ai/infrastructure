@@ -181,11 +181,9 @@ spec:
               readOnly: true
             - name: bootstrap-state
               mountPath: /bootstrap-state
-            {{- if .Values.secrets.enabled }}
             - name: secrets-store-inline
               mountPath: {{ .Values.secrets.mountPath | quote }}
               readOnly: true
-            {{- end }}
       containers:
         - name: bootstrap-polaris
           image: "{{ $polaris.bootstrap.image.repository }}:{{ default $polaris.image.tag $polaris.bootstrap.image.tag }}"
@@ -223,11 +221,9 @@ spec:
               readOnly: true
             - name: bootstrap-state
               mountPath: /bootstrap-state
-            {{- if .Values.secrets.enabled }}
             - name: secrets-store-inline
               mountPath: {{ .Values.secrets.mountPath | quote }}
               readOnly: true
-            {{- end }}
           resources:
 {{- toYaml $polaris.bootstrap.resources | nindent 12 }}
         - name: configure-polaris-rbac
@@ -493,14 +489,12 @@ spec:
                 path: credentials
         - name: bootstrap-state
           emptyDir: {}
-        {{- if .Values.secrets.enabled }}
         - name: secrets-store-inline
           csi:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
               secretProviderClass: {{ include "zipline-orchestration.secretProviderClassName" . | quote }}
-        {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -577,12 +571,10 @@ spec:
               else
                 psql "$PG_ADMIN_URL" --set=ON_ERROR_STOP=1 -c "CREATE DATABASE \"$POLARIS_DB_NAME\" OWNER \"$DB_USERNAME\""
               fi
-          {{- if .Values.secrets.enabled }}
           volumeMounts:
             - name: secrets-store-inline
               mountPath: {{ .Values.secrets.mountPath | quote }}
               readOnly: true
-          {{- end }}
       {{- end }}
       containers:
         - name: polaris
@@ -619,11 +611,9 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
-            {{- if .Values.secrets.enabled }}
             - name: secrets-store-inline
               mountPath: {{ .Values.secrets.mountPath | quote }}
               readOnly: true
-            {{- end }}
           ports:
             - name: http
               containerPort: {{ $polaris.ports.http }}
@@ -651,14 +641,12 @@ spec:
             name: polaris-config
         - name: tmp
           emptyDir: {}
-        {{- if .Values.secrets.enabled }}
         - name: secrets-store-inline
           csi:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
               secretProviderClass: {{ include "zipline-orchestration.secretProviderClassName" . | quote }}
-        {{- end }}
 ---
 apiVersion: v1
 kind: Service

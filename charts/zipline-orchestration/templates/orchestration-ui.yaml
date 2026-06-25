@@ -151,12 +151,10 @@ spec:
             {{- with .Values.orchestration.ui.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          {{- if .Values.secrets.enabled }}
           volumeMounts:
             - name: secrets-store-inline
               mountPath: {{ .Values.secrets.mountPath | quote }}
               readOnly: true
-          {{- end }}
           resources:
           {{- toYaml .Values.orchestration.ui.resources | nindent 12 }}
           ports:
@@ -173,7 +171,6 @@ spec:
               port: {{ .Values.orchestration.ui.port }}
             initialDelaySeconds: 10
             periodSeconds: 5
-      {{- if .Values.secrets.enabled }}
       volumes:
         - name: secrets-store-inline
           csi:
@@ -181,7 +178,6 @@ spec:
             readOnly: true
             volumeAttributes:
               secretProviderClass: {{ include "zipline-orchestration.secretProviderClassName" . | quote }}
-      {{- end }}
 ---
 apiVersion: v1
 kind: Service
