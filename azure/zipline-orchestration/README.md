@@ -31,12 +31,14 @@ Crucible Azure settings are stored outside the repo in Azure Blob Storage and
 pulled locally when planning or applying:
 
 ```shell
-./pull_crucible_config.sh
+../../pull_crucible_config.sh azure
 ```
 
-By default the script reads from storage account `ziplineai2`, container
-`dev-zipline-vars`, and prefix `crucible-azure/zipline-orchestration`. Override
-those with `AZURE_CONFIG_STORAGE_ACCOUNT`, `AZURE_CONFIG_CONTAINER`, and
+The local `./pull_crucible_config.sh` wrapper delegates to the same shared script
+with the `azure` cloud argument. By default the script reads from storage account
+`ziplineai2`, container `dev-zipline-vars`, and prefix
+`crucible-azure/zipline-orchestration`. Override those with
+`AZURE_CONFIG_STORAGE_ACCOUNT`, `AZURE_CONFIG_CONTAINER`, and
 `AZURE_CONFIG_PREFIX` if needed.
 
 The script downloads two git-ignored files into this Terraform root:
@@ -94,5 +96,5 @@ If the remote canary inputs need to be updated intentionally, edit the local
 ignored files and run:
 
 ```shell
-./push_crucible_config.sh
+../../push_crucible_config.sh azure
 ```
