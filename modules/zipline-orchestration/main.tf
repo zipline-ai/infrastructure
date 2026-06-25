@@ -61,6 +61,8 @@ locals {
   ]
 
   secrets_defaults = {
+    enabled    = true
+    class_name = "zipline-secret-provider"
     database_object_names = {
       username = "username"
       password = "password"
@@ -74,6 +76,52 @@ locals {
     auth_object_names     = merge(local.secrets_defaults.auth_object_names, try(local.secrets_input.auth_object_names, {}))
   })
   auth_enabled = try(var.orchestration.auth.enabled, false)
+
+  service_account_defaults = {
+    create      = true
+    name        = "orchestration-sa"
+    annotations = {}
+  }
+  service_account_input = try(var.orchestration.service_account, {})
+  service_account = merge(local.service_account_defaults, local.service_account_input, {
+    annotations = merge(
+      local.service_account_defaults.annotations,
+      try(local.service_account_input.annotations, {}),
+      try(var.orchestration.provider_service_account_annotations, {}),
+    )
+  })
+
+  hub_defaults = {
+    chronon_metrics_reader       = "http"
+    table_partitions_dataset     = "TABLE_PARTITIONS"
+    data_quality_metrics_dataset = "DATA_QUALITY_METRICS"
+    env                          = []
+  }
+  hub = merge(local.hub_defaults, try(var.orchestration.hub, {}))
+
+  hub_env = concat(
+    local.hub.chronon_metrics_reader == "" ? [] : [
+      {
+        name  = "CHRONON_METRICS_READER"
+        value = local.hub.chronon_metrics_reader
+      }
+    ],
+    local.hub.table_partitions_dataset == "" ? [] : [
+      {
+        name  = "TABLE_PARTITIONS_DATASET"
+        value = local.hub.table_partitions_dataset
+      }
+    ],
+    local.hub.data_quality_metrics_dataset == "" ? [] : [
+      {
+        name  = "DATA_QUALITY_METRICS_DATASET"
+        value = local.hub.data_quality_metrics_dataset
+      }
+    ],
+    try(var.orchestration.provider_hub_env, []),
+    local.hub.env,
+    try(var.orchestration.hub_env, []),
+  )
 
   database_secret_object = {
     secretName = local.database_credentials_secret.name
@@ -201,10 +249,19 @@ locals {
     }
 
     runtime = {
-      env = try(var.orchestration.runtime_env, [])
+      env = concat(
+        try(var.orchestration.provider_runtime_env, []),
+        try(var.orchestration.runtime_env, []),
+      )
     }
 
     imagePullSecrets = local.image_pull_secrets
+
+    serviceAccount = {
+      create      = local.service_account.create
+      name        = local.service_account.name
+      annotations = local.service_account.annotations
+    }
 
     database = {
       jdbcUrl = local.database.jdbc_url
@@ -221,6 +278,8 @@ locals {
     }
 
     secrets = {
+      enabled       = local.secrets.enabled
+      className     = local.secrets.class_name
       secretObjects = local.secret_objects
     }
 
@@ -278,6 +337,30 @@ locals {
     }
 
     auth = try(var.orchestration.auth, { enabled = false })
+
+    orchestration = {
+      hub = {
+        env = local.hub_env
+      }
+      ui = {
+        env = concat(
+          try(var.orchestration.provider_ui_env, []),
+          try(var.orchestration.ui_env, []),
+        )
+      }
+      fetcher = {
+        env = concat(
+          try(var.orchestration.provider_fetcher_env, []),
+          try(var.orchestration.fetcher_env, []),
+        )
+      }
+      eval = {
+        env = concat(
+          try(var.orchestration.provider_eval_env, []),
+          try(var.orchestration.eval_env, []),
+        )
+      }
+    }
   }
 }
 

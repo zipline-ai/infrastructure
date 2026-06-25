@@ -10,8 +10,6 @@ locals {
     warehouse_prefix                    = ""
     flink_state_uri                     = ""
     kv_store_type                       = "cosmos"
-    table_partitions_dataset            = "TABLE_PARTITIONS"
-    data_quality_metrics_dataset        = "DATA_QUALITY_METRICS"
     chronon_online_class                = "ai.chronon.integrations.cloud_azure.AzureApiImpl"
     crucible_jar_name                   = "cloud_azure_lib_deploy.jar"
     crucible_jar_uri                    = ""
@@ -33,12 +31,7 @@ locals {
       name = ""
     }, try(var.orchestration.image_pull_secret, {}))
     database = merge({
-      port               = 5432
-      name               = "execution_info"
-      ssl_mode           = "require"
-      jdbc_url           = ""
-      url                = ""
-      credentials_secret = {}
+      ssl_mode = "require"
     }, var.orchestration.database)
     ingress = merge({
       class_name                  = "nginx-ui"
@@ -50,17 +43,20 @@ locals {
       install_secrets_store_csi_driver = false
     }, try(var.orchestration.addons, {}))
     secrets = merge(try(var.orchestration.secrets, {}), {
+      enabled = local.azure.secrets_enabled
       database_object_names = merge({
         username = local.azure.database_username_secret_name
         password = local.azure.database_password_secret_name
       }, try(var.orchestration.secrets.database_object_names, {}))
     })
+    provider_service_account_annotations = local.workload_identity_annotations
+    provider_runtime_env                 = local.runtime_env
+    provider_hub_env                     = local.hub_env
   })
 
-  deployment                  = local.orchestration.deployment
-  database                    = local.orchestration.database
-  database_credentials_secret = merge({ name = "db-credentials", username_key = "username", password_key = "password" }, try(local.database.credentials_secret, {}))
-  compute                     = merge({ spark_event_log_dir = "", flink_service_account = "flink", default_namespace = "zipline-default" }, try(local.orchestration.compute, {}))
+  deployment = local.orchestration.deployment
+  database   = local.orchestration.database
+  compute    = merge({ spark_event_log_dir = "", flink_service_account = "flink", default_namespace = "zipline-default" }, try(local.orchestration.compute, {}))
   compute_workload_identity_id = (
     local.azure.compute_workload_identity_client_id != ""
     ? local.azure.compute_workload_identity_client_id
@@ -74,8 +70,8 @@ locals {
   warehouse_prefix            = local.azure.warehouse_prefix != "" ? local.azure.warehouse_prefix : "${local.abfs_base_uri}warehouse"
   flink_state_uri             = local.azure.flink_state_uri != "" ? local.azure.flink_state_uri : "${local.abfs_base_uri}flink-state"
   polaris_base_location       = "${local.abfs_base_uri}polaris/polaris_${local.deployment.customer_name}/"
-  database_host_with_port     = "${local.database.host}:${local.database.port}"
-  database_url                = local.database.url != "" ? local.database.url : "postgres://$(DB_USERNAME)@${local.database_host_with_port}/${local.database.name}?sslmode=${local.database.ssl_mode}"
+  database_host_with_port     = "${local.database.host}:${try(local.database.port, 5432)}"
+  database_url                = try(local.database.url, "") != "" ? local.database.url : "postgres://$(DB_USERNAME)@${local.database_host_with_port}/${try(local.database.name, "execution_info")}?sslmode=${local.database.ssl_mode}"
   hub_image                   = "ziplineai/hub-azure"
   eval_image                  = "ziplineai/eval-azure"
   hub_verticle_class          = "ai.chronon.hub.AzureCrucibleOrchestrationVerticle,ai.chronon.hub.AzureCrucibleWorkflowExecutionVerticle"
@@ -130,16 +126,14 @@ locals {
 
   hub_env = [
     { name = "KV_STORE_TYPE", value = local.azure.kv_store_type },
-    { name = "TABLE_PARTITIONS_DATASET", value = local.azure.table_partitions_dataset },
-    { name = "DATA_QUALITY_METRICS_DATASET", value = local.azure.data_quality_metrics_dataset },
     { name = "WAREHOUSE_PREFIX", value = local.warehouse_prefix },
     { name = "FLINK_STATE_URI", value = local.flink_state_uri },
     { name = "CHRONON_ONLINE_CLASS", value = local.azure.chronon_online_class },
     { name = "CRUCIBLE_JAR_NAME", value = local.azure.crucible_jar_name },
     { name = "CRUCIBLE_JAR_URI", value = local.azure.crucible_jar_uri },
     { name = "CRUCIBLE_SPOT_EXECUTORS", value = tostring(local.azure.crucible_spot_executors) },
-    { name = "FLINK_AKS_SERVICE_ACCOUNT", value = local.compute.flink_service_account },
-    { name = "FLINK_AKS_NAMESPACE", value = local.compute.default_namespace },
+    { name = "FLINK_AKS_SERVICE_ACCOUNT", value = try(var.orchestration.compute.flink_service_account, "flink") },
+    { name = "FLINK_AKS_NAMESPACE", value = try(var.orchestration.compute.default_namespace, "zipline-default") },
   ]
 
   spark_history_opts = [
@@ -155,16 +149,6 @@ locals {
       cloud_provider = "azure"
     }
 
-    runtime = {
-      env = concat(local.runtime_env, try(local.orchestration.runtime_env, []))
-    }
-
-    serviceAccount = {
-      create      = true
-      name        = "orchestration-sa"
-      annotations = local.workload_identity_annotations
-    }
-
     podLabels = {
       "azure.workload.identity/use" = "true"
     }
@@ -174,9 +158,7 @@ locals {
     }
 
     secrets = {
-      enabled   = local.azure.secrets_enabled
-      provider  = "azure"
-      className = "zipline-secret-provider"
+      provider = "azure"
       parameters = {
         usePodIdentity         = "false"
         useVMManagedIdentity   = "true"
@@ -227,7 +209,6 @@ locals {
       hub = {
         image         = local.hub_image
         verticleClass = local.hub_verticle_class
-        env           = concat(local.hub_env, try(local.orchestration.hub_env, []))
       }
       eval = {
         image = local.eval_image

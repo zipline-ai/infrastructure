@@ -6,11 +6,9 @@ locals {
     spark_nvme_enabled                 = false
     spark_nvme_setup_image             = ""
     polaris_storage_config             = {}
-    secret_provider_class_name         = "zipline-secret-provider"
     kv_table_prefix                    = ""
     kv_enable_ttl                      = true
     kv_replica_regions                 = []
-    chronon_metrics_reader             = "http"
     eks_log_group                      = ""
     auth_secret_arn                    = ""
     databricks_sp_secret_arn           = ""
@@ -48,19 +46,23 @@ locals {
     image_pull_secret = merge({
       name = "docker-hub-creds"
     }, try(var.orchestration.image_pull_secret, {}))
-    database = merge({
-      port     = 5432
-      name     = "execution_info"
-      ssl_mode = ""
-      jdbc_url = ""
-      url      = ""
-    }, var.orchestration.database)
     secrets = merge(try(var.orchestration.secrets, {}), {
       extra_secret_objects = concat(
         try(var.orchestration.secrets.extra_secret_objects, []),
         local.databricks_secret_objects,
       )
     })
+    provider_service_account_annotations = {
+      "eks.amazonaws.com/role-arn" = local.aws.orchestration_role_arn
+    }
+    provider_runtime_env = local.runtime_env
+    provider_hub_env     = local.hub_env
+    provider_ui_env = concat(
+      local.aws.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.aws.eks_log_group }],
+      local.aws.ui_env,
+    )
+    provider_fetcher_env = local.aws.fetcher_env
+    provider_eval_env    = concat([{ name = "KV_TABLE_PREFIX", value = local.aws.kv_table_prefix }], local.databricks_env, local.aws.eval_env)
   })
 
   deployment                  = local.orchestration.deployment
@@ -68,8 +70,8 @@ locals {
   compute                     = merge({ spark_event_log_dir = "" }, try(local.orchestration.compute, {}))
   spark_event_log_dir         = local.compute.spark_event_log_dir != "" ? local.compute.spark_event_log_dir : "s3a://${local.aws.warehouse_bucket}/spark-events"
   flink_compute_role_arn      = local.aws.flink_compute_role_arn != "" ? local.aws.flink_compute_role_arn : local.aws.spark_compute_role_arn
-  database_host_with_port     = "${local.database.host}:${local.database.port}"
-  database_url                = local.database.url != "" ? local.database.url : "postgres://$(DB_USERNAME)@${local.database_host_with_port}/${local.database.name}?sslmode=require"
+  database_host_with_port     = "${local.database.host}:${try(local.database.port, 5432)}"
+  database_url                = try(local.database.url, "") != "" ? local.database.url : "postgres://$(DB_USERNAME)@${local.database_host_with_port}/${try(local.database.name, "execution_info")}?sslmode=require"
   hub_image                   = "ziplineai/hub-aws"
   eval_image                  = "ziplineai/eval-aws"
   hub_verticle_class          = "ai.chronon.hub.AWSOrchestrationVerticle,ai.chronon.hub.AWSWorkflowExecutionVerticle"
@@ -135,9 +137,6 @@ locals {
   ]
 
   hub_env = concat(
-    local.aws.chronon_metrics_reader == "" ? [] : [
-      { name = "CHRONON_METRICS_READER", value = local.aws.chronon_metrics_reader }
-    ],
     [
       { name = "KV_TABLE_PREFIX", value = local.aws.kv_table_prefix },
       { name = "KV_ENABLE_TTL", value = tostring(local.aws.kv_enable_ttl) },
@@ -152,26 +151,12 @@ locals {
       cloud_provider = "aws"
     }
 
-    runtime = {
-      env = concat(local.runtime_env, try(local.orchestration.runtime_env, []))
-    }
-
-    serviceAccount = {
-      create = true
-      name   = "orchestration-sa"
-      annotations = {
-        "eks.amazonaws.com/role-arn" = local.aws.orchestration_role_arn
-      }
-    }
-
     database = {
       url = local.database_url
     }
 
     secrets = {
-      enabled   = true
-      provider  = "aws"
-      className = local.aws.secret_provider_class_name
+      provider = "aws"
       parameters = {
         objects = yamlencode(local.secret_provider_objects)
       }
@@ -222,20 +207,9 @@ locals {
       hub = {
         image         = local.hub_image
         verticleClass = local.hub_verticle_class
-        env           = concat(local.hub_env, try(local.orchestration.hub_env, []))
-      }
-      ui = {
-        env = concat(
-          local.aws.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.aws.eks_log_group }],
-          local.aws.ui_env,
-        )
-      }
-      fetcher = {
-        env = local.aws.fetcher_env
       }
       eval = {
         image = local.eval_image
-        env   = concat([{ name = "KV_TABLE_PREFIX", value = local.aws.kv_table_prefix }], local.databricks_env, local.aws.eval_env)
       }
     }
 
