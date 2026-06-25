@@ -5,7 +5,6 @@ locals {
     storage_path_prefix           = ""
     ingress_load_balancer_ip      = ""
     load_balancer_resource_group  = ""
-    crucible_jar_uri              = ""
   }, var.azure)
 
   auth_secret_keys = [
@@ -59,7 +58,7 @@ locals {
   database_url                = try(local.database.url, "") != "" ? local.database.url : "postgres://$(DB_USERNAME)@${local.database_host_with_port}/${try(local.database.name, "execution_info")}?sslmode=${local.database.ssl_mode}"
   hub_image                   = "ziplineai/hub-azure"
   eval_image                  = "ziplineai/eval-azure"
-  hub_verticle_class          = "ai.chronon.hub.AzureCrucibleOrchestrationVerticle,ai.chronon.hub.AzureCrucibleWorkflowExecutionVerticle"
+  hub_verticle_class          = "ai.chronon.hub.AzureOrchestrationVerticle,ai.chronon.hub.AzureWorkflowExecutionVerticle"
   auth_enabled                = try(local.orchestration.auth.enabled, false)
 
   workload_identity_annotations = {
@@ -109,14 +108,6 @@ locals {
 
   hub_env = [
     { name = "KV_STORE_TYPE", value = "cosmos" },
-    { name = "WAREHOUSE_PREFIX", value = local.warehouse_prefix },
-    { name = "FLINK_STATE_URI", value = local.flink_state_uri },
-    { name = "CHRONON_ONLINE_CLASS", value = "ai.chronon.integrations.cloud_azure.AzureApiImpl" },
-    { name = "CRUCIBLE_JAR_NAME", value = "cloud_azure_lib_deploy.jar" },
-    { name = "CRUCIBLE_JAR_URI", value = local.azure.crucible_jar_uri },
-    { name = "CRUCIBLE_SPOT_EXECUTORS", value = "true" },
-    { name = "FLINK_AKS_SERVICE_ACCOUNT", value = try(var.orchestration.compute.flink_service_account, "flink") },
-    { name = "FLINK_AKS_NAMESPACE", value = try(var.orchestration.compute.default_namespace, "zipline-default") },
   ]
 
   spark_history_opts = [

@@ -67,6 +67,8 @@ spec:
               value: {{ required "global.cloud_provider is required" .Values.global.cloud_provider | quote }}
             - name: CRUCIBLE_DEFAULT_NAMESPACE
               value: {{ include "zipline-orchestration.computeJobNamespace" . | quote }}
+            - name: CRUCIBLE_NAMESPACE
+              value: {{ include "zipline-orchestration.computeJobNamespace" . | quote }}
             - name: CRUCIBLE_SPARK_IMAGE
               value: "{{ .Values.compute.sparkDefaults.image }}"
             - name: CRUCIBLE_SPARK_SERVICE_ACCOUNT
