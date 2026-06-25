@@ -52,13 +52,17 @@ locals {
   }
   database_credentials_secret = merge(local.database_credentials_secret_defaults, try(local.database.credentials_secret, {}))
 
-  auth_secret_keys = [
-    "auth-secret",
-    "google-oauth-client-secret",
-    "github-oauth-client-secret",
-    "microsoft-entra-oauth-client-secret",
-    "sso-client-secret",
-  ]
+  auth_saml_enabled = try(var.orchestration.auth.sso_use_saml, false)
+  auth_secret_keys = concat(
+    [
+      "auth-secret",
+      "google-oauth-client-secret",
+      "github-oauth-client-secret",
+      "microsoft-entra-oauth-client-secret",
+      "sso-client-secret",
+    ],
+    local.auth_saml_enabled ? ["sso-saml-cert"] : [],
+  )
 
   secrets_defaults = {
     enabled    = true

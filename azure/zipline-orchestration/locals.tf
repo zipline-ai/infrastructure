@@ -7,13 +7,17 @@ locals {
     load_balancer_resource_group  = ""
   }, var.azure)
 
-  auth_secret_keys = [
-    "auth-secret",
-    "google-oauth-client-secret",
-    "github-oauth-client-secret",
-    "microsoft-entra-oauth-client-secret",
-    "sso-client-secret",
-  ]
+  auth_saml_enabled = try(var.orchestration.auth.sso_use_saml, false)
+  auth_secret_keys = concat(
+    [
+      "auth-secret",
+      "google-oauth-client-secret",
+      "github-oauth-client-secret",
+      "microsoft-entra-oauth-client-secret",
+      "sso-client-secret",
+    ],
+    local.auth_saml_enabled ? ["sso-saml-cert"] : [],
+  )
 
   compute_input = merge({ spark_event_log_dir = "", flink_service_account = "flink", default_namespace = "zipline-default" }, try(var.orchestration.compute, {}))
 
