@@ -14,7 +14,8 @@ AWS-specific work stays at this layer:
 
 The wrapper keeps the Terraform surface to AWS plumbing. Shared install inputs
 live under the `orchestration` object and are consumed by
-`modules/zipline-orchestration`; AWS-specific inputs remain flat in this root.
+`modules/zipline-orchestration`; AWS-specific inputs live under the `aws`
+object.
 The chart owns service defaults such as per-service ingress annotations, image
 repositories, fetcher replicas, and Polaris bootstrap defaults. Use
 `orchestration.extra_values` only for intentional one-off Helm overrides.
@@ -38,7 +39,7 @@ placing legacy `github.tf`, `cloudflare.tf`, or `terraform.tfvars` files in this
 Terraform root. Use those raw files plus live Helm values to create a local
 ignored `*.auto.tfvars.json` for this Helm adoption wrapper.
 
-Common canary inputs should be grouped under `orchestration`, for example:
+Canary inputs should be grouped into shared and provider-specific objects:
 
 ```hcl
 orchestration = {
@@ -58,6 +59,15 @@ orchestration = {
   ingress = {
     domain = "crucible-aws.zipline.ai"
   }
+}
+
+aws = {
+  region                 = "us-west-2"
+  cluster_name           = "crucible-eks"
+  database_secret_arn    = "arn:aws:secretsmanager:us-west-2:123456789012:secret:zipline-db"
+  warehouse_bucket       = "zipline-warehouse-crucible"
+  orchestration_role_arn = "arn:aws:iam::123456789012:role/orchestration"
+  spark_compute_role_arn = "arn:aws:iam::123456789012:role/spark-compute"
 }
 ```
 

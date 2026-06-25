@@ -1,14 +1,14 @@
 provider "aws" {
-  region              = var.region
-  allowed_account_ids = var.aws_account_id == "" ? null : [var.aws_account_id]
+  region              = local.aws.region
+  allowed_account_ids = local.aws.account_id == "" ? null : [local.aws.account_id]
 }
 
 data "aws_eks_cluster" "this" {
-  name = var.cluster_name
+  name = local.aws.cluster_name
 }
 
 data "aws_eks_cluster_auth" "this" {
-  name = var.cluster_name
+  name = local.aws.cluster_name
 }
 
 provider "kubernetes" {

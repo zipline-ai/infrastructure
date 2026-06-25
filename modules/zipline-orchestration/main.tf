@@ -8,8 +8,8 @@ locals {
     create_namespace      = true
     namespace_labels      = {}
     namespace_annotations = {}
-    helm_wait             = false
-    helm_timeout          = 600
+    helm_wait             = true
+    helm_timeout          = 300
     atomic                = false
     cleanup_on_fail       = false
     dependency_update     = false
@@ -17,7 +17,7 @@ locals {
   install = merge(local.install_defaults, try(var.orchestration.install, {}))
 
   image_pull_secret_defaults = {
-    name               = ""
+    name               = "docker-hub-creds"
     create             = false
     dockerhub_username = "ziplineai"
     dockerhub_token    = ""
@@ -51,6 +51,62 @@ locals {
     password_key = "password"
   }
   database_credentials_secret = merge(local.database_credentials_secret_defaults, try(local.database.credentials_secret, {}))
+
+  auth_secret_keys = [
+    "auth-secret",
+    "google-oauth-client-secret",
+    "github-oauth-client-secret",
+    "microsoft-entra-oauth-client-secret",
+    "sso-client-secret",
+  ]
+
+  secrets_defaults = {
+    database_object_names = {
+      username = "username"
+      password = "password"
+    }
+    auth_object_names    = { for key in local.auth_secret_keys : key => key }
+    extra_secret_objects = []
+  }
+  secrets_input = try(var.orchestration.secrets, {})
+  secrets = merge(local.secrets_defaults, local.secrets_input, {
+    database_object_names = merge(local.secrets_defaults.database_object_names, try(local.secrets_input.database_object_names, {}))
+    auth_object_names     = merge(local.secrets_defaults.auth_object_names, try(local.secrets_input.auth_object_names, {}))
+  })
+  auth_enabled = try(var.orchestration.auth.enabled, false)
+
+  database_secret_object = {
+    secretName = local.database_credentials_secret.name
+    type       = "Opaque"
+    data = [
+      {
+        objectName = local.secrets.database_object_names.password
+        key        = local.database_credentials_secret.password_key
+      },
+      {
+        objectName = local.secrets.database_object_names.username
+        key        = local.database_credentials_secret.username_key
+      },
+    ]
+  }
+
+  auth_secret_object = {
+    secretName = "auth-secret"
+    type       = "Opaque"
+    data = [
+      for key in local.auth_secret_keys : {
+        objectName = local.secrets.auth_object_names[key]
+        key        = key
+      }
+    ]
+  }
+
+  secret_objects = concat(
+    [local.database_secret_object],
+    local.auth_enabled ? [local.auth_secret_object] : [],
+    try(var.orchestration.extra_secret_objects, []),
+    local.secrets.extra_secret_objects,
+  )
 
   ingress_defaults = {
     class_name                  = "nginx-ui"
@@ -162,6 +218,10 @@ locals {
         usernameKey = local.database_credentials_secret.username_key
         passwordKey = local.database_credentials_secret.password_key
       }
+    }
+
+    secrets = {
+      secretObjects = local.secret_objects
     }
 
     compute = {

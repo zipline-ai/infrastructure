@@ -12,7 +12,8 @@ Azure-specific work stays at this layer:
 
 The wrapper keeps the Terraform surface to Azure plumbing. Shared install inputs
 live under the `orchestration` object and are consumed by
-`modules/zipline-orchestration`; Azure-specific inputs remain flat in this root.
+`modules/zipline-orchestration`; Azure-specific inputs live under the `azure`
+object.
 The chart owns service defaults such as per-service ingress annotations, image
 repositories, and fetcher replicas. Use `orchestration.extra_values` only for
 intentional one-off Helm overrides, such as a private registry mirror.
@@ -41,7 +42,7 @@ The script downloads two git-ignored files into this Terraform root:
 - `backend.hcl`
 - `crucible.auto.tfvars.json`
 
-Common canary inputs should be grouped under `orchestration`, for example:
+Canary inputs should be grouped into shared and provider-specific objects:
 
 ```hcl
 orchestration = {
@@ -65,6 +66,19 @@ orchestration = {
     domain          = "crucible-azure.zipline.ai"
     tls_secret_name = "crucible-azure-tls"
   }
+}
+
+azure = {
+  subscription_id             = "00000000-0000-0000-0000-000000000000"
+  aks_resource_group          = "crucible-rg"
+  aks_cluster_name            = "crucible-aks"
+  location                    = "westus2"
+  tenant_id                   = "00000000-0000-0000-0000-000000000000"
+  keyvault_name               = "crucible-azure-kv"
+  keyvault_identity_client_id = "00000000-0000-0000-0000-000000000000"
+  workload_identity_client_id = "00000000-0000-0000-0000-000000000000"
+  warehouse_container_name    = "crucible"
+  storage_account_name        = "ziplineai2"
 }
 ```
 

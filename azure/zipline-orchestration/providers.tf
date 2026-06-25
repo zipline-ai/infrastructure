@@ -1,12 +1,12 @@
 provider "azurerm" {
   features {}
 
-  subscription_id = var.subscription_id
+  subscription_id = local.azure.subscription_id
 }
 
 data "azurerm_kubernetes_cluster" "this" {
-  name                = var.aks_cluster_name
-  resource_group_name = var.aks_resource_group
+  name                = local.azure.aks_cluster_name
+  resource_group_name = local.azure.aks_resource_group
 }
 
 provider "kubernetes" {

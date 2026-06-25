@@ -1,29 +1,29 @@
 resource "terraform_data" "configuration_validation" {
   input = {
     auth_enabled                         = local.auth_enabled
-    install_aws_load_balancer_controller = var.install_aws_load_balancer_controller
+    install_aws_load_balancer_controller = local.aws.install_load_balancer_controller
   }
 
   lifecycle {
     precondition {
-      condition     = !local.auth_enabled || trimspace(var.auth_secret_arn) != ""
+      condition     = !local.auth_enabled || trimspace(local.aws.auth_secret_arn) != ""
       error_message = "auth_secret_arn must be set when auth.enabled is true."
     }
 
     precondition {
-      condition     = !var.install_aws_load_balancer_controller || trimspace(var.aws_load_balancer_controller_role_arn) != ""
+      condition     = !local.aws.install_load_balancer_controller || trimspace(local.aws.load_balancer_controller_role_arn) != ""
       error_message = "aws_load_balancer_controller_role_arn must be set when install_aws_load_balancer_controller is true."
     }
 
     precondition {
-      condition     = !var.install_aws_load_balancer_controller || trimspace(var.vpc_id) != ""
+      condition     = !local.aws.install_load_balancer_controller || trimspace(local.aws.vpc_id) != ""
       error_message = "vpc_id must be set when install_aws_load_balancer_controller is true."
     }
   }
 }
 
 resource "helm_release" "secrets_store_csi_provider_aws" {
-  count = var.install_aws_secrets_store_csi_provider ? 1 : 0
+  count = local.aws.install_secrets_store_csi_provider ? 1 : 0
 
   name       = "secrets-store-csi-driver-provider-aws"
   repository = "https://aws.github.io/secrets-store-csi-driver-provider-aws"
@@ -33,24 +33,24 @@ resource "helm_release" "secrets_store_csi_provider_aws" {
 }
 
 resource "helm_release" "aws_load_balancer_controller" {
-  count = var.install_aws_load_balancer_controller ? 1 : 0
+  count = local.aws.install_load_balancer_controller ? 1 : 0
 
   name       = "aws-load-balancer-controller"
   repository = "https://aws.github.io/eks-charts"
   chart      = "aws-load-balancer-controller"
   namespace  = "kube-system"
-  version    = var.aws_load_balancer_controller_version
+  version    = local.aws.load_balancer_controller_version
 
   values = [
     yamlencode({
-      clusterName = var.cluster_name
-      region      = var.region
-      vpcId       = var.vpc_id
+      clusterName = local.aws.cluster_name
+      region      = local.aws.region
+      vpcId       = local.aws.vpc_id
       serviceAccount = {
         create = true
         name   = "aws-load-balancer-controller"
         annotations = {
-          "eks.amazonaws.com/role-arn" = var.aws_load_balancer_controller_role_arn
+          "eks.amazonaws.com/role-arn" = local.aws.load_balancer_controller_role_arn
         }
       }
     })
