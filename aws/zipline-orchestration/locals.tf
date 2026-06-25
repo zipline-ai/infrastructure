@@ -33,6 +33,8 @@ locals {
     "sso-client-secret",
   ]
 
+  compute_input = try(var.orchestration.compute, {})
+
   databricks_secret_keys = ["client_id", "client_secret"]
   databricks_secret_objects = local.aws.databricks_sp_secret_arn == "" ? [] : [
     {
@@ -43,14 +45,52 @@ locals {
   ]
 
   orchestration = merge(var.orchestration, {
-    image_pull_secret = merge({
-      name = "docker-hub-creds"
-    }, try(var.orchestration.image_pull_secret, {}))
+    cloud_provider = "aws"
     secrets = merge(try(var.orchestration.secrets, {}), {
+      provider = "aws"
+      parameters = merge(try(var.orchestration.secrets.parameters, {}), {
+        objects = yamlencode(local.secret_provider_objects)
+      })
       extra_secret_objects = concat(
         try(var.orchestration.secrets.extra_secret_objects, []),
         local.databricks_secret_objects,
       )
+    })
+    compute = merge(local.compute_input, {
+      object_store = merge(try(local.compute_input.object_store, {}), {
+        bucket = local.aws.warehouse_bucket
+        region = local.aws.region
+      })
+      service_account = merge(try(local.compute_input.service_account, {}), {
+        annotations = merge(try(local.compute_input.service_account.annotations, {}), {
+          "eks.amazonaws.com/role-arn" = local.aws.spark_compute_role_arn
+        })
+      })
+      spark_event_log_dir = local.spark_event_log_dir
+      spark_defaults = merge(try(local.compute_input.spark_defaults, {}), {
+        nvmeEnabled    = local.aws.spark_nvme_enabled
+        nvmeSetupImage = local.aws.spark_nvme_setup_image
+      })
+      flink_defaults = merge(try(local.compute_input.flink_defaults, {}), {
+        serviceAccountAnnotations = merge(try(local.compute_input.flink_defaults.serviceAccountAnnotations, {}), {
+          "eks.amazonaws.com/role-arn" = local.flink_compute_role_arn
+        })
+      })
+    })
+    ingress = merge(try(var.orchestration.ingress, {}), {
+      service = local.ingress_lb_service
+    })
+    polaris = merge(try(var.orchestration.polaris, {}), {
+      extra_env           = local.runtime_env
+      database_init_image = local.polaris_database_init_image
+      storage = merge(try(var.orchestration.polaris.storage, {}), {
+        type          = "S3"
+        base_location = local.polaris_base_location
+        config        = merge({ region = local.aws.region }, local.aws.polaris_storage_config)
+      })
+    })
+    hub = merge(try(var.orchestration.hub, {}), {
+      verticle_class = local.hub_verticle_class
     })
     provider_service_account_annotations = {
       "eks.amazonaws.com/role-arn" = local.aws.orchestration_role_arn
@@ -65,19 +105,12 @@ locals {
     provider_eval_env    = concat([{ name = "KV_TABLE_PREFIX", value = local.aws.kv_table_prefix }], local.databricks_env, local.aws.eval_env)
   })
 
-  deployment                  = local.orchestration.deployment
-  database                    = local.orchestration.database
-  compute                     = merge({ spark_event_log_dir = "" }, try(local.orchestration.compute, {}))
-  spark_event_log_dir         = local.compute.spark_event_log_dir != "" ? local.compute.spark_event_log_dir : "s3a://${local.aws.warehouse_bucket}/spark-events"
+  spark_event_log_dir         = try(local.compute_input.spark_event_log_dir, "") != "" ? local.compute_input.spark_event_log_dir : "s3a://${local.aws.warehouse_bucket}/spark-events"
   flink_compute_role_arn      = local.aws.flink_compute_role_arn != "" ? local.aws.flink_compute_role_arn : local.aws.spark_compute_role_arn
-  database_host_with_port     = "${local.database.host}:${try(local.database.port, 5432)}"
-  database_url                = try(local.database.url, "") != "" ? local.database.url : "postgres://$(DB_USERNAME)@${local.database_host_with_port}/${try(local.database.name, "execution_info")}?sslmode=require"
-  hub_image                   = "ziplineai/hub-aws"
-  eval_image                  = "ziplineai/eval-aws"
   hub_verticle_class          = "ai.chronon.hub.AWSOrchestrationVerticle,ai.chronon.hub.AWSWorkflowExecutionVerticle"
-  polaris_base_location       = "s3://${local.aws.warehouse_bucket}/polaris/polaris_${local.deployment.customer_name}/"
+  polaris_base_location       = "s3://${local.aws.warehouse_bucket}/polaris/polaris_${var.orchestration.deployment.customer_name}/"
   polaris_database_init_image = "public.ecr.aws/docker/library/postgres:16-alpine"
-  auth_enabled                = try(local.orchestration.auth.enabled, false)
+  auth_enabled                = try(var.orchestration.auth.enabled, false)
 
   ingress_lb_service = merge(
     {
@@ -145,78 +178,4 @@ locals {
     ],
     local.databricks_env,
   )
-
-  provider_values = {
-    global = {
-      cloud_provider = "aws"
-    }
-
-    database = {
-      url = local.database_url
-    }
-
-    secrets = {
-      provider = "aws"
-      parameters = {
-        objects = yamlencode(local.secret_provider_objects)
-      }
-    }
-
-    compute = {
-      objectStore = {
-        bucket = local.aws.warehouse_bucket
-        region = local.aws.region
-      }
-      serviceAccount = {
-        annotations = {
-          "eks.amazonaws.com/role-arn" = local.aws.spark_compute_role_arn
-        }
-      }
-      sparkDefaults = {
-        eventLogDir    = local.spark_event_log_dir
-        nvmeEnabled    = local.aws.spark_nvme_enabled
-        nvmeSetupImage = local.aws.spark_nvme_setup_image
-      }
-      flinkDefaults = {
-        serviceAccountAnnotations = {
-          "eks.amazonaws.com/role-arn" = local.flink_compute_role_arn
-        }
-      }
-    }
-
-    polaris = {
-      extraEnv = local.runtime_env
-      database = {
-        initImage = local.polaris_database_init_image
-      }
-      bootstrap = {
-        rbac = {
-          catalog = {
-            defaultBaseLocation = local.polaris_base_location
-            storage = {
-              type             = "S3"
-              allowedLocations = [local.polaris_base_location]
-              config           = merge({ region = local.aws.region }, local.aws.polaris_storage_config)
-            }
-          }
-        }
-      }
-    }
-
-    orchestration = {
-      hub = {
-        image         = local.hub_image
-        verticleClass = local.hub_verticle_class
-      }
-      eval = {
-        image = local.eval_image
-      }
-    }
-
-    "ingress-nginx-ui" = {
-      controller = {
-        service = local.ingress_lb_service
-      }
-    }
-  }
 }
