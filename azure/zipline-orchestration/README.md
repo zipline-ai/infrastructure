@@ -10,8 +10,10 @@ Azure-specific work stays at this layer:
 - Static IP and resource-group settings for ingress-nginx controller Services.
 - ABFS event log, warehouse, and Flink state paths supplied as runtime values.
 
-The wrapper keeps the Terraform surface to Azure plumbing. Shared install inputs
-live under the `orchestration` object and are consumed by
+The wrapper assumes the AKS cluster already has workload identity and the Azure
+Key Vault CSI provider path available. It keeps the Terraform surface to Azure
+orchestration plumbing. Shared install inputs live under the `orchestration`
+object and are consumed by
 `modules/zipline-orchestration`; Azure-specific inputs live under the `azure`
 object.
 The chart owns service defaults such as per-service ingress annotations, image

@@ -8,12 +8,12 @@ AWS-specific work stays at this layer:
 - IAM role annotations for orchestration and compute service accounts.
 - AWS Secrets Manager objects projected through the generic chart
   `secrets` values.
-- Optional AWS Secrets Store CSI provider.
-- Optional AWS Load Balancer Controller.
 - NLB annotations on the shared ingress-nginx controller Services.
 
-The wrapper keeps the Terraform surface to AWS plumbing. Shared install inputs
-live under the `orchestration` object and are consumed by
+The wrapper assumes the EKS cluster already has cluster-level AWS addons such as
+the AWS Load Balancer Controller and AWS Secrets Store CSI provider installed.
+It keeps the Terraform surface to AWS orchestration plumbing. Shared install
+inputs live under the `orchestration` object and are consumed by
 `modules/zipline-orchestration`; AWS-specific inputs live under the `aws`
 object.
 The chart owns service defaults such as per-service ingress annotations, image
@@ -68,6 +68,8 @@ aws = {
   warehouse_bucket       = "zipline-warehouse-crucible"
   orchestration_role_arn = "arn:aws:iam::123456789012:role/orchestration"
   spark_compute_role_arn = "arn:aws:iam::123456789012:role/spark-compute"
+  flink_compute_role_arn = "arn:aws:iam::123456789012:role/flink-compute"
+  polaris_storage_role_arn = "arn:aws:iam::123456789012:role/polaris-storage"
 }
 ```
 

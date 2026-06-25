@@ -1,28 +1,14 @@
 locals {
   aws = merge({
-    account_id                         = ""
-    vpc_id                             = ""
-    flink_compute_role_arn             = ""
-    spark_nvme_enabled                 = false
-    spark_nvme_setup_image             = ""
-    polaris_storage_config             = {}
-    kv_table_prefix                    = ""
-    kv_enable_ttl                      = true
-    kv_replica_regions                 = []
-    eks_log_group                      = ""
-    auth_secret_arn                    = ""
-    databricks_sp_secret_arn           = ""
-    eval_env                           = []
-    ui_env                             = []
-    fetcher_env                        = []
-    install_secrets_store_csi_provider = true
-    install_load_balancer_controller   = true
-    load_balancer_controller_role_arn  = ""
-    load_balancer_controller_version   = "1.7.1"
-    load_balancer_scheme               = "internet-facing"
-    ingress_service_annotations        = {}
-    ingress_service_target_ports       = {}
-    extra_secret_provider_objects      = []
+    account_id               = ""
+    flink_compute_role_arn   = ""
+    polaris_storage_role_arn = ""
+    kv_table_prefix          = ""
+    kv_enable_ttl            = true
+    kv_replica_regions       = []
+    eks_log_group            = ""
+    auth_secret_arn          = ""
+    databricks_sp_secret_arn = ""
   }, var.aws)
 
   auth_secret_keys = [
@@ -43,9 +29,6 @@ locals {
   ]
 
   orchestration = merge(var.orchestration, {
-    image_pull_secret = merge({
-      name = "docker-hub-creds"
-    }, try(var.orchestration.image_pull_secret, {}))
     secrets = merge(try(var.orchestration.secrets, {}), {
       extra_secret_objects = concat(
         try(var.orchestration.secrets.extra_secret_objects, []),
@@ -57,12 +40,11 @@ locals {
     }
     provider_runtime_env = local.runtime_env
     provider_hub_env     = local.hub_env
-    provider_ui_env = concat(
-      local.aws.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.aws.eks_log_group }],
-      local.aws.ui_env,
+    provider_ui_env      = local.aws.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.aws.eks_log_group }]
+    provider_eval_env = concat(
+      [{ name = "KV_TABLE_PREFIX", value = local.aws.kv_table_prefix }],
+      local.databricks_env,
     )
-    provider_fetcher_env = local.aws.fetcher_env
-    provider_eval_env    = concat([{ name = "KV_TABLE_PREFIX", value = local.aws.kv_table_prefix }], local.databricks_env, local.aws.eval_env)
   })
 
   deployment                  = local.orchestration.deployment
@@ -79,17 +61,12 @@ locals {
   polaris_database_init_image = "public.ecr.aws/docker/library/postgres:16-alpine"
   auth_enabled                = try(local.orchestration.auth.enabled, false)
 
-  ingress_lb_service = merge(
-    {
-      annotations = merge({
-        "service.beta.kubernetes.io/aws-load-balancer-type"   = "nlb"
-        "service.beta.kubernetes.io/aws-load-balancer-scheme" = local.aws.load_balancer_scheme
-      }, local.aws.ingress_service_annotations)
-    },
-    length(local.aws.ingress_service_target_ports) == 0 ? {} : {
-      targetPorts = local.aws.ingress_service_target_ports
-    },
-  )
+  ingress_lb_service = {
+    annotations = {
+      "service.beta.kubernetes.io/aws-load-balancer-type"   = "nlb"
+      "service.beta.kubernetes.io/aws-load-balancer-scheme" = "internet-facing"
+    }
+  }
 
   secret_provider_objects = concat(
     [
@@ -116,7 +93,6 @@ locals {
         jmesPath   = [for key in local.auth_secret_keys : { path = "\"${key}\"", objectAlias = key }]
       }
     ] : [],
-    local.aws.extra_secret_provider_objects,
   )
 
   databricks_env = local.aws.databricks_sp_secret_arn == "" ? [] : [
@@ -174,8 +150,8 @@ locals {
       }
       sparkDefaults = {
         eventLogDir    = local.spark_event_log_dir
-        nvmeEnabled    = local.aws.spark_nvme_enabled
-        nvmeSetupImage = local.aws.spark_nvme_setup_image
+        nvmeEnabled    = true
+        nvmeSetupImage = "amazon/aws-cli:2.27.33"
       }
       flinkDefaults = {
         serviceAccountAnnotations = {
@@ -196,7 +172,10 @@ locals {
             storage = {
               type             = "S3"
               allowedLocations = [local.polaris_base_location]
-              config           = merge({ region = local.aws.region }, local.aws.polaris_storage_config)
+              config = merge(
+                { region = local.aws.region },
+                local.aws.polaris_storage_role_arn == "" ? {} : { roleArn = local.aws.polaris_storage_role_arn },
+              )
             }
           }
         }
