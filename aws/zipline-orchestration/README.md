@@ -34,12 +34,10 @@ planning or applying:
 ../../pull_crucible_config.sh aws
 ```
 
-The local `./pull_crucible_config.sh` wrapper delegates to the same shared script
-with the `aws` cloud argument. It downloads the raw legacy inputs into
-`.crucible-config/raw/` without placing legacy `github.tf`, `cloudflare.tf`, or
-`terraform.tfvars` files in this Terraform root. Use those raw files plus live
-Helm values to create a local ignored `*.auto.tfvars.json` for this Helm adoption
-wrapper.
+The script downloads the raw legacy inputs into `.crucible-config/raw/` without
+placing legacy `github.tf`, `cloudflare.tf`, or `terraform.tfvars` files in this
+Terraform root. Use those raw files plus live Helm values to create a local
+ignored `*.auto.tfvars.json` for this Helm adoption wrapper.
 
 Canary inputs should be grouped into shared and provider-specific objects:
 

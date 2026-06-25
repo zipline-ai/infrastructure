@@ -34,11 +34,9 @@ pulled locally when planning or applying:
 ../../pull_crucible_config.sh azure
 ```
 
-The local `./pull_crucible_config.sh` wrapper delegates to the same shared script
-with the `azure` cloud argument. By default the script reads from storage account
-`ziplineai2`, container `dev-zipline-vars`, and prefix
-`crucible-azure/zipline-orchestration`. Override those with
-`AZURE_CONFIG_STORAGE_ACCOUNT`, `AZURE_CONFIG_CONTAINER`, and
+By default the script reads from storage account `ziplineai2`, container
+`dev-zipline-vars`, and prefix `crucible-azure/zipline-orchestration`. Override
+those with `AZURE_CONFIG_STORAGE_ACCOUNT`, `AZURE_CONFIG_CONTAINER`, and
 `AZURE_CONFIG_PREFIX` if needed.
 
 The script downloads two git-ignored files into this Terraform root:
