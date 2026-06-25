@@ -34,24 +34,16 @@ locals {
   }
   addons = merge(local.addons_defaults, try(var.orchestration.addons, {}))
 
-  deployment     = var.orchestration.deployment
-  cloud_provider = var.orchestration.cloud_provider
-  pod_labels     = try(var.orchestration.pod_labels, {})
+  deployment = var.orchestration.deployment
 
   database_defaults = {
     jdbc_url = ""
     url      = ""
     port     = 5432
     name     = "execution_info"
-    ssl_mode = "require"
+    ssl_mode = ""
   }
-  database                = merge(local.database_defaults, var.orchestration.database)
-  database_host_with_port = "${local.database.host}:${local.database.port}"
-  database_url = (
-    local.database.url != ""
-    ? local.database.url
-    : "postgres://$(DB_USERNAME)@${local.database_host_with_port}/${local.database.name}${local.database.ssl_mode == "" ? "" : "?sslmode=${local.database.ssl_mode}"}"
-  )
+  database = merge(local.database_defaults, var.orchestration.database)
 
   database_credentials_secret_defaults = {
     name         = "db-credentials"
@@ -71,8 +63,6 @@ locals {
   secrets_defaults = {
     enabled    = true
     class_name = "zipline-secret-provider"
-    provider   = ""
-    parameters = {}
     database_object_names = {
       username = "username"
       password = "password"
@@ -102,8 +92,6 @@ locals {
   })
 
   hub_defaults = {
-    image                        = local.cloud_provider == "" ? "" : "ziplineai/hub-${local.cloud_provider}"
-    verticle_class               = ""
     chronon_metrics_reader       = "http"
     table_partitions_dataset     = "TABLE_PARTITIONS"
     data_quality_metrics_dataset = "DATA_QUALITY_METRICS"
@@ -134,14 +122,6 @@ locals {
     local.hub.env,
     try(var.orchestration.hub_env, []),
   )
-
-  hub_verticle_class = local.hub.verticle_class != "" ? local.hub.verticle_class : try(local.hub.verticleClass, "")
-
-  eval_defaults = {
-    image = local.cloud_provider == "" ? "" : "ziplineai/eval-${local.cloud_provider}"
-    env   = []
-  }
-  eval = merge(local.eval_defaults, try(var.orchestration.eval, {}))
 
   database_secret_object = {
     secretName = local.database_credentials_secret.name
@@ -181,7 +161,6 @@ locals {
     tls_secret_name             = ""
     cert_manager_cluster_issuer = ""
     annotations                 = {}
-    service                     = {}
   }
   ingress = merge(local.ingress_defaults, var.orchestration.ingress)
 
@@ -214,17 +193,10 @@ locals {
     history_server_options  = []
     spark_defaults          = {}
     flink_defaults          = {}
-    object_store            = {}
     service_account         = {}
     image_prepull_overrides = {}
   }
   compute = merge(local.compute_defaults, try(var.orchestration.compute, {}))
-
-  compute_object_store_defaults = {
-    bucket = ""
-    region = ""
-  }
-  compute_object_store = merge(local.compute_object_store_defaults, local.compute.object_store)
 
   compute_service_account_defaults = {
     annotations = {}
@@ -265,26 +237,6 @@ locals {
   }
   prometheus = merge(local.prometheus_defaults, try(var.orchestration.prometheus, {}))
 
-  polaris_defaults = {
-    extra_env           = []
-    database_init_image = "postgres:16-alpine"
-    storage             = {}
-  }
-  polaris = merge(local.polaris_defaults, try(var.orchestration.polaris, {}))
-
-  polaris_storage_defaults = {
-    type              = ""
-    base_location     = ""
-    allowed_locations = []
-    config            = {}
-  }
-  polaris_storage = merge(local.polaris_storage_defaults, local.polaris.storage)
-  polaris_allowed_locations = (
-    length(local.polaris_storage.allowed_locations) > 0
-    ? local.polaris_storage.allowed_locations
-    : (local.polaris_storage.base_location == "" ? [] : [local.polaris_storage.base_location])
-  )
-
   chart_content_hash = sha256(join(",", [for file in local.chart_files : filesha256("${local.chart_path}/${file}")]))
 
   common_values = {
@@ -293,7 +245,6 @@ locals {
       artifact_prefix    = local.deployment.artifact_prefix
       version            = local.deployment.zipline_version
       deploy_fetcher     = try(local.deployment.deploy_fetcher, false)
-      cloud_provider     = local.cloud_provider
       chart_content_hash = local.chart_content_hash
     }
 
@@ -314,7 +265,7 @@ locals {
 
     database = {
       jdbcUrl = local.database.jdbc_url
-      url     = local.database_url
+      url     = local.database.url
       host    = local.database.host
       port    = local.database.port
       name    = local.database.name
@@ -328,10 +279,8 @@ locals {
 
     secrets = {
       enabled       = local.secrets.enabled
-      provider      = local.secrets.provider
       className     = local.secrets.class_name
       secretObjects = local.secret_objects
-      parameters    = local.secrets.parameters
     }
 
     compute = {
@@ -343,10 +292,6 @@ locals {
         flinkName   = local.compute.flink_service_account
         annotations = local.compute_service_account.annotations
       }
-      objectStore = {
-        bucket = local.compute_object_store.bucket
-        region = local.compute_object_store.region
-      }
       rbac = {
         create = local.compute.rbac_create
       }
@@ -354,25 +299,6 @@ locals {
       flinkDefaults = local.compute_flink_defaults
       imagePrepull  = local.compute_image_prepull
       historyServer = local.compute_history_server
-    }
-
-    polaris = {
-      extraEnv = local.polaris.extra_env
-      database = {
-        initImage = local.polaris.database_init_image
-      }
-      bootstrap = {
-        rbac = {
-          catalog = {
-            defaultBaseLocation = local.polaris_storage.base_location
-            storage = {
-              type             = local.polaris_storage.type
-              allowedLocations = local.polaris_allowed_locations
-              config           = local.polaris_storage.config
-            }
-          }
-        }
-      }
     }
 
     ingress = {
@@ -405,12 +331,6 @@ locals {
       }
     }
 
-    "ingress-nginx-ui" = {
-      controller = {
-        service = local.ingress.service
-      }
-    }
-
     prometheus = {
       queryEndpoint = local.prometheus.query_endpoint
       namespace     = local.install.namespace
@@ -418,13 +338,9 @@ locals {
 
     auth = try(var.orchestration.auth, { enabled = false })
 
-    podLabels = local.pod_labels
-
     orchestration = {
       hub = {
-        image         = local.hub.image
-        verticleClass = local.hub_verticle_class
-        env           = local.hub_env
+        env = local.hub_env
       }
       ui = {
         env = concat(
@@ -439,10 +355,8 @@ locals {
         )
       }
       eval = {
-        image = local.eval.image
         env = concat(
           try(var.orchestration.provider_eval_env, []),
-          local.eval.env,
           try(var.orchestration.eval_env, []),
         )
       }
