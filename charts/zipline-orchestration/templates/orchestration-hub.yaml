@@ -63,11 +63,7 @@ spec:
             {{- if .Values.compute.enabled }}
             - name: IN_CLUSTER_COMPUTE_ENABLED
               value: "true"
-            - name: CRUCIBLE_CLOUD_PROVIDER
-              value: {{ required "global.cloud_provider is required" .Values.global.cloud_provider | quote }}
             - name: CRUCIBLE_DEFAULT_NAMESPACE
-              value: {{ include "zipline-orchestration.computeJobNamespace" . | quote }}
-            - name: CRUCIBLE_NAMESPACE
               value: {{ include "zipline-orchestration.computeJobNamespace" . | quote }}
             - name: CRUCIBLE_SPARK_IMAGE
               value: "{{ .Values.compute.sparkDefaults.image }}"
@@ -78,8 +74,6 @@ spec:
             - name: CRUCIBLE_SPARK_EVENT_LOG_DIR
               value: {{ include "zipline-orchestration.sparkEventLogDir" . | quote }}
             - name: LOKI_URL
-              value: "http://{{ include "zipline-orchestration.fullname" . }}-loki.{{ include "zipline-orchestration.computeSystemNamespace" . }}.svc.cluster.local:3100"
-            - name: CRUCIBLE_LOKI_URL
               value: "http://{{ include "zipline-orchestration.fullname" . }}-loki.{{ include "zipline-orchestration.computeSystemNamespace" . }}.svc.cluster.local:3100"
             - name: CRUCIBLE_DRIVER_PRIORITY_CLASS
               value: "{{ .Values.compute.driverPriorityClass.name }}"

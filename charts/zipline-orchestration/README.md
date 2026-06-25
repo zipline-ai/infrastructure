@@ -23,15 +23,12 @@ The chart does not branch on a cloud provider. Cloud-specific infrastructure is 
 - `ingress.*.tls` for Kubernetes TLS secrets when TLS terminates at ingress-nginx
 - `runtime.env` and service-specific `orchestration.*.env` for application runtime settings
 
-`global.cloud_provider` is a required runtime value passed to Hub as `CRUCIBLE_CLOUD_PROVIDER`; templates must not use it for conditional rendering.
-
 ## Required Overrides
 
 At minimum, each Terraform module should provide:
 
 - `global.customer_name`
 - `global.version`
-- `global.cloud_provider`
 - `database.host`
 - `orchestration.hub.image`
 - `orchestration.hub.verticleClass`
@@ -52,7 +49,6 @@ helm template zipline charts/zipline-orchestration \
   --namespace zipline-system \
   --set global.customer_name=test-customer \
   --set global.version=test \
-  --set global.cloud_provider=test \
   --set secrets.provider=test \
   --set database.host=postgres.example.com \
   --set compute.objectStore.bucket=test-bucket \

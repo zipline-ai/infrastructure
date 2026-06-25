@@ -119,10 +119,6 @@ locals {
   ]
 
   provider_values = {
-    global = {
-      cloud_provider = "azure"
-    }
-
     podLabels = {
       "azure.workload.identity/use" = "true"
     }

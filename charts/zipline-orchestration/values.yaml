@@ -6,8 +6,6 @@ global:
   artifact_prefix: ""
   version: ""
   deploy_fetcher: false
-  # Passed through to Hub/compute runtime as data. Templates must not branch on it.
-  cloud_provider: ""
 
 runtime:
   env: []

@@ -123,10 +123,6 @@ locals {
   )
 
   provider_values = {
-    global = {
-      cloud_provider = "aws"
-    }
-
     database = {
       url = local.database_url
     }
