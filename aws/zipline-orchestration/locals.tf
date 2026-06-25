@@ -28,7 +28,37 @@ locals {
     }
   ]
 
+  compute_input = merge({ spark_event_log_dir = "" }, try(var.orchestration.compute, {}))
+
   orchestration = merge(var.orchestration, {
+    hub = merge(try(var.orchestration.hub, {}), {
+      image          = local.hub_image
+      verticle_class = local.hub_verticle_class
+    })
+    eval = merge(try(var.orchestration.eval, {}), {
+      image = local.eval_image
+    })
+    compute = merge(local.compute_input, {
+      object_store = {
+        bucket = local.aws.warehouse_bucket
+        region = local.aws.region
+      }
+      spark_event_log_dir = local.spark_event_log_dir
+      service_account = merge(try(local.compute_input.service_account, {}), {
+        annotations = {
+          "eks.amazonaws.com/role-arn" = local.aws.spark_compute_role_arn
+        }
+      })
+      spark_defaults = merge(try(local.compute_input.spark_defaults, {}), {
+        nvmeEnabled    = true
+        nvmeSetupImage = "amazon/aws-cli:2.27.33"
+      })
+      flink_defaults = merge(try(local.compute_input.flink_defaults, {}), {
+        serviceAccountAnnotations = {
+          "eks.amazonaws.com/role-arn" = local.flink_compute_role_arn
+        }
+      })
+    })
     secrets = merge(try(var.orchestration.secrets, {}), {
       extra_secret_objects = concat(
         try(var.orchestration.secrets.extra_secret_objects, []),
@@ -48,12 +78,8 @@ locals {
   })
 
   deployment                  = local.orchestration.deployment
-  database                    = local.orchestration.database
-  compute                     = merge({ spark_event_log_dir = "" }, try(local.orchestration.compute, {}))
-  spark_event_log_dir         = local.compute.spark_event_log_dir != "" ? local.compute.spark_event_log_dir : "s3a://${local.aws.warehouse_bucket}/spark-events"
+  spark_event_log_dir         = local.compute_input.spark_event_log_dir != "" ? local.compute_input.spark_event_log_dir : "s3a://${local.aws.warehouse_bucket}/spark-events"
   flink_compute_role_arn      = local.aws.flink_compute_role_arn != "" ? local.aws.flink_compute_role_arn : local.aws.spark_compute_role_arn
-  database_host_with_port     = "${local.database.host}:${try(local.database.port, 5432)}"
-  database_url                = try(local.database.url, "") != "" ? local.database.url : "postgres://$(DB_USERNAME)@${local.database_host_with_port}/${try(local.database.name, "execution_info")}?sslmode=require"
   hub_image                   = "ziplineai/hub-aws"
   eval_image                  = "ziplineai/eval-aws"
   hub_verticle_class          = "ai.chronon.hub.AWSOrchestrationVerticle,ai.chronon.hub.AWSWorkflowExecutionVerticle"
@@ -123,36 +149,10 @@ locals {
   )
 
   provider_values = {
-    database = {
-      url = local.database_url
-    }
-
     secrets = {
       provider = "aws"
       parameters = {
         objects = yamlencode(local.secret_provider_objects)
-      }
-    }
-
-    compute = {
-      objectStore = {
-        bucket = local.aws.warehouse_bucket
-        region = local.aws.region
-      }
-      serviceAccount = {
-        annotations = {
-          "eks.amazonaws.com/role-arn" = local.aws.spark_compute_role_arn
-        }
-      }
-      sparkDefaults = {
-        eventLogDir    = local.spark_event_log_dir
-        nvmeEnabled    = true
-        nvmeSetupImage = "amazon/aws-cli:2.27.33"
-      }
-      flinkDefaults = {
-        serviceAccountAnnotations = {
-          "eks.amazonaws.com/role-arn" = local.flink_compute_role_arn
-        }
       }
     }
 
@@ -175,16 +175,6 @@ locals {
             }
           }
         }
-      }
-    }
-
-    orchestration = {
-      hub = {
-        image         = local.hub_image
-        verticleClass = local.hub_verticle_class
-      }
-      eval = {
-        image = local.eval_image
       }
     }
 

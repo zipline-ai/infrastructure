@@ -3,8 +3,8 @@
 Installs the shared `charts/zipline-orchestration` chart.
 
 This module is intentionally cloud-neutral. Cloud-specific roots pass one shared
-`orchestration` object for common install inputs, plus a cloud-specific Helm
-values map through `values`.
+`orchestration` object for common install inputs. Cloud-specific Helm values are
+nested under `orchestration.values` by the wrappers.
 
 The module owns common Kubernetes installation mechanics:
 

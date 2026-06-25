@@ -157,7 +157,7 @@ Postgres URL for services that expect a non-JDBC DATABASE_URL.
 {{- if .Values.database.url -}}
 {{- .Values.database.url -}}
 {{- else -}}
-{{- $url := printf "postgresql://%s:%v/%s" .Values.database.host (.Values.database.port | default 5432) .Values.database.name -}}
+{{- $url := printf "postgres://$(DB_USERNAME)@%s:%v/%s" .Values.database.host (.Values.database.port | default 5432) .Values.database.name -}}
 {{- if .Values.database.sslMode -}}
 {{- printf "%s?sslmode=%s" $url .Values.database.sslMode -}}
 {{- else -}}

@@ -16,8 +16,8 @@ It keeps the Terraform surface to AWS orchestration plumbing. Shared install
 inputs live under the `orchestration` object and are consumed by
 `modules/zipline-orchestration`; AWS-specific inputs live under the `aws`
 object.
-The chart owns service defaults such as per-service ingress annotations, image
-repositories, fetcher replicas, and Polaris bootstrap defaults. Use
+The shared module owns common service value generation such as image propagation,
+compute defaults, and Polaris bootstrap defaults. Use
 `orchestration.extra_values` only for intentional one-off Helm overrides.
 
 Networking intentionally matches Azure at the chart boundary: cloud load

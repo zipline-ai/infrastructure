@@ -8,7 +8,7 @@ Azure-specific work stays at this layer:
 - Azure workload identity annotations and pod labels.
 - Azure Key Vault objects projected through the generic chart `secrets` values.
 - Static IP and resource-group settings for ingress-nginx controller Services.
-- ABFS event log, warehouse, and Flink state paths supplied as runtime values.
+- ABFS event log and Polaris catalog paths supplied as runtime values.
 
 The wrapper assumes the AKS cluster already has workload identity and the Azure
 Key Vault CSI provider path available. It keeps the Terraform surface to Azure
@@ -16,9 +16,9 @@ orchestration plumbing. Shared install inputs live under the `orchestration`
 object and are consumed by
 `modules/zipline-orchestration`; Azure-specific inputs live under the `azure`
 object.
-The chart owns service defaults such as per-service ingress annotations, image
-repositories, and fetcher replicas. Use `orchestration.extra_values` only for
-intentional one-off Helm overrides, such as a private registry mirror.
+The shared module owns common service value generation such as image propagation,
+compute defaults, and Polaris bootstrap defaults. Use `orchestration.extra_values`
+only for intentional one-off Helm overrides, such as a private registry mirror.
 
 Networking intentionally matches AWS at the chart boundary: cloud load balancers
 pass traffic to ingress-nginx, and Kubernetes Ingress TLS secrets own TLS

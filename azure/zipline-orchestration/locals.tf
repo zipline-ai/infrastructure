@@ -15,13 +15,33 @@ locals {
     "sso-client-secret",
   ]
 
+  compute_input = merge({ spark_event_log_dir = "", flink_service_account = "flink", default_namespace = "zipline-default" }, try(var.orchestration.compute, {}))
+
   orchestration = merge(var.orchestration, {
+    hub = merge(try(var.orchestration.hub, {}), {
+      image          = local.hub_image
+      verticle_class = local.hub_verticle_class
+    })
+    eval = merge(try(var.orchestration.eval, {}), {
+      image = local.eval_image
+    })
+    compute = merge(local.compute_input, {
+      object_store = {
+        bucket = local.azure.warehouse_container_name
+        region = local.azure.location
+      }
+      spark_event_log_dir = local.spark_event_log_dir
+      service_account = merge(try(local.compute_input.service_account, {}), {
+        annotations = local.workload_identity_annotations
+      })
+      flink_defaults = merge(try(local.compute_input.flink_defaults, {}), {
+        serviceAccountAnnotations = local.workload_identity_annotations
+      })
+      history_server_options = concat(local.spark_history_opts, try(local.compute_input.history_server_options, []))
+    })
     image_pull_secret = merge({
       name = ""
     }, try(var.orchestration.image_pull_secret, {}))
-    database = merge({
-      ssl_mode = "require"
-    }, var.orchestration.database)
     ingress = merge({
       class_name                  = "nginx-ui"
       tls_secret_name             = "zipline-tls-secret"
@@ -44,29 +64,18 @@ locals {
   })
 
   deployment = local.orchestration.deployment
-  database   = local.orchestration.database
-  compute    = merge({ spark_event_log_dir = "", flink_service_account = "flink", default_namespace = "zipline-default" }, try(local.orchestration.compute, {}))
 
   normalized_storage_path     = trim(local.azure.storage_path_prefix, "/")
   storage_path_prefix_segment = local.normalized_storage_path == "" ? "" : "${local.normalized_storage_path}/"
   abfs_base_uri               = "abfss://${local.azure.warehouse_container_name}@${local.azure.storage_account_name}.dfs.core.windows.net/${local.storage_path_prefix_segment}"
-  spark_event_log_dir         = local.compute.spark_event_log_dir != "" ? local.compute.spark_event_log_dir : "${local.abfs_base_uri}spark-events"
-  warehouse_prefix            = "${local.abfs_base_uri}warehouse"
-  flink_state_uri             = "${local.abfs_base_uri}flink-state"
+  spark_event_log_dir         = local.compute_input.spark_event_log_dir != "" ? local.compute_input.spark_event_log_dir : "${local.abfs_base_uri}spark-events"
   polaris_base_location       = "${local.abfs_base_uri}polaris/polaris_${local.deployment.customer_name}/"
-  database_host_with_port     = "${local.database.host}:${try(local.database.port, 5432)}"
-  database_url                = try(local.database.url, "") != "" ? local.database.url : "postgres://$(DB_USERNAME)@${local.database_host_with_port}/${try(local.database.name, "execution_info")}?sslmode=${local.database.ssl_mode}"
   hub_image                   = "ziplineai/hub-azure"
   eval_image                  = "ziplineai/eval-azure"
   hub_verticle_class          = "ai.chronon.hub.AzureOrchestrationVerticle,ai.chronon.hub.AzureWorkflowExecutionVerticle"
   auth_enabled                = try(local.orchestration.auth.enabled, false)
 
   workload_identity_annotations = {
-    "azure.workload.identity/client-id" = local.azure.workload_identity_client_id
-    "azure.workload.identity/tenant-id" = local.azure.tenant_id
-  }
-
-  compute_service_account_annotations = {
     "azure.workload.identity/client-id" = local.azure.workload_identity_client_id
     "azure.workload.identity/tenant-id" = local.azure.tenant_id
   }
@@ -123,10 +132,6 @@ locals {
       "azure.workload.identity/use" = "true"
     }
 
-    database = {
-      url = local.database_url
-    }
-
     secrets = {
       provider = "azure"
       parameters = {
@@ -136,25 +141,6 @@ locals {
         keyvaultName           = local.azure.keyvault_name
         tenantId               = local.azure.tenant_id
         objects                = local.keyvault_objects
-      }
-    }
-
-    compute = {
-      objectStore = {
-        bucket = local.azure.warehouse_container_name
-        region = local.azure.location
-      }
-      serviceAccount = {
-        annotations = local.compute_service_account_annotations
-      }
-      sparkDefaults = {
-        eventLogDir = local.spark_event_log_dir
-      }
-      historyServer = {
-        extraSparkHistoryOpts = concat(local.spark_history_opts, try(local.compute.history_server_options, []))
-      }
-      flinkDefaults = {
-        serviceAccountAnnotations = local.compute_service_account_annotations
       }
     }
 
@@ -172,16 +158,6 @@ locals {
             }
           }
         }
-      }
-    }
-
-    orchestration = {
-      hub = {
-        image         = local.hub_image
-        verticleClass = local.hub_verticle_class
-      }
-      eval = {
-        image = local.eval_image
       }
     }
 

@@ -41,7 +41,7 @@ locals {
     url      = ""
     port     = 5432
     name     = "execution_info"
-    ssl_mode = ""
+    ssl_mode = "require"
   }
   database = merge(local.database_defaults, var.orchestration.database)
 
@@ -95,9 +95,17 @@ locals {
     chronon_metrics_reader       = "http"
     table_partitions_dataset     = "TABLE_PARTITIONS"
     data_quality_metrics_dataset = "DATA_QUALITY_METRICS"
+    image                        = ""
+    verticle_class               = ""
     env                          = []
   }
-  hub = merge(local.hub_defaults, try(var.orchestration.hub, {}))
+  hub                = merge(local.hub_defaults, try(var.orchestration.hub, {}))
+  hub_verticle_class = local.hub.verticle_class != "" ? local.hub.verticle_class : try(local.hub.verticleClass, "")
+
+  eval_defaults = {
+    image = ""
+  }
+  eval = merge(local.eval_defaults, try(var.orchestration.eval, {}))
 
   hub_env = concat(
     local.hub.chronon_metrics_reader == "" ? [] : [
@@ -179,20 +187,24 @@ locals {
   )
 
   compute_defaults = {
-    default_namespace       = "zipline-default"
-    namespaces              = [{ name = "zipline-default", team = "default" }]
-    spark_image             = "ziplineai/spark:nightly"
-    flink_image             = "ziplineai/flink:1.20.3"
-    spark_service_account   = "spark-operator-spark"
-    flink_service_account   = "flink"
-    spark_event_log_dir     = ""
-    rbac_create             = true
-    image_prepull_enabled   = true
-    image_prepull_images    = []
-    history_server_image    = ""
-    history_server_options  = []
-    spark_defaults          = {}
-    flink_defaults          = {}
+    default_namespace      = "zipline-default"
+    namespaces             = [{ name = "zipline-default", team = "default" }]
+    spark_image            = "ziplineai/spark:nightly"
+    flink_image            = "ziplineai/flink:1.20.3"
+    spark_service_account  = "spark-operator-spark"
+    flink_service_account  = "flink"
+    spark_event_log_dir    = ""
+    rbac_create            = true
+    image_prepull_enabled  = true
+    image_prepull_images   = []
+    history_server_image   = ""
+    history_server_options = []
+    spark_defaults         = {}
+    flink_defaults         = {}
+    object_store = {
+      bucket = ""
+      region = ""
+    }
     service_account         = {}
     image_prepull_overrides = {}
   }
@@ -287,6 +299,7 @@ locals {
       enabled          = true
       defaultNamespace = local.compute.default_namespace
       namespaces       = local.compute.namespaces
+      objectStore      = local.compute.object_store
       serviceAccount = {
         sparkName   = local.compute.spark_service_account
         flinkName   = local.compute.flink_service_account
@@ -340,7 +353,9 @@ locals {
 
     orchestration = {
       hub = {
-        env = local.hub_env
+        image         = local.hub.image
+        verticleClass = local.hub_verticle_class
+        env           = local.hub_env
       }
       ui = {
         env = concat(
@@ -355,6 +370,7 @@ locals {
         )
       }
       eval = {
+        image = local.eval.image
         env = concat(
           try(var.orchestration.provider_eval_env, []),
           try(var.orchestration.eval_env, []),
@@ -435,9 +451,9 @@ resource "helm_release" "this" {
 
   values = concat(
     [yamlencode(local.common_values)],
-    [yamlencode(var.values)],
-    [for value in var.extra_values : yamlencode(value)],
-    var.extra_values_yaml,
+    [yamlencode(try(var.orchestration.values, {}))],
+    [for value in try(var.orchestration.extra_values, []) : yamlencode(value)],
+    try(var.orchestration.extra_values_yaml, []),
   )
 
   depends_on = [
