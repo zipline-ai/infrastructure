@@ -61,6 +61,35 @@ Service account name
 {{- end }}
 
 {{/*
+Controller Service name rendered by an aliased ingress-nginx subchart.
+*/}}
+{{- define "zipline-orchestration.ingressNginxFullname" -}}
+{{- $root := .root -}}
+{{- $alias := .alias -}}
+{{- $values := index $root.Values $alias | default dict -}}
+{{- if $values.fullnameOverride -}}
+{{- $values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default $alias $values.nameOverride -}}
+{{- if contains $name $root.Release.Name -}}
+{{- $root.Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" $root.Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{- define "zipline-orchestration.ingressNginxControllerServiceName" -}}
+{{- $root := .root -}}
+{{- $alias := .alias -}}
+{{- $values := index $root.Values $alias | default dict -}}
+{{- $controller := $values.controller | default dict -}}
+{{- $controllerName := $controller.name | default "controller" -}}
+{{- $fullname := include "zipline-orchestration.ingressNginxFullname" (dict "root" $root "alias" $alias) -}}
+{{- printf "%s-%s" $fullname $controllerName | trunc 63 | trimSuffix "-" -}}
+{{- end }}
+
+{{/*
 Default Kubernetes namespace used for Spark compute jobs.
 */}}
 {{- define "zipline-orchestration.computeDefaultNamespace" -}}
