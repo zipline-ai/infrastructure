@@ -18,6 +18,3 @@ The module owns common Kubernetes installation mechanics:
 Provider-specific controllers such as the AWS Secrets Store provider, AWS Load
 Balancer Controller, and cloud identity bindings stay in cloud-specific
 wrappers.
-
-The cloud installation wrapper must pass `chart_path`; this module should not
-assume the repository layout or which wrapper path is being applied.

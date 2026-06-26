@@ -79,9 +79,10 @@ locals {
       [{ name = "KV_TABLE_PREFIX", value = local.aws.kv_table_prefix }],
       local.databricks_env,
     )
+    values = local.provider_values
   })
 
-  deployment                  = local.orchestration.deployment
+  deployment                  = var.orchestration.deployment
   spark_event_log_dir         = local.compute_input.spark_event_log_dir != "" ? local.compute_input.spark_event_log_dir : "s3a://${local.aws.warehouse_bucket}/spark-events"
   flink_compute_role_arn      = local.aws.flink_compute_role_arn != "" ? local.aws.flink_compute_role_arn : local.aws.spark_compute_role_arn
   hub_image                   = "ziplineai/hub-aws"
@@ -89,7 +90,7 @@ locals {
   hub_verticle_class          = "ai.chronon.hub.AWSOrchestrationVerticle,ai.chronon.hub.AWSWorkflowExecutionVerticle"
   polaris_base_location       = "s3://${local.aws.warehouse_bucket}/polaris/polaris_${local.deployment.customer_name}/"
   polaris_database_init_image = "public.ecr.aws/docker/library/postgres:16-alpine"
-  auth_enabled                = try(local.orchestration.auth.enabled, false)
+  auth_enabled                = try(var.orchestration.auth.enabled, false)
 
   ingress_lb_service = {
     annotations = {

@@ -64,9 +64,10 @@ locals {
     provider_service_account_annotations = local.workload_identity_annotations
     provider_runtime_env                 = local.runtime_env
     provider_hub_env                     = local.hub_env
+    values                               = local.provider_values
   })
 
-  deployment = local.orchestration.deployment
+  deployment = var.orchestration.deployment
 
   normalized_storage_path     = trim(local.azure.storage_path_prefix, "/")
   storage_path_prefix_segment = local.normalized_storage_path == "" ? "" : "${local.normalized_storage_path}/"
@@ -76,7 +77,7 @@ locals {
   hub_image                   = "ziplineai/hub-azure"
   eval_image                  = "ziplineai/eval-azure"
   hub_verticle_class          = "ai.chronon.hub.AzureOrchestrationVerticle,ai.chronon.hub.AzureWorkflowExecutionVerticle"
-  auth_enabled                = try(local.orchestration.auth.enabled, false)
+  auth_enabled                = try(var.orchestration.auth.enabled, false)
 
   workload_identity_annotations = {
     "azure.workload.identity/client-id" = local.azure.workload_identity_client_id

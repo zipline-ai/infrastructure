@@ -1,6 +1,7 @@
 variable "chart_path" {
-  description = "Path to the zipline-orchestration chart supplied by the cloud installation wrapper."
+  description = "Path to the zipline-orchestration chart. Defaults to the repository-level charts/zipline-orchestration directory."
   type        = string
+  default     = ""
 }
 
 variable "orchestration" {

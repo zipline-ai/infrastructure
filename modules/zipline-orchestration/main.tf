@@ -1,5 +1,5 @@
 locals {
-  chart_path  = abspath(var.chart_path)
+  chart_path  = abspath(var.chart_path == "" ? "${path.module}/../../charts/zipline-orchestration" : var.chart_path)
   chart_files = sort(fileset(local.chart_path, "**"))
 
   install_defaults = {
