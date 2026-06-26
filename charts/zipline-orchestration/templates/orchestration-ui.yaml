@@ -47,17 +47,11 @@ spec:
               value: "http://eval-service"
             - name: ORIGIN
               value: {{ include "zipline-orchestration.uiOrigin" . | quote }}
-            - name: DB_HOST
-              value: {{ include "zipline-orchestration.databaseHostWithPort" . | quote }}
-            - name: DB_NAME
-              value: {{ .Values.database.name | quote }}
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "zipline-orchestration.databaseCredentialsSecretName" . }}
                   key: {{ include "zipline-orchestration.databaseCredentialsPasswordKey" . }}
-            - name: PUBLIC_ORCH_SERVER_NAME
-              value: "{{ .Values.global.customer_name }}-zipline-orchestration"
             - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -77,8 +71,6 @@ spec:
               value: {{ printf "{\"filters\":[{\"field\":\"namespace\",\"value\":\"%s\"},{\"field\":\"container\",\"value\":\"orchestration-hub\"},{\"field\":\"workflowId\",\"value\":\"%s\",\"source\":\"json\"}]}" (include "zipline-orchestration.computeSystemNamespace" .) "{{WORKFLOW_ID}}" | quote }}
             - name: LOG_SERVICE_NODE_STEP_RUN_FILTER
               value: {{ printf "{\"filters\":[{\"field\":\"namespace\",\"value\":\"%s\"},{\"field\":\"container\",\"value\":\"orchestration-hub\"},{\"field\":\"stepId\",\"value\":\"%s\",\"source\":\"json\"}]}" (include "zipline-orchestration.computeSystemNamespace" .) "{{STEP_ID}}" | quote }}
-            - name: ORCH_CONTAINER_NAME
-              value: "orchestration-hub"
             - name: PROMETHEUS_QUERY_ENDPOINT
               value: "{{ .Values.prometheus.queryEndpoint }}"
             - name: PROMETHEUS_NAMESPACE

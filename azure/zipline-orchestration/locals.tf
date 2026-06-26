@@ -45,7 +45,6 @@ locals {
       class_name                  = "nginx-ui"
       tls_secret_name             = "zipline-tls-secret"
       cert_manager_cluster_issuer = "letsencrypt-prod"
-      annotations                 = {}
     }
     addons = {
       install_secrets_store_csi_driver = false
@@ -63,8 +62,7 @@ locals {
       { name = "AZURE_CLIENT_ID", value = local.cloud_args.workload_identity_client_id },
       { name = "AZURE_STORAGE_ACCOUNT_NAME", value = local.cloud_args.storage_account_name },
     ]
-    hub_env = []
-    values  = local.provider_values
+    values = local.provider_values
   }
 
   deployment = var.orchestration.deployment
