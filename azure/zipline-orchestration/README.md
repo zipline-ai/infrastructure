@@ -29,42 +29,24 @@ pass traffic to ingress-nginx, and Kubernetes Ingress TLS secrets own TLS
 termination. Azure Application Gateway or Front Door can still be layered in
 front later without changing the Zipline chart.
 
-## Crucible Canary Overrides
+## Inputs
 
-Crucible Azure settings are stored outside the repo in Azure Blob Storage and
-pulled locally when planning or applying:
-
-```shell
-../../pull_crucible_config.sh azure
-```
-
-By default the script reads from storage account `ziplineai2`, container
-`dev-zipline-vars`, and prefix `crucible-azure/zipline-orchestration`. Override
-those with `AZURE_CONFIG_STORAGE_ACCOUNT`, `AZURE_CONFIG_CONTAINER`, and
-`AZURE_CONFIG_PREFIX` if needed.
-
-The script downloads two git-ignored files into this Terraform root:
-
-- `backend.hcl`
-- `crucible.auto.tfvars.json`
-
-The stored tfvars file is expected to already use the wrapper structure; the
-script does not translate legacy flat tfvars.
-
-Canary inputs should be grouped into shared and provider-specific objects:
+Environment-specific settings should be supplied through local, git-ignored
+Terraform variable files. Inputs are grouped into shared and provider-specific
+objects:
 
 ```hcl
 orchestration = {
   install = {
-    release_name = "claims-demo-hub"
-    namespace    = "claims-demo-hub"
+    release_name = "zipline-orchestration"
+    namespace    = "zipline-system"
     helm_wait    = false
     helm_timeout = 900
   }
   deployment = {
-    customer_name   = "claims-demo"
-    artifact_prefix = "abfss://crucible@ziplineai2.dfs.core.windows.net/claims-demo/artifacts"
-    zipline_version = "subdaily-sensor-fix-20260617235538"
+    customer_name   = "example"
+    artifact_prefix = "abfss://artifacts@example.dfs.core.windows.net/zipline/artifacts"
+    zipline_version = "example-version"
   }
   database = {
     host     = "example.postgres.database.azure.com"
@@ -72,33 +54,26 @@ orchestration = {
     ssl_mode = "require"
   }
   ingress = {
-    domain          = "crucible-azure.zipline.ai"
-    tls_secret_name = "crucible-azure-tls"
+    domain          = "zipline.example.com"
+    tls_secret_name = "zipline-tls"
   }
 }
 
 azure = {
   location                    = "westus2"
   tenant_id                   = "00000000-0000-0000-0000-000000000000"
-  keyvault_name               = "crucible-azure-kv"
+  keyvault_name               = "example-keyvault"
   keyvault_identity_client_id = "00000000-0000-0000-0000-000000000000"
   workload_identity_client_id = "00000000-0000-0000-0000-000000000000"
-  warehouse_container_name    = "crucible"
-  storage_account_name        = "ziplineai2"
+  warehouse_container_name    = "warehouse"
+  storage_account_name        = "examplestorage"
 }
 ```
 
 Initialize this wrapper with:
 
 ```shell
-az aks get-credentials --resource-group crucible-rg --name crucible-aks
+az aks get-credentials --resource-group example-rg --name example-aks
 
 tofu init -reconfigure -backend-config=backend.hcl
-```
-
-If the remote canary inputs need to be updated intentionally, edit the local
-ignored files and run:
-
-```shell
-../../push_crucible_config.sh azure
 ```

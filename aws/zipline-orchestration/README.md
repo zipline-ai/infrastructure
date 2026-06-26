@@ -29,27 +29,11 @@ balancers pass traffic to ingress-nginx, and Kubernetes Ingress TLS secrets own
 TLS termination. ACM-specific load balancer TLS termination can still be layered
 through `extra_values`, but is not the default shared path.
 
-## Crucible Canary Overrides
+## Inputs
 
-Crucible canary settings are stored outside the repo in S3 and pulled locally
-when planning or applying:
-
-```shell
-../../pull_crucible_config.sh aws
-```
-
-By default the script reads from bucket `zipline-crucible-vars` and key
-`zipline-orchestration/crucible.auto.tfvars.json`. Override those with
-`CRUCIBLE_CONFIG_BUCKET` and `CRUCIBLE_CONFIG_KEY` if needed.
-
-The script downloads one git-ignored file into this Terraform root:
-
-- `crucible.auto.tfvars.json`
-
-The stored file is expected to already use the wrapper structure; the script
-does not translate legacy flat tfvars.
-
-Canary inputs should be grouped into shared and provider-specific objects:
+Environment-specific settings should be supplied through local, git-ignored
+Terraform variable files. Inputs are grouped into shared and provider-specific
+objects:
 
 ```hcl
 orchestration = {
@@ -59,23 +43,23 @@ orchestration = {
     helm_timeout = 300
   }
   deployment = {
-    customer_name   = "crucible"
-    artifact_prefix = "s3://zipline-artifacts-crucible"
-    zipline_version = "nightly"
+    customer_name   = "example"
+    artifact_prefix = "s3://example-artifacts"
+    zipline_version = "example-version"
   }
   database = {
     host = "example.postgres.amazonaws.com"
   }
   ingress = {
-    domain = "crucible-aws.zipline.ai"
+    domain = "zipline.example.com"
   }
 }
 
 aws = {
   region                 = "us-west-2"
-  cluster_name           = "crucible-eks"
+  cluster_name           = "example-eks"
   database_secret_arn    = "arn:aws:secretsmanager:us-west-2:123456789012:secret:zipline-db"
-  warehouse_bucket       = "zipline-warehouse-crucible"
+  warehouse_bucket       = "example-warehouse"
   orchestration_role_arn = "arn:aws:iam::123456789012:role/orchestration"
   spark_compute_role_arn = "arn:aws:iam::123456789012:role/spark-compute"
   flink_compute_role_arn = "arn:aws:iam::123456789012:role/flink-compute"
@@ -86,22 +70,14 @@ aws = {
 `flink_compute_role_arn` can be omitted when Flink should use the same service
 account annotation as Spark.
 
-This wrapper should use the dedicated Helm adoption state key, not the old full
-AWS infrastructure state:
+Initialize this wrapper with a backend configured for the target environment:
 
 ```shell
-aws eks update-kubeconfig --region us-west-2 --name crucible-eks
+aws eks update-kubeconfig --region us-west-2 --name example-eks
 
 tofu init -reconfigure \
-  -backend-config=bucket=zipline-ai-opentofu-state-bucket \
-  -backend-config=key=opentofu-crucible-zipline-orchestration-state \
-  -backend-config=region=us-west-1 \
+  -backend-config=bucket=example-opentofu-state \
+  -backend-config=key=zipline-orchestration-state \
+  -backend-config=region=us-west-2 \
   -backend-config=encrypt=true
-```
-
-If the remote canary inputs need to be updated intentionally, edit the local
-ignored `crucible.auto.tfvars.json` and run:
-
-```shell
-../../push_crucible_config.sh aws
 ```
