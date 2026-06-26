@@ -211,7 +211,9 @@ locals {
     service_account         = {}
     image_prepull_overrides = {}
   }
-  compute = merge(local.compute_defaults, try(var.orchestration.compute, {}))
+  compute                           = merge(local.compute_defaults, try(var.orchestration.compute, {}))
+  compute_object_store_bucket_input = try(local.compute.object_store.bucket, "")
+  compute_object_store_bucket       = local.compute_object_store_bucket_input == null ? "" : tostring(local.compute_object_store_bucket_input)
 
   compute_service_account_defaults = {
     annotations = {}
@@ -385,12 +387,18 @@ locals {
 resource "terraform_data" "configuration_validation" {
   input = {
     create_image_pull_secret = local.image_pull_secret.create
+    object_store_bucket      = local.compute_object_store_bucket
   }
 
   lifecycle {
     precondition {
       condition     = !local.image_pull_secret.create || trimspace(local.image_pull_secret.dockerhub_token) != ""
       error_message = "orchestration.image_pull_secret.dockerhub_token must be set when orchestration.image_pull_secret.create is true."
+    }
+
+    precondition {
+      condition     = !strcontains(local.compute_object_store_bucket, "://")
+      error_message = "orchestration.compute.object_store.bucket must be a bucket/container name only, not a URI."
     }
   }
 }
