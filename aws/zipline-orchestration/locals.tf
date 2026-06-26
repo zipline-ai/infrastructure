@@ -11,6 +11,14 @@ locals {
     databricks_sp_secret_arn = ""
   }, var.aws)
 
+  kubernetes_provider = {
+    host                   = data.aws_eks_cluster.this.endpoint
+    cluster_ca_certificate = base64decode(data.aws_eks_cluster.this.certificate_authority[0].data)
+    token                  = data.aws_eks_cluster_auth.this.token
+    client_certificate     = null
+    client_key             = null
+  }
+
   auth_saml_enabled = try(var.orchestration.auth.sso_use_saml, false)
   auth_secret_keys = concat(
     [

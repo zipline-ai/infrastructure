@@ -27,16 +27,20 @@ data "aws_eks_cluster_auth" "this" {
 }
 
 provider "kubernetes" {
-  host                   = data.aws_eks_cluster.this.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.this.certificate_authority[0].data)
-  token                  = data.aws_eks_cluster_auth.this.token
+  host                   = local.kubernetes_provider.host
+  cluster_ca_certificate = local.kubernetes_provider.cluster_ca_certificate
+  token                  = local.kubernetes_provider.token
+  client_certificate     = local.kubernetes_provider.client_certificate
+  client_key             = local.kubernetes_provider.client_key
 }
 
 provider "helm" {
   kubernetes {
-    host                   = data.aws_eks_cluster.this.endpoint
-    cluster_ca_certificate = base64decode(data.aws_eks_cluster.this.certificate_authority[0].data)
-    token                  = data.aws_eks_cluster_auth.this.token
+    host                   = local.kubernetes_provider.host
+    cluster_ca_certificate = local.kubernetes_provider.cluster_ca_certificate
+    token                  = local.kubernetes_provider.token
+    client_certificate     = local.kubernetes_provider.client_certificate
+    client_key             = local.kubernetes_provider.client_key
   }
 }
 
