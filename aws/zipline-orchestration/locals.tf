@@ -33,53 +33,50 @@ locals {
 
   compute_input = try(var.orchestration.compute, {})
 
-  orchestration = merge(var.orchestration, {
-    hub = merge(try(var.orchestration.hub, {}), {
+  provider_context = {
+    hub = {
       image          = local.hub_image
       verticle_class = local.hub_verticle_class
-    })
-    eval = merge(try(var.orchestration.eval, {}), {
+    }
+    eval = {
       image = local.eval_image
-    })
-    compute = merge(local.compute_input, {
+    }
+    compute = {
       object_store = {
         bucket = local.cloud_args.warehouse_bucket
         region = local.cloud_args.region
       }
       spark_event_log_dir = local.spark_event_log_dir
-      service_account = merge(try(local.compute_input.service_account, {}), {
+      service_account = {
         annotations = {
           "eks.amazonaws.com/role-arn" = local.cloud_args.spark_compute_role_arn
         }
-      })
-      spark_defaults = merge(try(local.compute_input.spark_defaults, {}), {
+      }
+      spark_defaults = {
         nvmeEnabled    = true
         nvmeSetupImage = "amazon/aws-cli:2.27.33"
-      })
-      flink_defaults = merge(try(local.compute_input.flink_defaults, {}), {
+      }
+      flink_defaults = {
         serviceAccountAnnotations = {
           "eks.amazonaws.com/role-arn" = local.flink_compute_role_arn
         }
-      })
-    })
-    secrets = merge(try(var.orchestration.secrets, {}), {
-      extra_secret_objects = concat(
-        try(var.orchestration.secrets.extra_secret_objects, []),
-        local.databricks_secret_objects,
-      )
-    })
-    provider_service_account_annotations = {
+      }
+    }
+    secrets = {
+      extra_secret_objects = local.databricks_secret_objects
+    }
+    service_account_annotations = {
       "eks.amazonaws.com/role-arn" = local.cloud_args.orchestration_role_arn
     }
-    provider_runtime_env = local.runtime_env
-    provider_hub_env     = local.hub_env
-    provider_ui_env      = local.cloud_args.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.cloud_args.eks_log_group }]
-    provider_eval_env = concat(
+    runtime_env = local.runtime_env
+    hub_env     = local.hub_env
+    ui_env      = local.cloud_args.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.cloud_args.eks_log_group }]
+    eval_env = concat(
       [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }],
       local.databricks_env,
     )
     values = local.provider_values
-  })
+  }
 
   deployment                  = var.orchestration.deployment
   spark_event_log_dir         = try(local.compute_input.spark_event_log_dir, "") != "" ? local.compute_input.spark_event_log_dir : "s3a://${local.cloud_args.warehouse_bucket}/spark-events"

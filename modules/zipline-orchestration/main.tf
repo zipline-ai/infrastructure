@@ -2,6 +2,74 @@ locals {
   chart_path  = abspath(var.chart_path == "" ? "${path.module}/../../charts/zipline-orchestration" : var.chart_path)
   chart_files = sort(fileset(local.chart_path, "**"))
 
+  orchestration_input        = var.orchestration
+  provider_context           = var.provider_context
+  provider_compute           = try(local.provider_context.compute, {})
+  provider_secrets           = try(local.provider_context.secrets, {})
+  orchestration_compute      = try(local.orchestration_input.compute, {})
+  orchestration_secrets      = try(local.orchestration_input.secrets, {})
+  orchestration_image_secret = try(local.orchestration_input.image_pull_secret, {})
+  orchestration_ingress      = try(local.orchestration_input.ingress, {})
+  orchestration_addons       = try(local.orchestration_input.addons, {})
+
+  orchestration = merge(local.orchestration_input, {
+    hub = merge(
+      try(local.orchestration_input.hub, {}),
+      try(local.provider_context.hub, {}),
+    )
+    eval = merge(
+      try(local.orchestration_input.eval, {}),
+      try(local.provider_context.eval, {}),
+    )
+    compute = merge(local.orchestration_compute, local.provider_compute, {
+      service_account = merge(
+        try(local.orchestration_compute.service_account, {}),
+        try(local.provider_compute.service_account, {}),
+      )
+      spark_defaults = merge(
+        try(local.orchestration_compute.spark_defaults, {}),
+        try(local.provider_compute.spark_defaults, {}),
+      )
+      flink_defaults = merge(
+        try(local.orchestration_compute.flink_defaults, {}),
+        try(local.provider_compute.flink_defaults, {}),
+      )
+      history_server_options = concat(
+        try(local.provider_compute.history_server_options, []),
+        try(local.orchestration_compute.history_server_options, []),
+      )
+    })
+    image_pull_secret = merge(
+      try(local.provider_context.image_pull_secret, {}),
+      local.orchestration_image_secret,
+    )
+    ingress = merge(
+      try(local.provider_context.ingress, {}),
+      local.orchestration_ingress,
+    )
+    addons = merge(
+      try(local.provider_context.addons, {}),
+      local.orchestration_addons,
+    )
+    secrets = merge(local.orchestration_secrets, local.provider_secrets, {
+      database_object_names = merge(
+        try(local.provider_secrets.database_object_names, {}),
+        try(local.orchestration_secrets.database_object_names, {}),
+      )
+      extra_secret_objects = concat(
+        try(local.orchestration_secrets.extra_secret_objects, []),
+        try(local.provider_secrets.extra_secret_objects, []),
+      )
+    })
+    provider_service_account_annotations = try(local.provider_context.service_account_annotations, try(local.orchestration_input.provider_service_account_annotations, {}))
+    provider_runtime_env                 = try(local.provider_context.runtime_env, try(local.orchestration_input.provider_runtime_env, []))
+    provider_hub_env                     = try(local.provider_context.hub_env, try(local.orchestration_input.provider_hub_env, []))
+    provider_ui_env                      = try(local.provider_context.ui_env, try(local.orchestration_input.provider_ui_env, []))
+    provider_fetcher_env                 = try(local.provider_context.fetcher_env, try(local.orchestration_input.provider_fetcher_env, []))
+    provider_eval_env                    = try(local.provider_context.eval_env, try(local.orchestration_input.provider_eval_env, []))
+    values                               = try(local.provider_context.values, try(local.orchestration_input.values, {}))
+  })
+
   install_defaults = {
     release_name          = "zipline-orchestration"
     namespace             = "zipline-system"
@@ -14,7 +82,7 @@ locals {
     cleanup_on_fail       = false
     dependency_update     = false
   }
-  install = merge(local.install_defaults, try(var.orchestration.install, {}))
+  install = merge(local.install_defaults, try(local.orchestration.install, {}))
 
   image_pull_secret_defaults = {
     name               = "docker-hub-creds"
@@ -22,7 +90,7 @@ locals {
     dockerhub_username = "ziplineai"
     dockerhub_token    = ""
   }
-  image_pull_secret      = merge(local.image_pull_secret_defaults, try(var.orchestration.image_pull_secret, {}))
+  image_pull_secret      = merge(local.image_pull_secret_defaults, try(local.orchestration.image_pull_secret, {}))
   image_pull_secret_name = local.image_pull_secret.create ? kubernetes_secret_v1.docker_hub_creds[0].metadata[0].name : local.image_pull_secret.name
   image_pull_secrets     = local.image_pull_secret_name == "" ? [] : [{ name = local.image_pull_secret_name }]
 
@@ -32,9 +100,9 @@ locals {
     install_flink_operator           = true
     install_opentelemetry_operator   = false
   }
-  addons = merge(local.addons_defaults, try(var.orchestration.addons, {}))
+  addons = merge(local.addons_defaults, try(local.orchestration.addons, {}))
 
-  deployment = var.orchestration.deployment
+  deployment = local.orchestration.deployment
 
   database_defaults = {
     jdbc_url = ""
@@ -43,7 +111,7 @@ locals {
     name     = "execution_info"
     ssl_mode = "require"
   }
-  database = merge(local.database_defaults, var.orchestration.database)
+  database = merge(local.database_defaults, local.orchestration.database)
 
   database_credentials_secret_defaults = {
     name         = "db-credentials"
@@ -52,7 +120,7 @@ locals {
   }
   database_credentials_secret = merge(local.database_credentials_secret_defaults, try(local.database.credentials_secret, {}))
 
-  auth_saml_enabled = try(var.orchestration.auth.sso_use_saml, false)
+  auth_saml_enabled = try(local.orchestration.auth.sso_use_saml, false)
   auth_secret_keys = concat(
     [
       "auth-secret",
@@ -73,24 +141,24 @@ locals {
     auth_object_names    = { for key in local.auth_secret_keys : key => key }
     extra_secret_objects = []
   }
-  secrets_input = try(var.orchestration.secrets, {})
+  secrets_input = try(local.orchestration.secrets, {})
   secrets = merge(local.secrets_defaults, local.secrets_input, {
     database_object_names = merge(local.secrets_defaults.database_object_names, try(local.secrets_input.database_object_names, {}))
     auth_object_names     = merge(local.secrets_defaults.auth_object_names, try(local.secrets_input.auth_object_names, {}))
   })
-  auth_enabled = try(var.orchestration.auth.enabled, false)
+  auth_enabled = try(local.orchestration.auth.enabled, false)
 
   service_account_defaults = {
     create      = true
     name        = "orchestration-sa"
     annotations = {}
   }
-  service_account_input = try(var.orchestration.service_account, {})
+  service_account_input = try(local.orchestration.service_account, {})
   service_account = merge(local.service_account_defaults, local.service_account_input, {
     annotations = merge(
       local.service_account_defaults.annotations,
       try(local.service_account_input.annotations, {}),
-      try(var.orchestration.provider_service_account_annotations, {}),
+      try(local.orchestration.provider_service_account_annotations, {}),
     )
   })
 
@@ -102,13 +170,13 @@ locals {
     verticle_class               = ""
     env                          = []
   }
-  hub                = merge(local.hub_defaults, try(var.orchestration.hub, {}))
+  hub                = merge(local.hub_defaults, try(local.orchestration.hub, {}))
   hub_verticle_class = local.hub.verticle_class != "" ? local.hub.verticle_class : try(local.hub.verticleClass, "")
 
   eval_defaults = {
     image = ""
   }
-  eval = merge(local.eval_defaults, try(var.orchestration.eval, {}))
+  eval = merge(local.eval_defaults, try(local.orchestration.eval, {}))
 
   hub_env = concat(
     local.hub.chronon_metrics_reader == "" ? [] : [
@@ -129,9 +197,9 @@ locals {
         value = local.hub.data_quality_metrics_dataset
       }
     ],
-    try(var.orchestration.provider_hub_env, []),
+    try(local.orchestration.provider_hub_env, []),
     local.hub.env,
-    try(var.orchestration.hub_env, []),
+    try(local.orchestration.hub_env, []),
   )
 
   database_secret_object = {
@@ -163,7 +231,7 @@ locals {
   secret_objects = concat(
     [local.database_secret_object],
     local.auth_enabled ? [local.auth_secret_object] : [],
-    try(var.orchestration.extra_secret_objects, []),
+    try(local.orchestration.extra_secret_objects, []),
     local.secrets.extra_secret_objects,
   )
 
@@ -173,7 +241,7 @@ locals {
     cert_manager_cluster_issuer = ""
     annotations                 = {}
   }
-  ingress = merge(local.ingress_defaults, var.orchestration.ingress)
+  ingress = merge(local.ingress_defaults, local.orchestration.ingress)
 
   cert_manager_annotations = local.ingress.cert_manager_cluster_issuer == "" ? {} : {
     "cert-manager.io/cluster-issuer" = local.ingress.cert_manager_cluster_issuer
@@ -211,7 +279,7 @@ locals {
     service_account         = {}
     image_prepull_overrides = {}
   }
-  compute                           = merge(local.compute_defaults, try(var.orchestration.compute, {}))
+  compute                           = merge(local.compute_defaults, try(local.orchestration.compute, {}))
   compute_object_store_bucket_input = try(local.compute.object_store.bucket, "")
   compute_object_store_bucket       = local.compute_object_store_bucket_input == null ? "" : tostring(local.compute_object_store_bucket_input)
 
@@ -252,7 +320,7 @@ locals {
   prometheus_defaults = {
     query_endpoint = ""
   }
-  prometheus = merge(local.prometheus_defaults, try(var.orchestration.prometheus, {}))
+  prometheus = merge(local.prometheus_defaults, try(local.orchestration.prometheus, {}))
 
   chart_content_hash = sha256(join(",", [for file in local.chart_files : filesha256("${local.chart_path}/${file}")]))
 
@@ -267,8 +335,8 @@ locals {
 
     runtime = {
       env = concat(
-        try(var.orchestration.provider_runtime_env, []),
-        try(var.orchestration.runtime_env, []),
+        try(local.orchestration.provider_runtime_env, []),
+        try(local.orchestration.runtime_env, []),
       )
     }
 
@@ -353,7 +421,7 @@ locals {
       namespace     = local.install.namespace
     }
 
-    auth = try(var.orchestration.auth, { enabled = false })
+    auth = try(local.orchestration.auth, { enabled = false })
 
     orchestration = {
       hub = {
@@ -363,21 +431,21 @@ locals {
       }
       ui = {
         env = concat(
-          try(var.orchestration.provider_ui_env, []),
-          try(var.orchestration.ui_env, []),
+          try(local.orchestration.provider_ui_env, []),
+          try(local.orchestration.ui_env, []),
         )
       }
       fetcher = {
         env = concat(
-          try(var.orchestration.provider_fetcher_env, []),
-          try(var.orchestration.fetcher_env, []),
+          try(local.orchestration.provider_fetcher_env, []),
+          try(local.orchestration.fetcher_env, []),
         )
       }
       eval = {
         image = local.eval.image
         env = concat(
-          try(var.orchestration.provider_eval_env, []),
-          try(var.orchestration.eval_env, []),
+          try(local.orchestration.provider_eval_env, []),
+          try(local.orchestration.eval_env, []),
         )
       }
     }
@@ -461,9 +529,9 @@ resource "helm_release" "this" {
 
   values = concat(
     [yamlencode(local.common_values)],
-    [yamlencode(try(var.orchestration.values, {}))],
-    [for value in try(var.orchestration.extra_values, []) : yamlencode(value)],
-    try(var.orchestration.extra_values_yaml, []),
+    [yamlencode(try(local.orchestration.values, {}))],
+    [for value in try(local.orchestration.extra_values, []) : yamlencode(value)],
+    try(local.orchestration.extra_values_yaml, []),
   )
 
   depends_on = [

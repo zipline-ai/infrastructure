@@ -16,5 +16,6 @@ variable "aws" {
 module "zipline_orchestration" {
   source = "../../modules/zipline-orchestration"
 
-  orchestration = local.orchestration
+  orchestration    = var.orchestration
+  provider_context = local.provider_context
 }

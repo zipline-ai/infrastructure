@@ -8,3 +8,9 @@ variable "orchestration" {
   description = "Shared Zipline orchestration install inputs. Cloud wrappers pass this object through as the common interface."
   type        = any
 }
+
+variable "provider_context" {
+  description = "Cloud wrapper values merged into orchestration before rendering shared Kubernetes resources."
+  type        = any
+  default     = {}
+}

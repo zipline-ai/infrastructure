@@ -21,51 +21,51 @@ locals {
 
   compute_input = try(var.orchestration.compute, {})
 
-  orchestration = merge(var.orchestration, {
-    hub = merge(try(var.orchestration.hub, {}), {
+  provider_context = {
+    hub = {
       image          = local.hub_image
       verticle_class = local.hub_verticle_class
-    })
-    eval = merge(try(var.orchestration.eval, {}), {
+    }
+    eval = {
       image = local.eval_image
-    })
-    compute = merge(local.compute_input, {
+    }
+    compute = {
       object_store = {
         bucket = local.cloud_args.warehouse_container_name
         region = local.cloud_args.location
       }
       spark_event_log_dir = local.spark_event_log_dir
-      service_account = merge(try(local.compute_input.service_account, {}), {
+      service_account = {
         annotations = local.workload_identity_annotations
-      })
-      flink_defaults = merge(try(local.compute_input.flink_defaults, {}), {
+      }
+      flink_defaults = {
         serviceAccountAnnotations = local.workload_identity_annotations
-      })
-      history_server_options = concat(local.spark_history_opts, try(local.compute_input.history_server_options, []))
-    })
-    image_pull_secret = merge({
+      }
+      history_server_options = local.spark_history_opts
+    }
+    image_pull_secret = {
       name = ""
-    }, try(var.orchestration.image_pull_secret, {}))
-    ingress = merge({
+    }
+    ingress = {
       class_name                  = "nginx-ui"
       tls_secret_name             = "zipline-tls-secret"
       cert_manager_cluster_issuer = "letsencrypt-prod"
       annotations                 = {}
-    }, var.orchestration.ingress)
-    addons = merge({
+    }
+    addons = {
       install_secrets_store_csi_driver = false
-    }, try(var.orchestration.addons, {}))
-    secrets = merge(try(var.orchestration.secrets, {}), {
-      database_object_names = merge({
+    }
+    secrets = {
+      database_object_names = {
         username = local.cloud_args.database_username_secret_name
         password = local.cloud_args.database_password_secret_name
-      }, try(var.orchestration.secrets.database_object_names, {}))
-    })
-    provider_service_account_annotations = local.workload_identity_annotations
-    provider_runtime_env                 = local.runtime_env
-    provider_hub_env                     = local.hub_env
-    values                               = local.provider_values
-  })
+      }
+    }
+    service_account_annotations = local.workload_identity_annotations
+    runtime_env                 = local.runtime_env
+    hub_env                     = local.hub_env
+    values                      = local.provider_values
+  }
 
   deployment = var.orchestration.deployment
 
