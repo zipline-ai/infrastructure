@@ -229,10 +229,15 @@ locals {
   )
 
   ingress_defaults = {
-    class_name                  = "nginx-ui"
-    tls_secret_name             = ""
-    cert_manager_cluster_issuer = ""
-    annotations                 = {}
+    class_name                   = "nginx-ui"
+    tls_secret_name              = ""
+    cert_manager_cluster_issuer  = ""
+    create_cluster_issuer        = false
+    cluster_issuer_email         = ""
+    cluster_issuer_server        = "https://acme-v02.api.letsencrypt.org/directory"
+    cluster_issuer_secret_name   = ""
+    cluster_issuer_ingress_class = ""
+    annotations                  = {}
   }
   ingress = merge(local.ingress_defaults, local.orchestration.ingress)
 
@@ -413,6 +418,20 @@ locals {
     prometheus = {
       queryEndpoint = local.prometheus.query_endpoint
       namespace     = local.install.namespace
+    }
+
+    certManager = {
+      enabled     = local.addons.install_cert_manager
+      installCRDs = local.addons.install_cert_manager
+    }
+
+    clusterIssuer = {
+      enabled              = local.ingress.create_cluster_issuer
+      name                 = local.ingress.cert_manager_cluster_issuer != "" ? local.ingress.cert_manager_cluster_issuer : "letsencrypt-prod"
+      email                = local.ingress.cluster_issuer_email
+      server               = local.ingress.cluster_issuer_server
+      privateKeySecretName = local.ingress.cluster_issuer_secret_name
+      ingressClass         = local.ingress.cluster_issuer_ingress_class != "" ? local.ingress.cluster_issuer_ingress_class : local.ingress.class_name
     }
 
     auth = {

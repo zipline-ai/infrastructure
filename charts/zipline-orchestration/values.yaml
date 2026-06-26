@@ -488,3 +488,15 @@ auth:
   sso_saml_callback_url: ""
   idp_role_mapping: ""
   idp_group_claim: ""
+
+certManager:
+  enabled: true
+  installCRDs: true
+
+clusterIssuer:
+  enabled: false
+  name: "letsencrypt-prod"
+  email: ""
+  server: "https://acme-v02.api.letsencrypt.org/directory"
+  privateKeySecretName: ""
+  ingressClass: ""
