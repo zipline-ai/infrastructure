@@ -19,8 +19,6 @@ locals {
     local.auth_saml_enabled ? ["sso-saml-cert"] : [],
   )
 
-  compute_input = try(var.orchestration.compute, {})
-
   provider_context = {
     hub = {
       image          = local.hub_image
@@ -72,7 +70,7 @@ locals {
   normalized_storage_path     = trim(local.cloud_args.storage_path_prefix, "/")
   storage_path_prefix_segment = local.normalized_storage_path == "" ? "" : "${local.normalized_storage_path}/"
   abfs_base_uri               = "abfss://${local.cloud_args.warehouse_container_name}@${local.cloud_args.storage_account_name}.dfs.core.windows.net/${local.storage_path_prefix_segment}"
-  spark_event_log_dir         = try(local.compute_input.spark_event_log_dir, "") != "" ? local.compute_input.spark_event_log_dir : "${local.abfs_base_uri}spark-events"
+  spark_event_log_dir         = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "${local.abfs_base_uri}spark-events"
   polaris_base_location       = "${local.abfs_base_uri}polaris/polaris_${local.deployment.customer_name}/"
   hub_image                   = "ziplineai/hub-azure"
   eval_image                  = "ziplineai/eval-azure"

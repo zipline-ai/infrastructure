@@ -31,8 +31,6 @@ locals {
     }
   ]
 
-  compute_input = try(var.orchestration.compute, {})
-
   provider_context = {
     hub = {
       image          = local.hub_image
@@ -79,7 +77,7 @@ locals {
   }
 
   deployment                  = var.orchestration.deployment
-  spark_event_log_dir         = try(local.compute_input.spark_event_log_dir, "") != "" ? local.compute_input.spark_event_log_dir : "s3a://${local.cloud_args.warehouse_bucket}/spark-events"
+  spark_event_log_dir         = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "s3a://${local.cloud_args.warehouse_bucket}/spark-events"
   flink_compute_role_arn      = local.cloud_args.flink_compute_role_arn != "" ? local.cloud_args.flink_compute_role_arn : local.cloud_args.spark_compute_role_arn
   hub_image                   = "ziplineai/hub-aws"
   eval_image                  = "ziplineai/eval-aws"
