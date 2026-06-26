@@ -9,16 +9,16 @@ variable "aws" {
 }
 
 provider "aws" {
-  region              = local.aws.region
-  allowed_account_ids = local.aws.account_id == "" ? null : [local.aws.account_id]
+  region              = local.cloud_args.region
+  allowed_account_ids = local.cloud_args.account_id == "" ? null : [local.cloud_args.account_id]
 }
 
 data "aws_eks_cluster" "this" {
-  name = local.aws.cluster_name
+  name = local.cloud_args.cluster_name
 }
 
 data "aws_eks_cluster_auth" "this" {
-  name = local.aws.cluster_name
+  name = local.cloud_args.cluster_name
 }
 
 provider "kubernetes" {
@@ -42,7 +42,7 @@ resource "terraform_data" "configuration_validation" {
 
   lifecycle {
     precondition {
-      condition     = !local.auth_enabled || trimspace(local.aws.auth_secret_arn) != ""
+      condition     = !local.auth_enabled || trimspace(local.cloud_args.auth_secret_arn) != ""
       error_message = "auth_secret_arn must be set when auth.enabled is true."
     }
   }
