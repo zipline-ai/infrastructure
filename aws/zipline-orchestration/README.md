@@ -83,6 +83,9 @@ aws = {
 }
 ```
 
+`flink_compute_role_arn` can be omitted when Flink should use the same service
+account annotation as Spark.
+
 This wrapper should use the dedicated Helm adoption state key, not the old full
 AWS infrastructure state:
 

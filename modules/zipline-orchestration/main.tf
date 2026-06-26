@@ -298,8 +298,9 @@ locals {
 
   compute_flink_defaults = merge(
     {
-      image          = local.compute.flink_image
-      serviceAccount = local.compute.flink_service_account
+      image                     = local.compute.flink_image
+      serviceAccount            = local.compute.flink_service_account
+      serviceAccountAnnotations = local.compute_service_account.annotations
     },
     local.compute.flink_defaults,
   )

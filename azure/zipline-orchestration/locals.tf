@@ -36,9 +36,6 @@ locals {
       service_account = {
         annotations = local.workload_identity_annotations
       }
-      flink_defaults = {
-        serviceAccountAnnotations = local.workload_identity_annotations
-      }
       history_server_options = local.spark_history_opts
     }
     image_pull_secret = {

@@ -54,9 +54,9 @@ locals {
         nvmeEnabled    = true
         nvmeSetupImage = "amazon/aws-cli:2.27.33"
       }
-      flink_defaults = {
+      flink_defaults = local.cloud_args.flink_compute_role_arn == "" ? {} : {
         serviceAccountAnnotations = {
-          "eks.amazonaws.com/role-arn" = local.flink_compute_role_arn
+          "eks.amazonaws.com/role-arn" = local.cloud_args.flink_compute_role_arn
         }
       }
     }
@@ -87,15 +87,13 @@ locals {
     values = local.provider_values
   }
 
-  deployment                  = var.orchestration.deployment
-  spark_event_log_dir         = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "s3a://${local.cloud_args.warehouse_bucket}/spark-events"
-  flink_compute_role_arn      = local.cloud_args.flink_compute_role_arn != "" ? local.cloud_args.flink_compute_role_arn : local.cloud_args.spark_compute_role_arn
-  hub_image                   = "ziplineai/hub-aws"
-  eval_image                  = "ziplineai/eval-aws"
-  hub_verticle_class          = "ai.chronon.hub.AWSOrchestrationVerticle,ai.chronon.hub.AWSWorkflowExecutionVerticle"
-  polaris_base_location       = "s3://${local.cloud_args.warehouse_bucket}/polaris/polaris_${local.deployment.customer_name}/"
-  polaris_database_init_image = "public.ecr.aws/docker/library/postgres:16-alpine"
-  auth_enabled                = try(var.orchestration.auth.enabled, false)
+  deployment            = var.orchestration.deployment
+  spark_event_log_dir   = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "s3a://${local.cloud_args.warehouse_bucket}/spark-events"
+  hub_image             = "ziplineai/hub-aws"
+  eval_image            = "ziplineai/eval-aws"
+  hub_verticle_class    = "ai.chronon.hub.AWSOrchestrationVerticle,ai.chronon.hub.AWSWorkflowExecutionVerticle"
+  polaris_base_location = "s3://${local.cloud_args.warehouse_bucket}/polaris/polaris_${local.deployment.customer_name}/"
+  auth_enabled          = try(var.orchestration.auth.enabled, false)
 
   ingress_lb_service = {
     annotations = {
@@ -156,9 +154,6 @@ locals {
         { name = "AWS_REGION", value = local.cloud_args.region },
         { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
       ]
-      database = {
-        initImage = local.polaris_database_init_image
-      }
       bootstrap = {
         rbac = {
           catalog = {
