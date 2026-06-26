@@ -6,6 +6,11 @@ variable "orchestration" {
 variable "aws" {
   description = "AWS-specific orchestration wrapper inputs."
   type        = any
+
+  validation {
+    condition     = !try(var.orchestration.auth.enabled, false) || trimspace(try(var.aws.auth_secret_arn, "")) != ""
+    error_message = "auth_secret_arn must be set when auth.enabled is true."
+  }
 }
 
 provider "aws" {
@@ -32,19 +37,6 @@ provider "helm" {
     host                   = data.aws_eks_cluster.this.endpoint
     cluster_ca_certificate = base64decode(data.aws_eks_cluster.this.certificate_authority[0].data)
     token                  = data.aws_eks_cluster_auth.this.token
-  }
-}
-
-resource "terraform_data" "configuration_validation" {
-  input = {
-    auth_enabled = local.auth_enabled
-  }
-
-  lifecycle {
-    precondition {
-      condition     = !local.auth_enabled || trimspace(local.cloud_args.auth_secret_arn) != ""
-      error_message = "auth_secret_arn must be set when auth.enabled is true."
-    }
   }
 }
 
