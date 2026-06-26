@@ -16,6 +16,10 @@ It keeps the Terraform surface to AWS orchestration plumbing. Shared install
 inputs live under the `orchestration` object and are consumed by
 `modules/zipline-orchestration`; AWS-specific inputs live under the `aws`
 object.
+Run this wrapper with a kubeconfig context already authenticated to the target
+EKS cluster; Kubernetes and Helm providers use the standard local provider
+configuration instead of discovering cluster credentials through AWS data
+sources.
 The shared module owns common service value generation such as image propagation,
 compute defaults, and Polaris bootstrap defaults. Use
 `orchestration.extra_values` only for intentional one-off Helm overrides.
@@ -77,6 +81,8 @@ This wrapper should use the dedicated Helm adoption state key, not the old full
 AWS infrastructure state:
 
 ```shell
+aws eks update-kubeconfig --region us-west-2 --name crucible-eks
+
 tofu init -reconfigure \
   -backend-config=bucket=zipline-ai-opentofu-state-bucket \
   -backend-config=key=opentofu-crucible-zipline-orchestration-state \

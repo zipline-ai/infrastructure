@@ -16,6 +16,10 @@ orchestration plumbing. Shared install inputs live under the `orchestration`
 object and are consumed by
 `modules/zipline-orchestration`; Azure-specific inputs live under the `azure`
 object.
+Run this wrapper with a kubeconfig context already authenticated to the target
+AKS cluster; Kubernetes and Helm providers use the standard local provider
+configuration instead of discovering cluster credentials through Azure data
+sources.
 The shared module owns common service value generation such as image propagation,
 compute defaults, and Polaris bootstrap defaults. Use `orchestration.extra_values`
 only for intentional one-off Helm overrides, such as a private registry mirror.
@@ -71,9 +75,6 @@ orchestration = {
 }
 
 azure = {
-  subscription_id             = "00000000-0000-0000-0000-000000000000"
-  aks_resource_group          = "crucible-rg"
-  aks_cluster_name            = "crucible-aks"
   location                    = "westus2"
   tenant_id                   = "00000000-0000-0000-0000-000000000000"
   keyvault_name               = "crucible-azure-kv"
@@ -87,6 +88,8 @@ azure = {
 Initialize this wrapper with:
 
 ```shell
+az aks get-credentials --resource-group crucible-rg --name crucible-aks
+
 tofu init -reconfigure -backend-config=backend.hcl
 ```
 
