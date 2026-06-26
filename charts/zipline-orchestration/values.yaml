@@ -261,6 +261,8 @@ polaris:
             - TABLE_WRITE_DATA
   extraConfig: {}
   extraEnv: []
+  nodeSelector: {}
+  tolerations: []
   resources:
     requests:
       cpu: "500m"
@@ -291,6 +293,8 @@ orchestration:
     replicas: 1
     port: 3903
     env: []
+    nodeSelector: {}
+    tolerations: []
     resources:
       limits:
         cpu: "6"
@@ -304,6 +308,8 @@ orchestration:
     replicas: 1
     port: 3000
     env: []
+    nodeSelector: {}
+    tolerations: []
     resources:
       limits:
         cpu: "1000m"
@@ -317,6 +323,8 @@ orchestration:
     replicas: 3
     port: 9000
     env: []
+    nodeSelector: {}
+    tolerations: []
     resources:
       limits:
         cpu: "8"
@@ -330,6 +338,8 @@ orchestration:
     replicas: 1
     port: 3904
     env: []
+    nodeSelector: {}
+    tolerations: []
     resources:
       requests:
         cpu: "500m"

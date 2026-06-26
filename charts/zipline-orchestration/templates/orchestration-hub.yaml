@@ -26,6 +26,14 @@ spec:
       imagePullSecrets:
       {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.orchestration.hub.nodeSelector }}
+      nodeSelector:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.orchestration.hub.tolerations }}
+      tolerations:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: orchestration-hub
           image: "{{ required "orchestration.hub.image is required" .Values.orchestration.hub.image }}:{{ .Values.global.version }}"

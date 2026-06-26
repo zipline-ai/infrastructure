@@ -26,6 +26,14 @@ spec:
       imagePullSecrets:
       {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.orchestration.eval.nodeSelector }}
+      nodeSelector:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.orchestration.eval.tolerations }}
+      tolerations:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: eval
           image: "{{ required "orchestration.eval.image is required" .Values.orchestration.eval.image }}:{{ .Values.global.version }}"

@@ -27,6 +27,14 @@ spec:
       imagePullSecrets:
       {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.orchestration.fetcher.nodeSelector }}
+      nodeSelector:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.orchestration.fetcher.tolerations }}
+      tolerations:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: fetcher
           image: "{{ .Values.orchestration.fetcher.image }}:{{ .Values.global.version }}"
