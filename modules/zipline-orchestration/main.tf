@@ -368,7 +368,6 @@ locals {
     }
 
     compute = {
-      enabled          = true
       defaultNamespace = local.compute.default_namespace
       namespaces       = local.compute.namespaces
       objectStore      = local.compute.object_store
@@ -413,6 +412,7 @@ locals {
       }
       polaris = {
         className = local.ingress.class_name
+        tls       = local.app_tls
       }
     }
 

@@ -25,7 +25,6 @@ secrets:
   parameters: {}
 
 compute:
-  enabled: true
   defaultNamespace: zipline-default
   namespaceDefaults:
     labels: {}
@@ -180,8 +179,7 @@ database:
     passwordKey: password
 
 polaris:
-  # Polaris is part of the in-cluster compute stack and renders when
-  # compute.enabled is true.
+  # Polaris is part of the in-cluster compute stack.
   # Defaults to global.customer_name.
   realm: ""
   image:

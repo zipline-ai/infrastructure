@@ -1,4 +1,4 @@
-{{- if and .Values.compute.enabled .Values.compute.imagePrepull.enabled }}
+{{- if .Values.compute.imagePrepull.enabled }}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:

@@ -1,4 +1,3 @@
-{{- if .Values.compute.enabled }}
 {{- $systemNamespace := include "zipline-orchestration.computeSystemNamespace" . }}
 {{- if .Values.compute.historyServer.persistence.enabled }}
 apiVersion: v1
@@ -19,7 +18,6 @@ spec:
     requests:
       storage: {{ .Values.compute.historyServer.persistence.size | default "10Gi" }}
 ---
-{{- end }}
 apiVersion: v1
 kind: Service
 metadata:

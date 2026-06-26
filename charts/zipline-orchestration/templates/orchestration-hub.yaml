@@ -60,7 +60,6 @@ spec:
             - name: HUB_BASE_URL
               value: "https://{{ .Values.ingress.hub.host }}{{ if ne (.Values.ingress.hub.path | default "/") "/" }}{{ .Values.ingress.hub.path }}{{ end }}"
             {{- end }}
-            {{- if .Values.compute.enabled }}
             - name: IN_CLUSTER_COMPUTE_ENABLED
               value: "true"
             - name: CRUCIBLE_DEFAULT_NAMESPACE
@@ -81,7 +80,6 @@ spec:
               value: "{{ .Values.compute.flinkDefaults.image }}"
             - name: CRUCIBLE_FLINK_SERVICE_ACCOUNT
               value: "{{ .Values.compute.flinkDefaults.serviceAccount | default "flink" }}"
-            {{- end }}
             - name: AUTH_ENABLED
               value: "{{ .Values.auth.enabled }}"
             - name: AUTH_JWKS_URL

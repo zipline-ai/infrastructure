@@ -53,7 +53,6 @@ spec:
                   key: {{ include "zipline-orchestration.databaseCredentialsUsernameKey" . }}
             - name: DATABASE_URL
               value: {{ include "zipline-orchestration.databaseUrl" . | quote }}
-            {{- if .Values.compute.enabled }}
             - name: LOG_PROVIDER
               value: "loki"
             - name: LOKI_URL
@@ -66,7 +65,6 @@ spec:
               value: {{ printf "{\"filters\":[{\"field\":\"namespace\",\"value\":\"%s\"},{\"field\":\"container\",\"value\":\"orchestration-hub\"},{\"field\":\"workflowId\",\"value\":\"%s\",\"source\":\"json\"}]}" (include "zipline-orchestration.computeSystemNamespace" .) "{{WORKFLOW_ID}}" | quote }}
             - name: LOG_SERVICE_NODE_STEP_RUN_FILTER
               value: {{ printf "{\"filters\":[{\"field\":\"namespace\",\"value\":\"%s\"},{\"field\":\"container\",\"value\":\"orchestration-hub\"},{\"field\":\"stepId\",\"value\":\"%s\",\"source\":\"json\"}]}" (include "zipline-orchestration.computeSystemNamespace" .) "{{STEP_ID}}" | quote }}
-            {{- end }}
             - name: ORCH_CONTAINER_NAME
               value: "orchestration-hub"
             - name: PROMETHEUS_QUERY_ENDPOINT

@@ -1,10 +1,8 @@
-{{- if .Values.compute.enabled }}
 {{- $root := . }}
 {{- $defaults := .Values.compute.namespaceDefaults | default dict }}
 {{- $namespaces := .Values.compute.namespaces | default list }}
 {{- if eq (len $namespaces) 0 }}
 {{- $namespaces = list (dict "name" (include "zipline-orchestration.computeDefaultNamespace" .) "team" "default") }}
-{{- end }}
 {{- range $namespace := $namespaces }}
 {{- $name := $namespace.name | default (include "zipline-orchestration.computeDefaultNamespace" $root) }}
 {{- $labels := merge (dict) ($defaults.labels | default dict) ($namespace.labels | default dict) }}

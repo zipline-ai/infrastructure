@@ -1,4 +1,4 @@
-{{- if and .Values.compute.enabled .Values.compute.sparkDefaults.nvmeEnabled }}
+{{- if .Values.compute.sparkDefaults.nvmeEnabled }}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:

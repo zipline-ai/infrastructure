@@ -1,4 +1,4 @@
-{{- if and .Values.compute.enabled .Values.compute.rbac.create }}
+{{- if .Values.compute.rbac.create }}
 {{- $root := . }}
 {{- $namespaces := .Values.compute.namespaces | default list }}
 {{- if eq (len $namespaces) 0 }}

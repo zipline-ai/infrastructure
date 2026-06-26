@@ -66,9 +66,20 @@ locals {
     service_account_annotations = {
       "eks.amazonaws.com/role-arn" = local.cloud_args.orchestration_role_arn
     }
-    runtime_env = local.runtime_env
-    hub_env     = local.hub_env
-    ui_env      = local.cloud_args.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.cloud_args.eks_log_group }]
+    runtime_env = [
+      { name = "AWS_REGION", value = local.cloud_args.region },
+      { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
+    ]
+    hub_env = concat(
+      [
+        { name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix },
+        { name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) },
+        { name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) },
+        { name = "EKS_CLUSTER_NAME", value = local.cloud_args.cluster_name },
+      ],
+      local.databricks_env,
+    )
+    ui_env = local.cloud_args.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.cloud_args.eks_log_group }]
     eval_env = concat(
       [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }],
       local.databricks_env,
@@ -132,21 +143,6 @@ locals {
     }
   ]
 
-  runtime_env = [
-    { name = "AWS_REGION", value = local.cloud_args.region },
-    { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
-  ]
-
-  hub_env = concat(
-    [
-      { name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix },
-      { name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) },
-      { name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) },
-      { name = "EKS_CLUSTER_NAME", value = local.cloud_args.cluster_name },
-    ],
-    local.databricks_env,
-  )
-
   provider_values = {
     secrets = {
       provider = "aws"
@@ -156,7 +152,10 @@ locals {
     }
 
     polaris = {
-      extraEnv = local.runtime_env
+      extraEnv = [
+        { name = "AWS_REGION", value = local.cloud_args.region },
+        { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
+      ]
       database = {
         initImage = local.polaris_database_init_image
       }

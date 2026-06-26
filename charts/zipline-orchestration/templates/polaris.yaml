@@ -1,8 +1,7 @@
-{{- if .Values.compute.enabled }}
 {{- $polaris := .Values.polaris -}}
 {{- $realm := default .Values.global.customer_name $polaris.realm -}}
 {{- if not $realm -}}
-{{- fail "global.customer_name or polaris.realm is required when compute.enabled is true" -}}
+{{- fail "global.customer_name or polaris.realm is required" -}}
 {{- end -}}
 {{- $rbacCatalog := default dict $polaris.bootstrap.rbac.catalog -}}
 {{- $defaultCatalogName := printf "polaris_%s" $realm -}}
@@ -18,7 +17,7 @@
 {{- end -}}
 {{- $catalogDefaultBaseLocation := default $derivedBaseLocation $rbacCatalog.defaultBaseLocation -}}
 {{- $rbacStorage := default dict $rbacCatalog.storage -}}
-{{- $storageType := required "polaris.bootstrap.rbac.catalog.storage.type is required when compute.enabled is true" $rbacStorage.type -}}
+{{- $storageType := required "polaris.bootstrap.rbac.catalog.storage.type is required" $rbacStorage.type -}}
 {{- $storageConfig := deepCopy (default dict $rbacStorage.config) -}}
 {{- $allowedLocations := default (list) $rbacStorage.allowedLocations -}}
 {{- if and (eq (len $allowedLocations) 0) $catalogDefaultBaseLocation -}}
@@ -39,8 +38,8 @@
 {{- if hasKey $existingBootstrapSecretData $bootstrapCredentialsSecretKey -}}
 {{- $bootstrapCredentials = index $existingBootstrapSecretData $bootstrapCredentialsSecretKey -}}
 {{- end -}}
-{{- $databaseName := required "polaris.database.name is required when compute.enabled is true" $polaris.database.name -}}
-{{- $databaseHost := required "database.host is required when compute.enabled is true" .Values.database.host -}}
+{{- $databaseName := required "polaris.database.name is required" $polaris.database.name -}}
+{{- $databaseHost := required "database.host is required" .Values.database.host -}}
 {{- $databaseAddress := printf "%s:%v" $databaseHost (.Values.database.port | default 5432) -}}
 {{- $jdbcUrl := printf "jdbc:postgresql://%s/%s%s" $databaseAddress $databaseName $polaris.database.jdbcParams -}}
 {{- $psqlAdminUrl := printf "postgresql://%s/%s%s" $databaseAddress $polaris.database.adminDatabase $polaris.database.psqlParams -}}
@@ -101,6 +100,9 @@ spec:
       labels:
         app: polaris
         app.kubernetes.io/component: polaris-bootstrap
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       restartPolicy: OnFailure
       serviceAccountName: {{ .Values.serviceAccount.name }}
@@ -517,6 +519,9 @@ spec:
       labels:
         app: polaris
         app.kubernetes.io/component: polaris
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
       {{- if hasKey $polaris "imagePullSecrets" }}
@@ -688,4 +693,3 @@ spec:
       port: {{ $polaris.ports.management }}
       targetPort: management
       protocol: TCP
-{{- end }}

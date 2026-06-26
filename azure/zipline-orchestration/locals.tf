@@ -60,9 +60,18 @@ locals {
       }
     }
     service_account_annotations = local.workload_identity_annotations
-    runtime_env                 = local.runtime_env
-    hub_env                     = local.hub_env
-    values                      = local.provider_values
+    runtime_env = [
+      { name = "AZURE_REGION", value = local.cloud_args.location },
+      { name = "AZURE_LOCATION", value = local.cloud_args.location },
+      { name = "AZURE_TENANT_ID", value = local.cloud_args.tenant_id },
+      { name = "AZURE_CLIENT_ID", value = local.cloud_args.workload_identity_client_id },
+      { name = "AZURE_STORAGE_ACCOUNT_NAME", value = local.cloud_args.storage_account_name },
+      { name = "WAREHOUSE_CONTAINER_NAME", value = local.cloud_args.warehouse_container_name },
+    ]
+    hub_env = [
+      { name = "KV_STORE_TYPE", value = "cosmos" },
+    ]
+    values = local.provider_values
   }
 
   deployment = var.orchestration.deployment
@@ -108,19 +117,6 @@ locals {
     [for name in local.keyvault_secret_names : "  - |\n    objectName: ${name}\n    objectType: secret"],
   ))
 
-  runtime_env = [
-    { name = "AZURE_REGION", value = local.cloud_args.location },
-    { name = "AZURE_LOCATION", value = local.cloud_args.location },
-    { name = "AZURE_TENANT_ID", value = local.cloud_args.tenant_id },
-    { name = "AZURE_CLIENT_ID", value = local.cloud_args.workload_identity_client_id },
-    { name = "AZURE_STORAGE_ACCOUNT_NAME", value = local.cloud_args.storage_account_name },
-    { name = "WAREHOUSE_CONTAINER_NAME", value = local.cloud_args.warehouse_container_name },
-  ]
-
-  hub_env = [
-    { name = "KV_STORE_TYPE", value = "cosmos" },
-  ]
-
   spark_history_opts = [
     "-Dspark.hadoop.fs.azure.account.auth.type=OAuth",
     "-Dspark.hadoop.fs.azure.account.oauth.provider.type=org.apache.hadoop.fs.azurebfs.oauth2.WorkloadIdentityTokenProvider",
@@ -147,6 +143,14 @@ locals {
     }
 
     polaris = {
+      extraEnv = [
+        { name = "AZURE_REGION", value = local.cloud_args.location },
+        { name = "AZURE_LOCATION", value = local.cloud_args.location },
+        { name = "AZURE_TENANT_ID", value = local.cloud_args.tenant_id },
+        { name = "AZURE_CLIENT_ID", value = local.cloud_args.workload_identity_client_id },
+        { name = "AZURE_STORAGE_ACCOUNT_NAME", value = local.cloud_args.storage_account_name },
+        { name = "WAREHOUSE_CONTAINER_NAME", value = local.cloud_args.warehouse_container_name },
+      ]
       bootstrap = {
         rbac = {
           catalog = {
@@ -155,7 +159,8 @@ locals {
               type             = "AZURE"
               allowedLocations = [local.polaris_base_location]
               config = {
-                tenantId = local.cloud_args.tenant_id
+                tenantId     = local.cloud_args.tenant_id
+                hierarchical = true
               }
             }
           }

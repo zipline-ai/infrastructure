@@ -1,4 +1,4 @@
-{{- if and .Values.compute.enabled .Values.compute.rbac.create }}
+{{- if .Values.compute.rbac.create }}
 # Cluster-scope LIST/WATCH on the three job CRDs so KubernetesCrucibleJobStore's
 # `inAnyNamespace()` informers can sync at hub startup. The per-namespace
 # Role above grants CREATE/UPDATE/DELETE in the target job namespace; this
