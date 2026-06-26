@@ -470,7 +470,6 @@ promtail:
 auth:
   enabled: false
   url: ""
-  jwksUrl: ""
   google_oauth_client_id: ""
   google_oauth_client_secret: ""
   github_oauth_client_id: ""

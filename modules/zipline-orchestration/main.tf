@@ -415,7 +415,10 @@ locals {
       namespace     = local.install.namespace
     }
 
-    auth = try(local.orchestration.auth, { enabled = false })
+    auth = {
+      for key, value in try(local.orchestration.auth, { enabled = false }) : key => value
+      if key != "jwksUrl"
+    }
 
     orchestration = {
       hub = {
