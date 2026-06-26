@@ -70,20 +70,14 @@ locals {
       { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
     ]
     hub_env = concat(
-      [
-        { name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix },
-        { name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) },
-        { name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) },
-        { name = "EKS_CLUSTER_NAME", value = local.cloud_args.cluster_name },
-      ],
+      local.cloud_args.kv_table_prefix == "" ? [] : [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }],
+      local.cloud_args.kv_enable_ttl ? [] : [{ name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) }],
+      length(local.cloud_args.kv_replica_regions) == 0 ? [] : [{ name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) }],
       local.databricks_env,
     )
-    ui_env = local.cloud_args.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.cloud_args.eks_log_group }]
-    eval_env = concat(
-      [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }],
-      local.databricks_env,
-    )
-    values = local.provider_values
+    ui_env   = local.cloud_args.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.cloud_args.eks_log_group }]
+    eval_env = local.databricks_env
+    values   = local.provider_values
   }
 
   deployment            = var.orchestration.deployment

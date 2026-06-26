@@ -62,12 +62,9 @@ locals {
       { name = "AZURE_TENANT_ID", value = local.cloud_args.tenant_id },
       { name = "AZURE_CLIENT_ID", value = local.cloud_args.workload_identity_client_id },
       { name = "AZURE_STORAGE_ACCOUNT_NAME", value = local.cloud_args.storage_account_name },
-      { name = "WAREHOUSE_CONTAINER_NAME", value = local.cloud_args.warehouse_container_name },
     ]
-    hub_env = [
-      { name = "KV_STORE_TYPE", value = "cosmos" },
-    ]
-    values = local.provider_values
+    hub_env = []
+    values  = local.provider_values
   }
 
   deployment = var.orchestration.deployment
@@ -144,7 +141,6 @@ locals {
         { name = "AZURE_TENANT_ID", value = local.cloud_args.tenant_id },
         { name = "AZURE_CLIENT_ID", value = local.cloud_args.workload_identity_client_id },
         { name = "AZURE_STORAGE_ACCOUNT_NAME", value = local.cloud_args.storage_account_name },
-        { name = "WAREHOUSE_CONTAINER_NAME", value = local.cloud_args.warehouse_container_name },
       ]
       bootstrap = {
         rbac = {

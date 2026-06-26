@@ -164,7 +164,6 @@ locals {
 
   hub_defaults = {
     chronon_metrics_reader       = "http"
-    table_partitions_dataset     = "TABLE_PARTITIONS"
     data_quality_metrics_dataset = "DATA_QUALITY_METRICS"
     image                        = ""
     verticle_class               = ""
@@ -183,12 +182,6 @@ locals {
       {
         name  = "CHRONON_METRICS_READER"
         value = local.hub.chronon_metrics_reader
-      }
-    ],
-    local.hub.table_partitions_dataset == "" ? [] : [
-      {
-        name  = "TABLE_PARTITIONS_DATASET"
-        value = local.hub.table_partitions_dataset
       }
     ],
     local.hub.data_quality_metrics_dataset == "" ? [] : [
