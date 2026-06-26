@@ -67,7 +67,6 @@ locals {
       "eks.amazonaws.com/role-arn" = local.cloud_args.orchestration_role_arn
     }
     runtime_env = [
-      { name = "AWS_REGION", value = local.cloud_args.region },
       { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
     ]
     hub_env = concat(
@@ -151,7 +150,6 @@ locals {
 
     polaris = {
       extraEnv = [
-        { name = "AWS_REGION", value = local.cloud_args.region },
         { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
       ]
       bootstrap = {

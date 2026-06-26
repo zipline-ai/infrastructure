@@ -59,7 +59,6 @@ locals {
     service_account_annotations = local.workload_identity_annotations
     runtime_env = [
       { name = "AZURE_REGION", value = local.cloud_args.location },
-      { name = "AZURE_LOCATION", value = local.cloud_args.location },
       { name = "AZURE_TENANT_ID", value = local.cloud_args.tenant_id },
       { name = "AZURE_CLIENT_ID", value = local.cloud_args.workload_identity_client_id },
       { name = "AZURE_STORAGE_ACCOUNT_NAME", value = local.cloud_args.storage_account_name },
@@ -142,7 +141,6 @@ locals {
     polaris = {
       extraEnv = [
         { name = "AZURE_REGION", value = local.cloud_args.location },
-        { name = "AZURE_LOCATION", value = local.cloud_args.location },
         { name = "AZURE_TENANT_ID", value = local.cloud_args.tenant_id },
         { name = "AZURE_CLIENT_ID", value = local.cloud_args.workload_identity_client_id },
         { name = "AZURE_STORAGE_ACCOUNT_NAME", value = local.cloud_args.storage_account_name },
