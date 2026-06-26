@@ -43,6 +43,10 @@ spec:
             - name: FETCHER_BASE_URL
               value: "http://fetcher-service"
             {{- end }}
+            - name: EVAL_URL
+              value: "http://eval-service"
+            - name: ORIGIN
+              value: {{ include "zipline-orchestration.uiOrigin" . | quote }}
             - name: DB_HOST
               value: {{ include "zipline-orchestration.databaseHostWithPort" . | quote }}
             - name: DB_NAME

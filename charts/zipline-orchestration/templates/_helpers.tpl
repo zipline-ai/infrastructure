@@ -90,6 +90,21 @@ Controller Service name rendered by an aliased ingress-nginx subchart.
 {{- end }}
 
 {{/*
+Public origin used by the UI for auth and server-side requests.
+*/}}
+{{- define "zipline-orchestration.uiOrigin" -}}
+{{- if .Values.orchestration.ui.origin -}}
+{{- .Values.orchestration.ui.origin -}}
+{{- else if .Values.auth.url -}}
+{{- .Values.auth.url -}}
+{{- else if .Values.ingress.ui.host -}}
+{{- printf "https://%s" .Values.ingress.ui.host -}}
+{{- else -}}
+{{- "" -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Default Kubernetes namespace used for Spark compute jobs.
 */}}
 {{- define "zipline-orchestration.computeDefaultNamespace" -}}

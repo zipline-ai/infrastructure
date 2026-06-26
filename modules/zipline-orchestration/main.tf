@@ -177,6 +177,11 @@ locals {
   }
   eval = merge(local.eval_defaults, try(local.orchestration.eval, {}))
 
+  ui_defaults = {
+    origin = ""
+  }
+  ui = merge(local.ui_defaults, try(local.orchestration.ui, {}))
+
   hub_env = concat(
     local.hub.chronon_metrics_reader == "" ? [] : [
       {
@@ -446,6 +451,7 @@ locals {
         env           = local.hub_env
       }
       ui = {
+        origin = local.ui.origin
         env = concat(
           try(local.orchestration.provider_ui_env, []),
           try(local.orchestration.ui_env, []),

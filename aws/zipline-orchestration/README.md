@@ -35,6 +35,39 @@ Environment-specific settings should be supplied through local, git-ignored
 Terraform variable files. Inputs are grouped into shared and provider-specific
 objects:
 
+Supported `orchestration` groups:
+
+- `install`: `release_name`, `namespace`, `create_namespace`,
+  `namespace_labels`, `namespace_annotations`, `helm_wait`, `helm_timeout`,
+  `atomic`, `cleanup_on_fail`, `dependency_update`.
+- `deployment`: `customer_name`, `artifact_prefix`, `zipline_version`,
+  `deploy_fetcher`.
+- `database`: `host`, `port`, `name`, `ssl_mode`, `jdbc_url`, `url`,
+  `credentials_secret`.
+- `ingress`: `domain`, `class_name`, `tls_secret_name`,
+  `cert_manager_cluster_issuer`, `create_cluster_issuer`,
+  `cluster_issuer_email`, `cluster_issuer_server`,
+  `cluster_issuer_secret_name`, `cluster_issuer_ingress_class`,
+  `annotations`.
+- `auth`: `enabled`, `url`, OAuth/SAML provider settings, and IdP role/group
+  mapping settings consumed by the shared chart.
+- `compute`: namespaces, Spark/Flink images and service accounts, Spark event
+  log path, image prepull settings, History Server settings, RBAC settings, and
+  provider-specific Spark/Flink default overrides.
+- `image_pull_secret`, `addons`, `prometheus`, `secrets`,
+  `service_account`, `hub`, `ui`, `runtime_env`, `hub_env`, `ui_env`,
+  `fetcher_env`, `eval_env`, `values`, `extra_values`, and
+  `extra_values_yaml`.
+
+Supported `aws` keys:
+
+- Required: `region`, `database_secret_arn`, `warehouse_bucket`,
+  `orchestration_role_arn`, `spark_compute_role_arn`.
+- Required when `orchestration.auth.enabled` is true: `auth_secret_arn`.
+- Optional: `flink_compute_role_arn`, `polaris_storage_role_arn`,
+  `kv_table_prefix`, `kv_enable_ttl`, `kv_replica_regions`, `eks_log_group`,
+  `databricks_sp_secret_arn`.
+
 ```hcl
 orchestration = {
   install = {
@@ -57,7 +90,6 @@ orchestration = {
 
 aws = {
   region                 = "us-west-2"
-  cluster_name           = "example-eks"
   database_secret_arn    = "arn:aws:secretsmanager:us-west-2:123456789012:secret:zipline-db"
   warehouse_bucket       = "example-warehouse"
   orchestration_role_arn = "arn:aws:iam::123456789012:role/orchestration"
