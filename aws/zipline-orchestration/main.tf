@@ -53,8 +53,4 @@ module "zipline_orchestration" {
 
   chart_path    = abspath("${path.module}/../../charts/zipline-orchestration")
   orchestration = merge(local.orchestration, { values = local.provider_values })
-
-  depends_on = [
-    terraform_data.configuration_validation,
-  ]
 }
