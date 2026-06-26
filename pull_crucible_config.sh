@@ -10,6 +10,21 @@ git-ignored local files used by that cloud's Terraform wrapper.
 EOF
 }
 
+require_grouped_tfvars() {
+  local cloud="$1"
+  local file="$2"
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "jq is required to validate Crucible tfvars." >&2
+    exit 1
+  fi
+
+  if ! jq -e --arg cloud "${cloud}" 'has("orchestration") and has($cloud)' "${file}" >/dev/null; then
+    echo "${file} must contain top-level orchestration and ${cloud} objects." >&2
+    exit 1
+  fi
+}
+
 if [ "$#" -ne 1 ]; then
   usage
   exit 1
@@ -21,23 +36,20 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 case "${cloud}" in
   aws)
     bucket="${CRUCIBLE_CONFIG_BUCKET:-zipline-crucible-vars}"
-    dest="${CRUCIBLE_CONFIG_DIR:-${repo_root}/aws/zipline-orchestration/.crucible-config/raw}"
+    wrapper_key="${CRUCIBLE_CONFIG_KEY:-zipline-orchestration/crucible.auto.tfvars.json}"
+    root_dest="${CRUCIBLE_CONFIG_ROOT:-${repo_root}/aws/zipline-orchestration}"
 
-    mkdir -p "${dest}"
+    mkdir -p "${root_dest}"
 
-    aws s3 cp "s3://${bucket}/terraform.tfvars" "${dest}/terraform.tfvars"
-    aws s3 cp "s3://${bucket}/github.tf" "${dest}/github.tf"
-    aws s3 cp "s3://${bucket}/cloudflare.tf" "${dest}/cloudflare.tf"
-    aws s3 cp "s3://${bucket}/.terraform.lock.hcl" "${dest}/.terraform.lock.hcl"
-    aws s3 cp "s3://${bucket}/crucible-config" "${dest}/crucible-config" --recursive
+    aws s3 cp "s3://${bucket}/${wrapper_key}" "${root_dest}/crucible.auto.tfvars.json"
+    require_grouped_tfvars aws "${root_dest}/crucible.auto.tfvars.json"
 
     cat <<EOF
-Pulled AWS Crucible config into ${dest}.
+Pulled AWS Crucible orchestration config from:
+  s3://${bucket}/${wrapper_key}
 
-This wrapper intentionally does not place the legacy *.tf files in the module
-root, because those files belong to the old full AWS infrastructure root. Create
-a local *.auto.tfvars.json for this Helm adoption root from the raw inputs and
-live Helm values instead.
+Local file is intentionally ignored by git:
+  ${root_dest}/crucible.auto.tfvars.json
 EOF
     ;;
   azure)
@@ -65,6 +77,8 @@ EOF
       --auth-mode login \
       --overwrite true \
       --output none
+
+    require_grouped_tfvars azure "${dest}/crucible.auto.tfvars.json"
 
     cat <<EOF
 Pulled Azure Crucible orchestration config from:

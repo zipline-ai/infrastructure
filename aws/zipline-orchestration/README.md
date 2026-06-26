@@ -31,17 +31,23 @@ through `extra_values`, but is not the default shared path.
 
 ## Crucible Canary Overrides
 
-Crucible canary settings are stored outside the repo and pulled locally when
-planning or applying:
+Crucible canary settings are stored outside the repo in S3 and pulled locally
+when planning or applying:
 
 ```shell
 ../../pull_crucible_config.sh aws
 ```
 
-The script downloads the raw legacy inputs into `.crucible-config/raw/` without
-placing legacy `github.tf`, `cloudflare.tf`, or `terraform.tfvars` files in this
-Terraform root. Use those raw files plus live Helm values to create a local
-ignored `*.auto.tfvars.json` for this Helm adoption wrapper.
+By default the script reads from bucket `zipline-crucible-vars` and key
+`zipline-orchestration/crucible.auto.tfvars.json`. Override those with
+`CRUCIBLE_CONFIG_BUCKET` and `CRUCIBLE_CONFIG_KEY` if needed.
+
+The script downloads one git-ignored file into this Terraform root:
+
+- `crucible.auto.tfvars.json`
+
+The stored file is expected to already use the wrapper structure; the script
+does not translate legacy flat tfvars.
 
 Canary inputs should be grouped into shared and provider-specific objects:
 
@@ -90,8 +96,8 @@ tofu init -reconfigure \
   -backend-config=encrypt=true
 ```
 
-If the remote canary inputs need to be updated intentionally, edit the raw files
-under `.crucible-config/raw/` and run:
+If the remote canary inputs need to be updated intentionally, edit the local
+ignored `crucible.auto.tfvars.json` and run:
 
 ```shell
 ../../push_crucible_config.sh aws

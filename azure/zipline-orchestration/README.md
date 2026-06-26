@@ -48,6 +48,9 @@ The script downloads two git-ignored files into this Terraform root:
 - `backend.hcl`
 - `crucible.auto.tfvars.json`
 
+The stored tfvars file is expected to already use the wrapper structure; the
+script does not translate legacy flat tfvars.
+
 Canary inputs should be grouped into shared and provider-specific objects:
 
 ```hcl

@@ -17,6 +17,23 @@ require_file() {
   fi
 }
 
+require_grouped_tfvars() {
+  local cloud="$1"
+  local file="$2"
+
+  require_file "${file}"
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "jq is required to validate Crucible tfvars." >&2
+    exit 1
+  fi
+
+  if ! jq -e --arg cloud "${cloud}" 'has("orchestration") and has($cloud)' "${file}" >/dev/null; then
+    echo "${file} must contain top-level orchestration and ${cloud} objects. Run pull_crucible_config.sh ${cloud} first." >&2
+    exit 1
+  fi
+}
+
 if [ "$#" -ne 1 ]; then
   usage
   exit 1
@@ -28,18 +45,12 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 case "${cloud}" in
   aws)
     bucket="${CRUCIBLE_CONFIG_BUCKET:-zipline-crucible-vars}"
-    src="${CRUCIBLE_CONFIG_DIR:-${repo_root}/aws/zipline-orchestration/.crucible-config/raw}"
+    wrapper_key="${CRUCIBLE_CONFIG_KEY:-zipline-orchestration/crucible.auto.tfvars.json}"
+    wrapper_file="${CRUCIBLE_CONFIG_ROOT:-${repo_root}/aws/zipline-orchestration}/crucible.auto.tfvars.json"
 
-    require_file "${src}/terraform.tfvars"
-    require_file "${src}/github.tf"
-    require_file "${src}/cloudflare.tf"
-    require_file "${src}/.terraform.lock.hcl"
+    require_grouped_tfvars aws "${wrapper_file}"
 
-    aws s3 cp "${src}/terraform.tfvars" "s3://${bucket}/terraform.tfvars"
-    aws s3 cp "${src}/github.tf" "s3://${bucket}/github.tf"
-    aws s3 cp "${src}/cloudflare.tf" "s3://${bucket}/cloudflare.tf"
-    aws s3 cp "${src}/.terraform.lock.hcl" "s3://${bucket}/.terraform.lock.hcl"
-    aws s3 cp "${src}/crucible-config" "s3://${bucket}/crucible-config" --recursive
+    aws s3 cp "${wrapper_file}" "s3://${bucket}/${wrapper_key}"
     ;;
   azure)
     storage_account="${AZURE_CONFIG_STORAGE_ACCOUNT:-ziplineai2}"
@@ -48,7 +59,7 @@ case "${cloud}" in
     src="${CRUCIBLE_CONFIG_DIR:-${repo_root}/azure/zipline-orchestration}"
 
     require_file "${src}/backend.hcl"
-    require_file "${src}/crucible.auto.tfvars.json"
+    require_grouped_tfvars azure "${src}/crucible.auto.tfvars.json"
 
     az storage blob upload \
       --account-name "${storage_account}" \
