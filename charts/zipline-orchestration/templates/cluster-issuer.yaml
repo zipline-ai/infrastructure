@@ -1,0 +1,33 @@
+{{- if .Values.clusterIssuer.enabled }}
+{{- $issuerName := default "letsencrypt-prod" .Values.clusterIssuer.name -}}
+{{- $email := required "clusterIssuer.email is required when clusterIssuer.enabled is true" .Values.clusterIssuer.email -}}
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{ $issuerName | quote }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  acme:
+    server: {{ .Values.clusterIssuer.server | quote }}
+    email: {{ $email | quote }}
+    privateKeySecretRef:
+      name: {{ default $issuerName .Values.clusterIssuer.privateKeySecretName | quote }}
+    solvers:
+      {{- if .Values.clusterIssuer.ingressClass }}
+      - http01:
+          ingress:
+            class: {{ .Values.clusterIssuer.ingressClass | quote }}
+      {{- else }}
+      {{- range $ingress := list .Values.ingress.hub .Values.ingress.ui .Values.ingress.eval .Values.ingress.fetcher .Values.ingress.polaris }}
+      {{- if and $ingress.host $ingress.className }}
+      - http01:
+          ingress:
+            class: {{ $ingress.className | quote }}
+        selector:
+          dnsNames:
+            - {{ $ingress.host | quote }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+{{- end }}

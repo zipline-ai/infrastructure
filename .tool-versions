@@ -1,6 +1,0 @@
-opentofu 1.8.6
-kubectl 1.31.3
-awscli 2.22.6
-python 3.13.0
-gcloud 502.0.0
-asdf-plugin-manager 1.5.0

@@ -1,0 +1,79 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: orchestration-ui-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+  annotations:
+    # UI's auth-flow responses (cookie + JWKS path) exceed nginx's default 4k
+    # response-header buffer → 502 "upstream sent too big header".
+    nginx.ingress.kubernetes.io/proxy-buffer-size: 16k
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "4"
+    {{- with .Values.ingress.ui.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.ui.className }}
+  {{- with .Values.ingress.ui.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- if .Values.ingress.ui.host }}
+    - host: {{ .Values.ingress.ui.host }}
+      http:
+    {{- else }}
+    - http:
+    {{- end }}
+        paths:
+          - path: {{ .Values.ingress.ui.path | default "/" }}
+            pathType: Prefix
+            backend:
+              service:
+                name: orchestration-ui-service
+                port:
+                  number: 80
+{{- $historyBase := include "zipline-orchestration.historyServerProxyBase" . }}
+---
+# Same shape canary's Flink Operator uses for per-FlinkDeployment Ingresses.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: orchestration-spark-history-ingress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.ingress.ui.annotations }}
+    {{- toYaml (omit . "nginx.ingress.kubernetes.io/use-regex" "nginx.ingress.kubernetes.io/rewrite-target") | nindent 4 }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    # SHS's proxyBase only rewrites HTML link generation, not 302 Location
+    # headers. Without these, a click on an app drills into /history/<id>
+    # which then redirects to /history/<id>/jobs/ (prefix dropped) → request
+    # falls to the UI fallback. Rewrite Location to re-add the prefix.
+    nginx.ingress.kubernetes.io/proxy-redirect-from: "~^(https?://[^/]+)?/(.*)$"
+    nginx.ingress.kubernetes.io/proxy-redirect-to: "$1{{ $historyBase }}/$2"
+spec:
+  ingressClassName: {{ .Values.ingress.ui.className }}
+  {{- with .Values.ingress.ui.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- if .Values.ingress.ui.host }}
+    - host: {{ .Values.ingress.ui.host }}
+      http:
+    {{- else }}
+    - http:
+    {{- end }}
+        paths:
+          - path: {{ $historyBase }}(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: spark-history-server
+                port:
+                  number: 18080

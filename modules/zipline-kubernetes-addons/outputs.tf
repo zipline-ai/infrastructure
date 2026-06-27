@@ -1,0 +1,9 @@
+output "release_names" {
+  description = "Helm release names installed by this module."
+  value = compact([
+    var.install_secrets_store_csi_driver ? helm_release.secrets_store_csi_driver[0].name : "",
+    var.install_cert_manager ? helm_release.cert_manager[0].name : "",
+    var.install_opentelemetry_operator ? helm_release.opentelemetry_operator[0].name : "",
+    var.install_flink_operator ? helm_release.flink_operator[0].name : "",
+  ])
+}
