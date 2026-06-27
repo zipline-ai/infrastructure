@@ -162,6 +162,8 @@ compute:
       limits:
         memory: 1Gi
     storage:
+      enabled: true
+      storageClass: ""
       size: 10Gi
 
 # Database configuration. jdbcUrl wins when set; otherwise templates build a
@@ -389,6 +391,7 @@ ingress:
       nginx.ingress.kubernetes.io/health-check-path: "/ping"
       nginx.ingress.kubernetes.io/proxy-body-size: "20m"
       nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+      nginx.ingress.kubernetes.io/use-regex: "true"
   fetcher:
     className: nginx-ui
     host: ""

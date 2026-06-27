@@ -62,7 +62,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      serviceAccountName: {{ .Values.serviceAccount.name }}
+      serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
       {{- if and .Values.compute.systemPriorityClass.enabled .Values.compute.systemPriorityClass.name }}
       priorityClassName: {{ .Values.compute.systemPriorityClass.name }}
       {{- end }}

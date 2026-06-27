@@ -2,15 +2,22 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 {{- $fetcherPath := default "/" (trimSuffix "/" (.Values.ingress.fetcher.path | default "/")) }}
+{{- $fetcherAnnotations := dict }}
+{{- with .Values.ingress.fetcher.annotations }}
+{{- $fetcherAnnotations = deepCopy . }}
+{{- end }}
+{{- if ne $fetcherPath "/" }}
+{{- $_ := set $fetcherAnnotations "nginx.ingress.kubernetes.io/use-regex" "true" }}
+{{- end }}
 metadata:
   name: fetcher-ingress
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "zipline-orchestration.labels" . | nindent 4 }}
+  {{- with $fetcherAnnotations }}
   annotations:
-    {{- with .Values.ingress.fetcher.annotations }}
     {{- toYaml . | nindent 4 }}
-    {{- end }}
+  {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.fetcher.className }}
   {{- with .Values.ingress.fetcher.tls }}

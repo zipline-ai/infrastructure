@@ -21,7 +21,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      serviceAccountName: {{ .Values.serviceAccount.name }}
+      serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
       {{- toYaml . | nindent 8 }}
@@ -76,8 +76,11 @@ spec:
               value: "{{ .Values.compute.sparkDefaults.image }}"
             - name: CRUCIBLE_SPARK_SERVICE_ACCOUNT
               value: "{{ .Values.compute.serviceAccount.sparkName }}"
+            {{- $historyServerPublicUrl := include "zipline-orchestration.historyServerPublicUrl" . }}
+            {{- if $historyServerPublicUrl }}
             - name: CRUCIBLE_SPARK_HISTORY_PUBLIC_URL
-              value: {{ include "zipline-orchestration.historyServerPublicUrl" . | quote }}
+              value: {{ $historyServerPublicUrl | quote }}
+            {{- end }}
             - name: CRUCIBLE_SPARK_EVENT_LOG_DIR
               value: {{ include "zipline-orchestration.sparkEventLogDir" . | quote }}
             - name: LOKI_URL
