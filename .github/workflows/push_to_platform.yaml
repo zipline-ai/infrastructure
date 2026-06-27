@@ -1,0 +1,52 @@
+name: Push to Platform
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  subtree-pull:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout platform repo
+        uses: actions/checkout@v4
+        with:
+          repository: zipline-ai/platform
+          ssh-key: ${{ secrets.PLATFORM_REPO_DEPLOY_KEY }}
+          fetch-depth: 0
+          ref: main
+
+      - name: Set up Git config
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Set up SSH key for Infrastructure access and pull subtree
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.INFRASTRUCTURE_REPO_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_rsa
+
+          cat > ~/.ssh/config << EOF
+          Host github.com
+            User git
+            IdentityFile ~/.ssh/id_rsa
+            StrictHostKeyChecking no
+          EOF
+
+          git remote add infrastructure git@github.com:zipline-ai/infrastructure.git || true
+
+          git fetch infrastructure main
+          git subtree pull --prefix=infrastructure infrastructure main --message="chore: update infrastructure subtree"
+
+      - name: Push changes to platform
+        run: git push origin main
