@@ -206,6 +206,40 @@ Name of the SecretProviderClass mounted into orchestration pods.
 {{- end }}
 
 {{/*
+Secret volume mounted into orchestration pods. Production uses Secrets Store CSI
+to sync cloud-specific secrets; local installs can mount a regular Kubernetes
+Secret with the same volume name.
+*/}}
+{{- define "zipline-orchestration.secretsKubernetesSecretName" -}}
+{{- .Values.secrets.kubernetesSecret.name | default (include "zipline-orchestration.databaseCredentialsSecretName" .) -}}
+{{- end }}
+
+{{- define "zipline-orchestration.secretsVolumeMount" -}}
+- name: secrets-store-inline
+  mountPath: {{ .Values.secrets.mountPath | quote }}
+  readOnly: true
+{{- end }}
+
+{{- define "zipline-orchestration.secretsVolume" -}}
+- name: secrets-store-inline
+  {{- if .Values.secrets.csi.enabled }}
+  csi:
+    driver: secrets-store.csi.k8s.io
+    readOnly: true
+    volumeAttributes:
+      secretProviderClass: {{ include "zipline-orchestration.secretProviderClassName" . | quote }}
+  {{- else }}
+  secret:
+    secretName: {{ include "zipline-orchestration.secretsKubernetesSecretName" . | quote }}
+    optional: {{ .Values.secrets.kubernetesSecret.optional }}
+    {{- with .Values.secrets.kubernetesSecret.items }}
+    items:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+{{/*
 Spark History Server proxy base path.
 */}}
 {{- define "zipline-orchestration.historyServerProxyBase" -}}

@@ -24,6 +24,7 @@ spec:
       initContainers:
         - name: nvme-setup
           image: {{ required "compute.sparkDefaults.nvmeSetupImage is required when compute.sparkDefaults.nvmeEnabled=true" .Values.compute.sparkDefaults.nvmeSetupImage }}
+          imagePullPolicy: {{ .Values.compute.sparkDefaults.nvmeSetupImagePullPolicy }}
           securityContext:
             privileged: true
           env:
@@ -133,6 +134,7 @@ spec:
       containers:
         - name: pause
           image: registry.k8s.io/pause:3.9
+          imagePullPolicy: Always
           resources:
             requests:
               cpu: "10m"

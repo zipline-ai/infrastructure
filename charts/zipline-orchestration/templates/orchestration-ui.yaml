@@ -35,7 +35,7 @@ spec:
       containers:
         - name: web-ui
           image: "{{ .Values.orchestration.ui.image }}:{{ .Values.global.version }}"
-          imagePullPolicy: Always
+          imagePullPolicy: {{ .Values.orchestration.ui.imagePullPolicy }}
           env:
             - name: API_BASE_URL
               value: "http://orchestration-hub-service"
@@ -152,9 +152,7 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           volumeMounts:
-            - name: secrets-store-inline
-              mountPath: {{ .Values.secrets.mountPath | quote }}
-              readOnly: true
+            {{- include "zipline-orchestration.secretsVolumeMount" . | nindent 12 }}
           resources:
           {{- toYaml .Values.orchestration.ui.resources | nindent 12 }}
           ports:
@@ -172,12 +170,7 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 5
       volumes:
-        - name: secrets-store-inline
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: {{ include "zipline-orchestration.secretProviderClassName" . | quote }}
+        {{- include "zipline-orchestration.secretsVolume" . | nindent 8 }}
 ---
 apiVersion: v1
 kind: Service

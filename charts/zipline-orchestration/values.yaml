@@ -14,6 +14,13 @@ secrets:
   provider: ""
   className: zipline-secret-provider
   mountPath: /mnt/secrets-store
+  csi:
+    enabled: true
+  kubernetesSecret:
+    # Used only when secrets.csi.enabled=false.
+    name: ""
+    optional: true
+    items: []
   secretObjects:
     - secretName: db-credentials
       type: Opaque
@@ -87,6 +94,7 @@ compute:
     chrononJarPath: "/opt/chronon/chronon-spark.jar"
     nvmeEnabled: false
     nvmeSetupImage: ""
+    nvmeSetupImagePullPolicy: "Always"
     executorCores: 14
     executorMemory: "48Gi"
     driverCores: 2
@@ -110,6 +118,8 @@ compute:
     value: 1000
   warmPool:
     enabled: false
+    image: "registry.k8s.io/pause:3.9"
+    imagePullPolicy: "Always"
     replicas: 2
     priorityClassName: "zipline-spark-pause"
     namespace: ""  # Defaults to release namespace.
@@ -123,11 +133,15 @@ compute:
     annotations: {}
   imagePrepull:
     enabled: false
+    imagePullPolicy: "Always"
+    pauseImage: "registry.k8s.io/pause:3.9"
+    pauseImagePullPolicy: "Always"
     images: []
     nodeSelector: {}
     tolerations: []
   historyServer:
     image: "ziplineai/spark:nightly"
+    imagePullPolicy: "Always"
     proxyBase: "spark-history"
     daemonMemory: "5g"
     hybridStoreMemory: "4g"
@@ -147,6 +161,7 @@ compute:
       size: 10Gi
   loki:
     image: "grafana/loki:3.4.2"
+    imagePullPolicy: "Always"
     retention: "168h"
     objectStore: filesystem
     deleteRequestStore: filesystem
@@ -187,7 +202,7 @@ polaris:
   image:
     repository: "apache/polaris"
     tag: "1.5.0"
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   # Polaris images are public; don't inherit the Zipline private image pull secret.
   imagePullSecrets: []
   replicas: 1
@@ -202,6 +217,7 @@ polaris:
     psqlParams: ""
     create: true
     initImage: "postgres:16-alpine"
+    initImagePullPolicy: "Always"
     # Defaults to database.credentialsSecret when unset.
     credentialsSecret: {}
   service:
@@ -215,7 +231,7 @@ polaris:
     image:
       repository: "apache/polaris-admin-tool"
       tag: "1.5.0"
-      pullPolicy: IfNotPresent
+      pullPolicy: Always
     credentialsSecret:
       # Secret data must contain one line formatted as:
       # <realm>,<client-id>,<client-secret>
@@ -232,7 +248,7 @@ polaris:
       image:
         repository: "python"
         tag: "3.12-alpine"
-        pullPolicy: IfNotPresent
+        pullPolicy: Always
       catalog:
         # Defaults to polaris_<realm>. The chart seeds this default customer
         # catalog/namespace; Hub reconciles team/namespace RBAC.
@@ -291,6 +307,7 @@ domains:
 orchestration:
   hub:
     image: ""
+    imagePullPolicy: "Always"
     verticleClass: ""
     replicas: 1
     port: 3903
@@ -307,6 +324,7 @@ orchestration:
 
   ui:
     image: "ziplineai/web-ui"
+    imagePullPolicy: "Always"
     replicas: 1
     port: 3000
     origin: ""
@@ -323,6 +341,7 @@ orchestration:
 
   fetcher:
     image: "ziplineai/chronon-fetcher"
+    imagePullPolicy: "Always"
     replicas: 3
     port: 9000
     env: []
@@ -338,6 +357,7 @@ orchestration:
 
   eval:
     image: ""
+    imagePullPolicy: "Always"
     replicas: 1
     port: 3904
     env: []
@@ -355,6 +375,8 @@ orchestration:
 ingress-nginx-ui:
   enabled: true
   controller:
+    image:
+      pullPolicy: Always
     ingressClassResource:
       name: nginx-ui
       enabled: true
@@ -370,6 +392,10 @@ ingress-nginx-ui:
         memory: 256Mi
     service:
       annotations: {}
+    admissionWebhooks:
+      patch:
+        image:
+          pullPolicy: Always
     electionID: ingress-controller-leader-ui
     namespaceOverride: ingress-nginx-ui
 
@@ -430,6 +456,8 @@ prometheus:
 
 spark-operator:
   enabled: true
+  image:
+    pullPolicy: Always
   controller:
     replicas: 2
     workers: 20
@@ -446,6 +474,12 @@ spark-operator:
 
 promtail:
   enabled: true
+  image:
+    pullPolicy: Always
+  sidecar:
+    configReloader:
+      image:
+        pullPolicy: Always
   config:
     clients:
       - url: http://zipline-orchestration-loki:3100/loki/api/v1/push
@@ -492,6 +526,10 @@ auth:
   sso_saml_callback_url: ""
   idp_role_mapping: ""
   idp_group_claim: ""
+
+setHubBaseUrlJob:
+  image: "alpine/k8s:1.28.3"
+  imagePullPolicy: "Always"
 
 certManager:
   enabled: true

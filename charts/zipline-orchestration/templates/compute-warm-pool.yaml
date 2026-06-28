@@ -51,7 +51,8 @@ spec:
       terminationGracePeriodSeconds: 0
       containers:
         - name: pause
-          image: registry.k8s.io/pause:3.9
+          image: {{ .Values.compute.warmPool.image }}
+          imagePullPolicy: {{ .Values.compute.warmPool.imagePullPolicy }}
           resources:
             requests:
               cpu: {{ .Values.compute.warmPool.resources.cpu | default "2" | quote }}

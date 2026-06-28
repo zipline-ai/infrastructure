@@ -38,7 +38,7 @@ spec:
       containers:
         - name: fetcher
           image: "{{ required "orchestration.fetcher.image is required" .Values.orchestration.fetcher.image }}:{{ .Values.global.version }}"
-          imagePullPolicy: Always
+          imagePullPolicy: {{ .Values.orchestration.fetcher.imagePullPolicy }}
           env:
             - name: FETCHER_PORT
               value: "{{ .Values.orchestration.fetcher.port }}"
@@ -51,9 +51,7 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           volumeMounts:
-            - name: secrets-store-inline
-              mountPath: {{ .Values.secrets.mountPath | quote }}
-              readOnly: true
+            {{- include "zipline-orchestration.secretsVolumeMount" . | nindent 12 }}
           ports:
             - containerPort: {{ .Values.orchestration.fetcher.port }}
           resources:
@@ -71,12 +69,7 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 5
       volumes:
-        - name: secrets-store-inline
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: {{ include "zipline-orchestration.secretProviderClassName" . | quote }}
+        {{- include "zipline-orchestration.secretsVolume" . | nindent 8 }}
 ---
 apiVersion: v1
 kind: Service
