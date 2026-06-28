@@ -74,6 +74,7 @@ spec:
       initContainers:
         - name: fix-permissions
           image: {{ .Values.compute.historyServer.image }}
+          imagePullPolicy: {{ .Values.compute.historyServer.imagePullPolicy }}
           command: ["sh", "-c", "mkdir -p /data/spark-history-cache && chown -R spark:spark /data"]
           securityContext:
             runAsUser: 0
@@ -83,7 +84,7 @@ spec:
       containers:
         - name: history-server
           image: {{ .Values.compute.historyServer.image }}
-          imagePullPolicy: Always
+          imagePullPolicy: {{ .Values.compute.historyServer.imagePullPolicy }}
           command:
             - /opt/spark/bin/spark-class
             - org.apache.spark.deploy.history.HistoryServer

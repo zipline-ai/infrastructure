@@ -34,6 +34,7 @@ spec:
         {{- range $i, $image := .Values.compute.imagePrepull.images }}
         - name: pull-{{ $i }}
           image: {{ $image }}
+          imagePullPolicy: {{ $.Values.compute.imagePrepull.imagePullPolicy }}
           command: ["sh", "-c", "exit 0"]
           resources:
             requests:
@@ -45,7 +46,8 @@ spec:
         {{- end }}
       containers:
         - name: pause
-          image: registry.k8s.io/pause:3.9
+          image: {{ .Values.compute.imagePrepull.pauseImage }}
+          imagePullPolicy: {{ .Values.compute.imagePrepull.pauseImagePullPolicy }}
           resources:
             requests:
               cpu: "10m"

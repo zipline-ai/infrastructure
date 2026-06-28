@@ -132,7 +132,7 @@ spec:
       initContainers:
         - name: prepare-polaris-bootstrap
           image: {{ $polaris.database.initImage | quote }}
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ $polaris.database.initImagePullPolicy }}
           env:
             - name: PGUSER
               valueFrom:
@@ -191,9 +191,7 @@ spec:
               readOnly: true
             - name: bootstrap-state
               mountPath: /bootstrap-state
-            - name: secrets-store-inline
-              mountPath: {{ .Values.secrets.mountPath | quote }}
-              readOnly: true
+            {{- include "zipline-orchestration.secretsVolumeMount" . | nindent 12 }}
       containers:
         - name: bootstrap-polaris
           image: "{{ $polaris.bootstrap.image.repository }}:{{ default $polaris.image.tag $polaris.bootstrap.image.tag }}"
@@ -231,9 +229,7 @@ spec:
               readOnly: true
             - name: bootstrap-state
               mountPath: /bootstrap-state
-            - name: secrets-store-inline
-              mountPath: {{ .Values.secrets.mountPath | quote }}
-              readOnly: true
+            {{- include "zipline-orchestration.secretsVolumeMount" . | nindent 12 }}
           resources:
 {{- toYaml $polaris.bootstrap.resources | nindent 12 }}
         - name: configure-polaris-rbac
@@ -502,12 +498,7 @@ spec:
                 path: credentials
         - name: bootstrap-state
           emptyDir: {}
-        - name: secrets-store-inline
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: {{ include "zipline-orchestration.secretProviderClassName" . | quote }}
+        {{- include "zipline-orchestration.secretsVolume" . | nindent 8 }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -562,7 +553,7 @@ spec:
       initContainers:
         - name: create-polaris-database
           image: {{ $polaris.database.initImage | quote }}
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: {{ $polaris.database.initImagePullPolicy }}
           env:
             - name: PGUSER
               valueFrom:
@@ -596,9 +587,7 @@ spec:
                 psql "$PG_ADMIN_URL" --set=ON_ERROR_STOP=1 -c "CREATE DATABASE \"$POLARIS_DB_NAME\" OWNER \"$DB_USERNAME\""
               fi
           volumeMounts:
-            - name: secrets-store-inline
-              mountPath: {{ .Values.secrets.mountPath | quote }}
-              readOnly: true
+            {{- include "zipline-orchestration.secretsVolumeMount" . | nindent 12 }}
       {{- end }}
       containers:
         - name: polaris
@@ -635,9 +624,7 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
-            - name: secrets-store-inline
-              mountPath: {{ .Values.secrets.mountPath | quote }}
-              readOnly: true
+            {{- include "zipline-orchestration.secretsVolumeMount" . | nindent 12 }}
           ports:
             - name: http
               containerPort: {{ $polaris.ports.http }}
@@ -665,12 +652,7 @@ spec:
             name: polaris-config
         - name: tmp
           emptyDir: {}
-        - name: secrets-store-inline
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: {{ include "zipline-orchestration.secretProviderClassName" . | quote }}
+        {{- include "zipline-orchestration.secretsVolume" . | nindent 8 }}
 ---
 apiVersion: v1
 kind: Service
