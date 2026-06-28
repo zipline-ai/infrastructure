@@ -18,7 +18,7 @@ spec:
         app.kubernetes.io/name: {{ include "zipline-orchestration.name" . }}-nvme-setup
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
-      serviceAccountName: {{ .Values.serviceAccount.name }}
+      serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
       tolerations:
         - operator: Exists
       initContainers:
@@ -53,10 +53,10 @@ spec:
 
                 if command -v nsenter >/dev/null 2>&1; then
                   nsenter --mount=/host-proc/1/ns/mnt -- /usr/bin/mkdir -p /mnt/nvme
-                  nsenter --mount=/host-proc/1/ns/mnt -- /usr/bin/mount "$real_dev" /mnt/nvme || true
+                  nsenter --mount=/host-proc/1/ns/mnt -- /usr/bin/mount "$real_dev" /mnt/nvme
                   nsenter --mount=/host-proc/1/ns/mnt -- /usr/bin/chmod 1777 /mnt/nvme
                 else
-                  mount "$dev" /host-mnt/nvme || true
+                  mount "$dev" /host-mnt/nvme
                   chmod 1777 /host-mnt/nvme
                 fi
 
@@ -97,12 +97,13 @@ spec:
               ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
               api="https://kubernetes.default.svc"
 
-              current="$(curl -s --cacert "$ca" -H "Authorization: Bearer $token" \
-                "$api/api/v1/nodes/$NODE_NAME" | grep -o '"zipline.ai/nvme":"true"' || true)"
+              node_json="$(curl -fsS --cacert "$ca" -H "Authorization: Bearer $token" \
+                "$api/api/v1/nodes/$NODE_NAME")"
+              current="$(printf '%s\n' "$node_json" | grep -o '"zipline.ai/nvme":"true"' || true)"
 
               if [ -z "$current" ]; then
                 patch='{"metadata":{"labels":{"zipline.ai/nvme":"true"}},"spec":{"taints":[{"key":"zipline.ai/nvme","value":"true","effect":"NoSchedule"}]}}'
-                curl -s --cacert "$ca" -H "Authorization: Bearer $token" \
+                curl -fsS --cacert "$ca" -H "Authorization: Bearer $token" \
                   -H "Content-Type: application/strategic-merge-patch+json" \
                   -X PATCH "$api/api/v1/nodes/$NODE_NAME" \
                   -d "$patch" >/dev/null

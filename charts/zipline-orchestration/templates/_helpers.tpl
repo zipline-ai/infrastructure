@@ -156,7 +156,8 @@ JDBC URL for orchestration services.
 {{- if .Values.database.jdbcUrl -}}
 {{- .Values.database.jdbcUrl -}}
 {{- else -}}
-{{- $url := printf "jdbc:postgresql://%s:%v/%s" .Values.database.host (.Values.database.port | default 5432) .Values.database.name -}}
+{{- $host := required "database.host is required when database.jdbcUrl is not set" .Values.database.host -}}
+{{- $url := printf "jdbc:postgresql://%s:%v/%s" $host (.Values.database.port | default 5432) .Values.database.name -}}
 {{- if .Values.database.sslMode -}}
 {{- printf "%s?sslmode=%s" $url .Values.database.sslMode -}}
 {{- else -}}
@@ -172,7 +173,8 @@ Postgres URL for services that expect a non-JDBC DATABASE_URL.
 {{- if .Values.database.url -}}
 {{- .Values.database.url -}}
 {{- else -}}
-{{- $url := printf "postgres://$(DB_USERNAME)@%s:%v/%s" .Values.database.host (.Values.database.port | default 5432) .Values.database.name -}}
+{{- $host := required "database.host is required when database.url is not set" .Values.database.host -}}
+{{- $url := printf "postgres://$(DB_USERNAME)@%s:%v/%s" $host (.Values.database.port | default 5432) .Values.database.name -}}
 {{- if .Values.database.sslMode -}}
 {{- printf "%s?sslmode=%s" $url .Values.database.sslMode -}}
 {{- else -}}
@@ -212,14 +214,12 @@ Spark History Server proxy base path.
 
 {{/*
 Externally reachable Spark History Server URL, used by the Hub to render
-links the operator clicks from a browser. When ingress.ui.host is set the
-SHS is exposed behind <ui-host>/<proxyBase>; otherwise the Hub falls back
-to the cluster-internal Service DNS which only works from inside the cluster.
+links the operator clicks from a browser. When ingress.ui.host is unset the
+link is omitted because a cluster-internal Service DNS name is not browser
+reachable.
 */}}
 {{- define "zipline-orchestration.historyServerPublicUrl" -}}
 {{- if .Values.ingress.ui.host -}}
 {{- printf "https://%s%s" .Values.ingress.ui.host (include "zipline-orchestration.historyServerProxyBase" .) -}}
-{{- else -}}
-{{- printf "http://spark-history-server.%s.svc.cluster.local:18080" .Release.Namespace -}}
 {{- end -}}
 {{- end }}

@@ -19,7 +19,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      serviceAccountName: {{ .Values.serviceAccount.name }}
+      serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
       {{- toYaml . | nindent 8 }}
@@ -65,12 +65,10 @@ spec:
               value: "http://{{ include "zipline-orchestration.fullname" . }}-loki.{{ include "zipline-orchestration.computeSystemNamespace" . }}.svc.cluster.local:3100"
             - name: LOKI_NAMESPACE
               value: {{ include "zipline-orchestration.computeSystemNamespace" . | quote }}
-            - name: LOG_SERVICE_ENGINE_FILTER
-              value: {{ printf "{\"filters\":[{\"field\":\"namespace\",\"value\":\"%s\"},{\"field\":\"container\",\"value\":\"spark-kubernetes-driver\"},{\"field\":\"pod\",\"value\":\"%s-driver\",\"operator\":\"startsWith\"}]}" (include "zipline-orchestration.computeJobNamespace" .) "{{JOB_ID}}" | quote }}
-            - name: LOG_SERVICE_WORKFLOW_FILTER
-              value: {{ printf "{\"filters\":[{\"field\":\"namespace\",\"value\":\"%s\"},{\"field\":\"container\",\"value\":\"orchestration-hub\"},{\"field\":\"workflowId\",\"value\":\"%s\",\"source\":\"json\"}]}" (include "zipline-orchestration.computeSystemNamespace" .) "{{WORKFLOW_ID}}" | quote }}
-            - name: LOG_SERVICE_NODE_STEP_RUN_FILTER
-              value: {{ printf "{\"filters\":[{\"field\":\"namespace\",\"value\":\"%s\"},{\"field\":\"container\",\"value\":\"orchestration-hub\"},{\"field\":\"stepId\",\"value\":\"%s\",\"source\":\"json\"}]}" (include "zipline-orchestration.computeSystemNamespace" .) "{{STEP_ID}}" | quote }}
+            # Built-in UI log profile for Spark drivers submitted through
+            # Crucible. Hub workflow/step logs use the default Loki profiles.
+            - name: LOG_SERVICE_ENGINE_PROFILE
+              value: "crucible-spark"
             - name: PROMETHEUS_QUERY_ENDPOINT
               value: "{{ .Values.prometheus.queryEndpoint }}"
             - name: PROMETHEUS_NAMESPACE

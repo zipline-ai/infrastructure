@@ -105,7 +105,7 @@ spec:
         {{- end }}
     spec:
       restartPolicy: OnFailure
-      serviceAccountName: {{ .Values.serviceAccount.name }}
+      serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
       {{- if hasKey $polaris "imagePullSecrets" }}
       {{- with $polaris.imagePullSecrets }}
       imagePullSecrets:
@@ -398,15 +398,18 @@ spec:
                   current_storage = catalog.get("storageConfigInfo") or {}
                   desired_storage = catalog_storage_config(default_base_location, current_storage)
                   if desired_properties != current_properties or desired_storage != current_storage:
+                      update_body = {
+                          "properties": desired_properties,
+                          "storageConfigInfo": desired_storage,
+                      }
+                      entity_version = catalog.get("entityVersion")
+                      if entity_version is not None:
+                          update_body["currentEntityVersion"] = entity_version
                       http_json(
                           "PUT",
                           catalog_url,
                           token=token,
-                          body={
-                              "currentEntityVersion": catalog["entityVersion"],
-                              "properties": desired_properties,
-                              "storageConfigInfo": desired_storage,
-                          },
+                          body=update_body,
                           ok=(200,),
                       )
 
@@ -531,7 +534,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      serviceAccountName: {{ .Values.serviceAccount.name }}
+      serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
       {{- if hasKey $polaris "imagePullSecrets" }}
       {{- with $polaris.imagePullSecrets }}
       imagePullSecrets:

@@ -31,10 +31,9 @@ Fill in your company name as the customer_name variable and select the region yo
 Initialize to  and select the project you want to use
 * ``` aws configure sso ```
 
-Enter the zipline-gcp directory and initialize the infrastructure
-* ``` cd zipline-aws ```
+Enter the AWS orchestration wrapper directory and initialize the infrastructure
+* ``` cd aws/zipline-orchestration ```
 * ``` tofu init ```
 * ``` tofu apply ```
 Fill in your company name as the customer_name variable and select the region you want to deploy to.
-
 

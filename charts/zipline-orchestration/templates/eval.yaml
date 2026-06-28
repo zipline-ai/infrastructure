@@ -21,7 +21,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      serviceAccountName: {{ .Values.serviceAccount.name }}
+      serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
       {{- toYaml . | nindent 8 }}
@@ -75,6 +75,18 @@ spec:
             - containerPort: {{ .Values.orchestration.eval.port }}
           resources:
           {{- toYaml .Values.orchestration.eval.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: {{ .Values.orchestration.eval.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: {{ .Values.orchestration.eval.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
       volumes:
         - name: secrets-store-inline
           csi:

@@ -1,4 +1,4 @@
-{{ if .Values.global.deploy_fetcher }}
+{{- if .Values.global.deploy_fetcher }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -22,7 +22,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      serviceAccountName: {{ .Values.serviceAccount.name }}
+      serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
       {{- toYaml . | nindent 8 }}
@@ -37,7 +37,7 @@ spec:
       {{- end }}
       containers:
         - name: fetcher
-          image: "{{ .Values.orchestration.fetcher.image }}:{{ .Values.global.version }}"
+          image: "{{ required "orchestration.fetcher.image is required" .Values.orchestration.fetcher.image }}:{{ .Values.global.version }}"
           imagePullPolicy: Always
           env:
             - name: FETCHER_PORT
@@ -94,4 +94,4 @@ spec:
       targetPort: {{ .Values.orchestration.fetcher.port }}
       protocol: TCP
   type: ClusterIP
-{{ end }}
+{{- end }}

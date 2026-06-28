@@ -16,12 +16,12 @@ require_grouped_tfvars() {
 
   if ! command -v jq >/dev/null 2>&1; then
     echo "jq is required to validate Crucible tfvars." >&2
-    exit 1
+    return 1
   fi
 
   if ! jq -e --arg cloud "${cloud}" 'has("orchestration") and has($cloud)' "${file}" >/dev/null; then
     echo "${file} must contain top-level orchestration and ${cloud} objects." >&2
-    exit 1
+    return 1
   fi
 }
 
@@ -41,8 +41,13 @@ case "${cloud}" in
 
     mkdir -p "${root_dest}"
 
-    aws s3 cp "s3://${bucket}/${wrapper_key}" "${root_dest}/crucible.auto.tfvars.json"
-    require_grouped_tfvars aws "${root_dest}/crucible.auto.tfvars.json"
+    tmp_tfvars="$(mktemp "${root_dest}/crucible.auto.tfvars.json.XXXXXX")"
+    trap 'rm -f "${tmp_tfvars:-}"' EXIT
+
+    aws s3 cp "s3://${bucket}/${wrapper_key}" "${tmp_tfvars}"
+    require_grouped_tfvars aws "${tmp_tfvars}"
+    mv "${tmp_tfvars}" "${root_dest}/crucible.auto.tfvars.json"
+    trap - EXIT
 
     cat <<EOF
 Pulled AWS Crucible orchestration config from:
@@ -60,11 +65,15 @@ EOF
 
     mkdir -p "${dest}"
 
+    tmp_backend="$(mktemp "${dest}/backend.hcl.XXXXXX")"
+    tmp_tfvars="$(mktemp "${dest}/crucible.auto.tfvars.json.XXXXXX")"
+    trap 'rm -f "${tmp_backend:-}" "${tmp_tfvars:-}"' EXIT
+
     az storage blob download \
       --account-name "${storage_account}" \
       --container-name "${container}" \
       --name "${prefix}/backend.hcl" \
-      --file "${dest}/backend.hcl" \
+      --file "${tmp_backend}" \
       --auth-mode login \
       --overwrite true \
       --output none
@@ -73,12 +82,15 @@ EOF
       --account-name "${storage_account}" \
       --container-name "${container}" \
       --name "${prefix}/crucible.auto.tfvars.json" \
-      --file "${dest}/crucible.auto.tfvars.json" \
+      --file "${tmp_tfvars}" \
       --auth-mode login \
       --overwrite true \
       --output none
 
-    require_grouped_tfvars azure "${dest}/crucible.auto.tfvars.json"
+    require_grouped_tfvars azure "${tmp_tfvars}"
+    mv "${tmp_backend}" "${dest}/backend.hcl"
+    mv "${tmp_tfvars}" "${dest}/crucible.auto.tfvars.json"
+    trap - EXIT
 
     cat <<EOF
 Pulled Azure Crucible orchestration config from:

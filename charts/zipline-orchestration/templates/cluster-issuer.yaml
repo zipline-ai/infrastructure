@@ -19,8 +19,10 @@ spec:
           ingress:
             class: {{ .Values.clusterIssuer.ingressClass | quote }}
       {{- else }}
+      {{- $solverCount := 0 }}
       {{- range $ingress := list .Values.ingress.hub .Values.ingress.ui .Values.ingress.eval .Values.ingress.fetcher .Values.ingress.polaris }}
       {{- if and $ingress.host $ingress.className }}
+      {{- $solverCount = add $solverCount 1 }}
       - http01:
           ingress:
             class: {{ $ingress.className | quote }}
@@ -28,6 +30,11 @@ spec:
           dnsNames:
             - {{ $ingress.host | quote }}
       {{- end }}
+      {{- end }}
+      {{- if eq $solverCount 0 }}
+      - http01:
+          ingress:
+            class: {{ coalesce .Values.ingress.ui.className .Values.ingress.hub.className .Values.ingress.eval.className .Values.ingress.fetcher.className .Values.ingress.polaris.className "nginx" | quote }}
       {{- end }}
       {{- end }}
 {{- end }}

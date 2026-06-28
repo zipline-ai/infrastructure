@@ -61,7 +61,7 @@ resource "helm_release" "flink_operator" {
   count = var.install_flink_operator ? 1 : 0
 
   name             = "flink-kubernetes-operator"
-  repository       = "https://archive.apache.org/dist/flink/flink-kubernetes-operator-1.14.0/"
+  repository       = "https://archive.apache.org/dist/flink/flink-kubernetes-operator-${var.flink_operator_version}/"
   chart            = "flink-kubernetes-operator"
   namespace        = "flink-operator"
   version          = var.flink_operator_version
