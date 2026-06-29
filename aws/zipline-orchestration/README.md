@@ -51,7 +51,7 @@ Supported shared fields:
 | `orchestration.install.cleanup_on_fail` | Clean up failed Helm upgrades. |
 | `orchestration.install.dependency_update` | Update Helm chart dependencies during install. |
 | `orchestration.deployment.customer_name` | Customer or environment name used in rendered resources. |
-| `orchestration.deployment.artifact_prefix` | Artifact object-store prefix. |
+| `orchestration.deployment.artifact_prefix` | Artifact S3 URI. Terraform creates the bucket portion of this URI. |
 | `orchestration.deployment.zipline_version` | Image tag used across Zipline services. |
 | `orchestration.deployment.deploy_fetcher` | Whether to deploy the optional fetcher service. |
 | `orchestration.database.host` | Postgres host when the cloud wrapper does not provide one. |
@@ -146,7 +146,8 @@ Supported AWS-specific fields:
 | Field | Notes |
 | --- | --- |
 | `aws.region` | AWS region. Required. |
-| `aws.warehouse_bucket` | S3 warehouse bucket name. Required. |
+| `aws.warehouse_bucket` | S3 warehouse bucket name. Terraform creates this bucket. Required. |
+| `aws.logs_bucket` | S3 logs bucket name. Terraform creates this bucket. Defaults to `zipline-logs-<customer_name>`. |
 | `aws.vpc_id` | VPC for EKS and RDS. Required. |
 | `aws.primary_subnet_id` | Primary subnet for EKS, RDS, and AMP scraper. Required. |
 | `aws.secondary_subnet_id` | Secondary subnet for EKS, RDS, and AMP scraper. Required. |
@@ -174,6 +175,14 @@ DNS records are intentionally not managed by this wrapper. The wrapper outputs
 `ingress_load_balancer_target`, which environment-specific DNS automation can
 route through the DNS provider selected by that environment.
 
+The AWS wrapper creates the customer-owned artifact, warehouse, and logs
+buckets. Bucket names are supplied through
+`orchestration.deployment.artifact_prefix`, `aws.warehouse_bucket`, and
+`aws.logs_bucket`. Buckets referenced only for additional read/write grants, such
+as `aws.additional_data_buckets`, `aws.additional_flink_s3_buckets`,
+`aws.shared_warehouse_bucket`, and `aws.spark_libs_bucket`, are treated as
+external buckets and are not created by this wrapper.
+
 ```hcl
 orchestration = {
   install = {
@@ -198,6 +207,7 @@ orchestration = {
 aws = {
   region              = "us-west-2"
   warehouse_bucket    = "example-warehouse"
+  logs_bucket         = "example-logs"
   vpc_id              = "vpc-..."
   primary_subnet_id   = "subnet-..."
   secondary_subnet_id = "subnet-..."

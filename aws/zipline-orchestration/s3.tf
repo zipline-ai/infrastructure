@@ -1,6 +1,5 @@
 resource "aws_s3_bucket" "artifact" {
-  bucket        = local.artifact_bucket
-  force_destroy = true
+  bucket = local.artifact_bucket
 
   tags = {
     Name = local.artifact_bucket
@@ -8,8 +7,7 @@ resource "aws_s3_bucket" "artifact" {
 }
 
 resource "aws_s3_bucket" "warehouse" {
-  bucket        = local.cloud_args.warehouse_bucket
-  force_destroy = true
+  bucket = local.cloud_args.warehouse_bucket
 
   tags = {
     Name = local.cloud_args.warehouse_bucket
@@ -17,8 +15,7 @@ resource "aws_s3_bucket" "warehouse" {
 }
 
 resource "aws_s3_bucket" "logs" {
-  bucket        = local.logs_bucket
-  force_destroy = true
+  bucket = local.logs_bucket
 
   tags = {
     Name = local.logs_bucket
