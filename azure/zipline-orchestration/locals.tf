@@ -1,7 +1,9 @@
 locals {
   cloud_args = merge({
+    subscription_id               = ""
     database_password_secret_name = "pg-admin-password"
     database_username_secret_name = "pg-admin-username"
+    logs_container_name           = ""
     storage_path_prefix           = ""
     ingress_load_balancer_ip      = ""
     load_balancer_resource_group  = ""
@@ -76,6 +78,9 @@ locals {
   eval_image                  = "ziplineai/eval-azure"
   hub_verticle_class          = "ai.chronon.hub.AzureOrchestrationVerticle,ai.chronon.hub.AzureWorkflowExecutionVerticle"
   auth_enabled                = try(var.orchestration.auth.enabled, false)
+  artifact_prefix_location    = trimprefix(trimprefix(trimspace(local.deployment.artifact_prefix), "abfss://"), "wasbs://")
+  artifact_container_name     = split("@", local.artifact_prefix_location)[0]
+  logs_container_name         = local.cloud_args.logs_container_name != "" ? local.cloud_args.logs_container_name : "zipline-logs-${local.deployment.customer_name}"
 
   workload_identity_annotations = {
     "azure.workload.identity/client-id" = local.cloud_args.workload_identity_client_id

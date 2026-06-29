@@ -8,6 +8,8 @@ Azure-specific work stays at this layer:
 - Azure workload identity annotations and pod labels.
 - Azure Key Vault objects projected through the generic chart `secrets` values.
 - Static IP and resource-group settings for ingress-nginx controller Services.
+- Artifact, warehouse, and logs storage containers in the configured Azure
+  storage account.
 - ABFS event log and Polaris catalog paths supplied as runtime values.
 
 The wrapper assumes the AKS cluster already has workload identity and the Azure
@@ -50,7 +52,7 @@ Supported shared fields:
 | `orchestration.install.cleanup_on_fail` | Clean up failed Helm upgrades. |
 | `orchestration.install.dependency_update` | Update Helm chart dependencies during install. |
 | `orchestration.deployment.customer_name` | Customer or environment name used in rendered resources. |
-| `orchestration.deployment.artifact_prefix` | Artifact object-store prefix. |
+| `orchestration.deployment.artifact_prefix` | Artifact ABFS/WASBS URI. Terraform creates the container portion of this URI. |
 | `orchestration.deployment.zipline_version` | Image tag used across Zipline services. |
 | `orchestration.deployment.deploy_fetcher` | Whether to deploy the optional fetcher service. |
 | `orchestration.database.host` | Postgres host. |
@@ -144,18 +146,27 @@ Supported Azure-specific fields:
 
 | Field | Notes |
 | --- | --- |
+| `azure.subscription_id` | Optional Azure subscription ID. Omit to use the authenticated Azure CLI/default subscription. |
 | `azure.location` | Azure location. Required. |
 | `azure.tenant_id` | Azure tenant ID. Required. |
 | `azure.keyvault_name` | Key Vault name. Required. |
 | `azure.keyvault_identity_client_id` | User-assigned identity client ID for Key Vault CSI access. Required. |
 | `azure.workload_identity_client_id` | Workload identity client ID for Zipline pods. Required. |
-| `azure.warehouse_container_name` | Warehouse storage container name. Required. |
-| `azure.storage_account_name` | Warehouse storage account name. Required. |
+| `azure.warehouse_container_name` | Warehouse storage container name. Terraform creates this container. Required. |
+| `azure.logs_container_name` | Logs storage container name. Terraform creates this container. Defaults to `zipline-logs-<customer_name>`. |
+| `azure.storage_account_name` | Storage account containing Zipline containers. Required. |
 | `azure.database_password_secret_name` | Key Vault secret name for DB password. |
 | `azure.database_username_secret_name` | Key Vault secret name for DB username. |
 | `azure.storage_path_prefix` | Optional path prefix inside the warehouse container. |
 | `azure.ingress_load_balancer_ip` | Static ingress load balancer IP. |
 | `azure.load_balancer_resource_group` | Resource group for the ingress load balancer IP. |
+
+The Azure wrapper creates the customer-owned artifact, warehouse, and logs
+containers. Container names are supplied through
+`orchestration.deployment.artifact_prefix`, `azure.warehouse_container_name`,
+and `azure.logs_container_name`. The storage account remains an environment
+input so installations can decide resource-group, ADLS/HNS, network access, and
+private endpoint policy outside of the orchestration chart boundary.
 
 ```hcl
 orchestration = {
@@ -188,6 +199,7 @@ azure = {
   keyvault_identity_client_id = "00000000-0000-0000-0000-000000000000"
   workload_identity_client_id = "00000000-0000-0000-0000-000000000000"
   warehouse_container_name    = "warehouse"
+  logs_container_name         = "zipline-logs-example"
   storage_account_name        = "examplestorage"
 }
 ```
