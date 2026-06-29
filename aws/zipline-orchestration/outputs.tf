@@ -67,3 +67,8 @@ output "amp_query_endpoint" {
   description = "AWS Managed Prometheus query endpoint."
   value       = aws_prometheus_workspace.main.prometheus_endpoint
 }
+
+output "public_dns_record" {
+  description = "Managed public DNS record name."
+  value       = module.public_dns.record_name
+}

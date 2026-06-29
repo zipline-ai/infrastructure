@@ -171,6 +171,9 @@ Supported AWS-specific fields:
 | `aws.msk_cluster_arn` | Optional MSK cluster ARN for Flink IAM permissions. |
 | `aws.encryption_kms_key_arn` | Optional KMS key used by RDS, Secrets Manager, DynamoDB, and Polaris storage policy. |
 | `aws.encryption_kms_key_arns` | Optional region-to-KMS-key map for DynamoDB replicas. |
+| `aws.dns.cloudflare_api_token` | Cloudflare token used to manage the public CNAME. Required. |
+| `aws.dns.cloudflare_zone_id` | Cloudflare zone ID used to manage the public CNAME. Required. |
+| `aws.dns.record_name` | DNS record name. Defaults to `orchestration.ingress.domain`. |
 
 ```hcl
 orchestration = {
@@ -204,6 +207,11 @@ aws = {
     google_oauth_client_secret = "..."
     github_oauth_client_secret = "..."
     sso_client_secret          = "..."
+  }
+
+  dns = {
+    cloudflare_zone_id   = "..."
+    cloudflare_api_token = "..."
   }
 }
 ```
