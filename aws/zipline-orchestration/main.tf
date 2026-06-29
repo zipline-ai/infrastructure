@@ -24,15 +24,6 @@ variable "aws" {
     condition     = !try(var.orchestration.auth.enabled, false) || trimspace(try(var.aws.auth_secret_arn, try(var.orchestration.auth.secrets_arn, ""))) != "" || length(keys(try(var.aws.auth_secret_values, {}))) > 0
     error_message = "When auth.enabled is true, set aws.auth_secret_arn, orchestration.auth.secrets_arn, or aws.auth_secret_values so the AWS wrapper can provide the auth secret."
   }
-
-  validation {
-    condition = alltrue([
-      trimspace(try(var.aws.dns.cloudflare_api_token, "")) != "",
-      trimspace(try(var.aws.dns.cloudflare_zone_id, "")) != "",
-      trimspace(try(var.aws.dns.record_name, try(var.orchestration.ingress.domain, ""))) != "",
-    ])
-    error_message = "aws.dns must include cloudflare_api_token and cloudflare_zone_id, and either aws.dns.record_name or orchestration.ingress.domain must be set."
-  }
 }
 
 module "zipline_orchestration" {

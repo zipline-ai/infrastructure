@@ -575,3 +575,12 @@ resource "helm_release" "this" {
     module.addons,
   ]
 }
+
+data "kubernetes_service_v1" "ingress_controller" {
+  metadata {
+    name      = "${local.install.release_name}-ingress-nginx-ui-controller"
+    namespace = local.install.namespace
+  }
+
+  depends_on = [helm_release.this]
+}

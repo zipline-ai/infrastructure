@@ -15,6 +15,7 @@ tfplan*
 aws/zipline-orchestration/.crucible-config/
 aws/zipline-orchestration/backend.hcl
 aws/zipline-orchestration/current-helm-values.*
+aws/zipline-orchestration/dns-provider.tf
 aws/zipline-orchestration/cloudflare.tf
 aws/zipline-orchestration/github.tf
 aws/zipline-orchestration/crucible-config/
@@ -23,3 +24,4 @@ aws/zipline-orchestration/crucible-config/
 azure/zipline-orchestration/.crucible-config/
 azure/zipline-orchestration/backend.hcl
 azure/zipline-orchestration/current-helm-values.*
+azure/zipline-orchestration/dns-provider.tf
