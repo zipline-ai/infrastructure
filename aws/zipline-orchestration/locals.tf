@@ -16,8 +16,7 @@ locals {
     eks_log_group                  = ""
     auth_secret_arn                = ""
     auth_secret_values             = {}
-    databricks_sp_secret_arn       = ""
-    databricks_sp                  = {}
+    extra_secret_provider_objects  = []
     additional_data_buckets        = []
     additional_flink_s3_buckets    = []
     shared_warehouse_bucket        = "zipline-warehouse"
@@ -64,15 +63,10 @@ locals {
   create_auth_secret         = local.auth_enabled && length(keys(local.cloud_args.auth_secret_values)) > 0
   auth_secret_arn            = local.create_auth_secret ? aws_secretsmanager_secret.zipline_auth[0].arn : local.configured_auth_secret_arn
 
-  databricks_secret_keys   = ["client_id", "client_secret"]
-  create_databricks_secret = try(local.cloud_args.databricks_sp.client_id, "") != "" || try(local.cloud_args.databricks_sp.client_secret, "") != ""
-  databricks_secret_arn    = local.create_databricks_secret ? aws_secretsmanager_secret.databricks_sp[0].arn : local.cloud_args.databricks_sp_secret_arn
-  databricks_secret_objects = local.databricks_secret_arn == "" ? [] : [
-    {
-      secretName = "databricks-sp-credentials"
-      type       = "Opaque"
-      data       = [for key in local.databricks_secret_keys : { objectName = key, key = key }]
-    }
+  extra_secret_provider_objects = try(local.cloud_args.extra_secret_provider_objects, [])
+  extra_secret_provider_arns = [
+    for object in local.extra_secret_provider_objects : object.objectName
+    if try(object.objectType, "secretsmanager") == "secretsmanager" && startswith(tostring(try(object.objectName, "")), "arn:")
   ]
 
   provider_context = {
@@ -115,9 +109,6 @@ locals {
     addons = {
       install_secrets_store_csi_driver = false
     }
-    secrets = {
-      extra_secret_objects = local.databricks_secret_objects
-    }
     service_account_annotations = {
       "eks.amazonaws.com/role-arn" = aws_iam_role.orchestration_irsa.arn
     }
@@ -128,11 +119,9 @@ locals {
       local.cloud_args.kv_table_prefix == "" ? [] : [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }],
       local.cloud_args.kv_enable_ttl ? [] : [{ name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) }],
       length(local.cloud_args.kv_replica_regions) == 0 ? [] : [{ name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) }],
-      local.databricks_env,
     )
-    ui_env   = local.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.eks_log_group }]
-    eval_env = local.databricks_env
-    values   = local.provider_values
+    ui_env = local.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.eks_log_group }]
+    values = local.provider_values
   }
 
   spark_event_log_dir         = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "s3a://${local.cloud_args.warehouse_bucket}/spark-events"
@@ -179,13 +168,7 @@ locals {
         ]
       }
     ],
-    local.databricks_secret_arn == "" ? [] : [
-      {
-        objectName = local.databricks_secret_arn
-        objectType = "secretsmanager"
-        jmesPath   = [for key in local.databricks_secret_keys : { path = key, objectAlias = key }]
-      }
-    ],
+    local.extra_secret_provider_objects,
     local.auth_enabled ? [
       {
         objectName = local.auth_secret_arn
@@ -194,18 +177,6 @@ locals {
       }
     ] : [],
   )
-
-  databricks_env = local.databricks_secret_arn == "" ? [] : [
-    for key in local.databricks_secret_keys : {
-      name = upper("DATABRICKS_${key}")
-      valueFrom = {
-        secretKeyRef = {
-          name = "databricks-sp-credentials"
-          key  = key
-        }
-      }
-    }
-  ]
 
   provider_values = {
     secrets = {

@@ -23,19 +23,3 @@ resource "aws_secretsmanager_secret_version" "zipline_auth" {
     "sso-saml-cert"                       = try(local.cloud_args.auth_secret_values.sso_saml_cert, "")
   })
 }
-
-resource "aws_secretsmanager_secret" "databricks_sp" {
-  count       = local.create_databricks_secret ? 1 : 0
-  name        = "${local.name_prefix}-zipline-databricks-sp"
-  description = "Databricks service principal credentials for Zipline"
-  kms_key_id  = local.cloud_args.encryption_kms_key_arn != "" ? local.cloud_args.encryption_kms_key_arn : null
-}
-
-resource "aws_secretsmanager_secret_version" "databricks_sp" {
-  count     = local.create_databricks_secret ? 1 : 0
-  secret_id = aws_secretsmanager_secret.databricks_sp[0].id
-  secret_string = jsonencode({
-    client_id     = try(local.cloud_args.databricks_sp.client_id, "")
-    client_secret = try(local.cloud_args.databricks_sp.client_secret, "")
-  })
-}

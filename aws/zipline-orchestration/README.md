@@ -158,8 +158,7 @@ Supported AWS-specific fields:
 | `aws.personnel_arns` | IAM principals granted EKS cluster-admin access. |
 | `aws.auth_secret_arn` | Existing Secrets Manager ARN for auth secrets. Required when auth is enabled unless `aws.auth_secret_values` is supplied. |
 | `aws.auth_secret_values` | Secret values used to create the auth Secrets Manager secret. |
-| `aws.databricks_sp_secret_arn` | Existing Secrets Manager ARN for Databricks service principal credentials. |
-| `aws.databricks_sp` | Databricks service principal values used to create the Secrets Manager secret. |
+| `aws.extra_secret_provider_objects` | Additional AWS Secrets Store CSI provider objects for externally managed secrets. |
 | `aws.kv_table_prefix` | DynamoDB KV table prefix. |
 | `aws.kv_enable_ttl` | Enable TTL on KV records. |
 | `aws.kv_replica_regions` | DynamoDB KV replica regions. |
