@@ -370,6 +370,8 @@ ingress-nginx-ui:
         memory: 256Mi
     service:
       annotations: {}
+    admissionWebhooks:
+      enabled: false
     electionID: ingress-controller-leader-ui
     namespaceOverride: ingress-nginx-ui
 

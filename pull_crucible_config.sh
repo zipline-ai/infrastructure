@@ -93,6 +93,7 @@ case "${cloud}" in
     mv "${tmp_tfvars}" "${root_dest}/crucible.auto.tfvars.json"
     trap - EXIT
 
+    download_optional_s3_object "${bucket}" "${config_prefix}" "dns-provider.tf" "${root_dest}/dns-provider.tf"
     download_optional_s3_object "${bucket}" "${config_prefix}" "dns.auto.tfvars.json" "${root_dest}/dns.auto.tfvars.json"
 
     cat <<EOF
@@ -138,6 +139,7 @@ EOF
     mv "${tmp_tfvars}" "${dest}/crucible.auto.tfvars.json"
     trap - EXIT
 
+    download_optional_azure_blob "${storage_account}" "${container}" "${prefix}/dns-provider.tf" "${dest}/dns-provider.tf"
     download_optional_azure_blob "${storage_account}" "${container}" "${prefix}/dns.auto.tfvars.json" "${dest}/dns.auto.tfvars.json"
 
     cat <<EOF

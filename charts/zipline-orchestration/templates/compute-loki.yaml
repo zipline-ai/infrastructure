@@ -115,6 +115,9 @@ spec:
         app.kubernetes.io/component: loki
     spec:
       serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
+      securityContext:
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
       tolerations:
         - key: "kubernetes.io/arch"
           operator: "Equal"

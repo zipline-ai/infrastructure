@@ -30,7 +30,7 @@ resource "aws_iam_role_policy_attachment" "eks_vpc_resource_controller" {
 
 resource "aws_security_group" "zipline" {
   name        = "zipline-${local.name_prefix}-sg"
-  description = "Security group for Zipline AWS resources"
+  description = "Security group for Zipline"
   vpc_id      = local.cloud_args.vpc_id
 
   tags = {
@@ -46,7 +46,7 @@ resource "aws_vpc_security_group_egress_rule" "zipline_allow_all" {
 
 resource "aws_security_group" "eks_cluster" {
   name        = "${local.name_prefix}-eks-cluster-sg"
-  description = "Security group for the Zipline EKS cluster"
+  description = "Security group for EKS cluster"
   vpc_id      = local.cloud_args.vpc_id
 
   egress {

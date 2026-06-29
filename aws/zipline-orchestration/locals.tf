@@ -208,6 +208,19 @@ locals {
       }
     }
 
+    compute = {
+      historyServer = {
+        persistence = {
+          storageClass = kubernetes_storage_class_v1.gp3.metadata[0].name
+        }
+      }
+      loki = {
+        storage = {
+          storageClass = kubernetes_storage_class_v1.gp3.metadata[0].name
+        }
+      }
+    }
+
     "ingress-nginx-ui" = {
       controller = {
         service = local.ingress_lb_service
