@@ -28,6 +28,21 @@ output "rds_secret_arn" {
   value       = aws_secretsmanager_secret.db_credentials.arn
 }
 
+output "artifact_bucket_name" {
+  description = "S3 bucket used for Zipline artifacts."
+  value       = aws_s3_bucket.artifact.id
+}
+
+output "warehouse_bucket_name" {
+  description = "S3 bucket used for the Zipline warehouse."
+  value       = aws_s3_bucket.warehouse.id
+}
+
+output "logs_bucket_name" {
+  description = "S3 bucket used for Zipline logs."
+  value       = aws_s3_bucket.logs.id
+}
+
 output "orchestration_irsa_role_arn" {
   description = "IAM role ARN used by orchestration services."
   value       = aws_iam_role.orchestration_irsa.arn
