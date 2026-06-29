@@ -1,25 +1,26 @@
 # AWS Zipline Orchestration
 
-Installs the shared `charts/zipline-orchestration` chart on EKS and wires AWS
-infrastructure into cloud-neutral chart values.
+Creates the AWS cloud primitives for Zipline orchestration, installs the shared
+`charts/zipline-orchestration` chart on EKS, and wires AWS infrastructure into
+cloud-neutral chart values.
 
 AWS-specific work stays at this layer:
 
-- IAM role annotations for orchestration and compute service accounts.
-- AWS Secrets Manager objects projected through the generic chart
-  `secrets` values.
+- EKS, the EBS CSI driver, AWS Load Balancer Controller, and AWS Secrets Store
+  CSI provider.
+- RDS Postgres and Secrets Manager credentials projected through the generic
+  chart `database` and `secrets` values.
+- IAM roles and service-account annotations for orchestration and compute pods.
+- DynamoDB metadata tables, Glue registry, AMP workspace, and Polaris storage
+  vending role.
 - NLB annotations on the shared ingress-nginx controller Services.
 
-The wrapper assumes the EKS cluster already has cluster-level AWS addons such as
-the AWS Load Balancer Controller and AWS Secrets Store CSI provider installed.
-It keeps the Terraform surface to AWS orchestration plumbing. Shared install
-inputs live under the `orchestration` object and are consumed by
-`modules/zipline-orchestration`; AWS-specific inputs live under the `aws`
-object.
-Run this wrapper with a kubeconfig context already authenticated to the target
-EKS cluster; Kubernetes and Helm providers use the standard local provider
-configuration instead of discovering cluster credentials through AWS data
-sources.
+The wrapper owns AWS-specific resources and exposes only generic deployment
+context to `modules/zipline-orchestration`: database connection details,
+object-store location, Kubernetes service-account annotations, secret provider
+objects, metrics endpoint, and ingress service settings. Azure should implement
+the same contract with AKS, Azure Postgres, Key Vault, Azure storage, and
+workload identity rather than adding cloud-specific behavior to the chart.
 The shared module owns common service value generation such as image propagation,
 compute defaults, and Polaris bootstrap defaults. Use
 `orchestration.extra_values` only for intentional one-off Helm overrides.
@@ -53,7 +54,7 @@ Supported shared fields:
 | `orchestration.deployment.artifact_prefix` | Artifact object-store prefix. |
 | `orchestration.deployment.zipline_version` | Image tag used across Zipline services. |
 | `orchestration.deployment.deploy_fetcher` | Whether to deploy the optional fetcher service. |
-| `orchestration.database.host` | Postgres host. |
+| `orchestration.database.host` | Postgres host when the cloud wrapper does not provide one. |
 | `orchestration.database.port` | Postgres port. |
 | `orchestration.database.name` | Postgres database name. |
 | `orchestration.database.ssl_mode` | Postgres SSL mode. |
@@ -145,18 +146,31 @@ Supported AWS-specific fields:
 | Field | Notes |
 | --- | --- |
 | `aws.region` | AWS region. Required. |
-| `aws.database_secret_arn` | Secrets Manager ARN for DB credentials. Required. |
 | `aws.warehouse_bucket` | S3 warehouse bucket name. Required. |
-| `aws.orchestration_role_arn` | IAM role ARN for orchestration services. Required. |
-| `aws.spark_compute_role_arn` | IAM role ARN for Spark compute. Required. |
-| `aws.auth_secret_arn` | Secrets Manager ARN for auth secrets. Required when `orchestration.auth.enabled` is true. |
-| `aws.flink_compute_role_arn` | IAM role ARN for Flink compute. Defaults to Spark role when omitted. |
-| `aws.polaris_storage_role_arn` | IAM role ARN for Polaris storage access. |
+| `aws.vpc_id` | VPC for EKS and RDS. Required. |
+| `aws.primary_subnet_id` | Primary subnet for EKS, RDS, and AMP scraper. Required. |
+| `aws.secondary_subnet_id` | Secondary subnet for EKS, RDS, and AMP scraper. Required. |
+| `aws.cluster_name` | Optional EKS cluster name. Defaults to `<customer_name>-eks`. |
+| `aws.eks_version` | EKS Kubernetes version. |
+| `aws.eks_instance_type` | EKS node instance type. |
+| `aws.eks_min_size` / `aws.eks_desired_size` / `aws.eks_max_size` | Default node-group sizing. |
+| `aws.eks_disk_size` | Default node root volume size in GB. |
+| `aws.personnel_arns` | IAM principals granted EKS cluster-admin access. |
+| `aws.auth_secret_arn` | Existing Secrets Manager ARN for auth secrets. Required when auth is enabled unless `aws.auth_secret_values` is supplied. |
+| `aws.auth_secret_values` | Secret values used to create the auth Secrets Manager secret. |
+| `aws.databricks_sp_secret_arn` | Existing Secrets Manager ARN for Databricks service principal credentials. |
+| `aws.databricks_sp` | Databricks service principal values used to create the Secrets Manager secret. |
 | `aws.kv_table_prefix` | DynamoDB KV table prefix. |
 | `aws.kv_enable_ttl` | Enable TTL on KV records. |
 | `aws.kv_replica_regions` | DynamoDB KV replica regions. |
+| `aws.kv_read_capacity` / `aws.kv_write_capacity` | Provisioned capacity for the table-partitions table. |
 | `aws.eks_log_group` | EKS log group used by UI log links. |
-| `aws.databricks_sp_secret_arn` | Secrets Manager ARN for Databricks service principal credentials. |
+| `aws.additional_data_buckets` | Extra buckets granted to Spark compute and orchestration read paths. |
+| `aws.additional_flink_s3_buckets` | Extra buckets granted to Flink compute. |
+| `aws.glue_schema_registry_name` | Existing Glue registry name. Defaults to creating `zipline-<customer_name>`. |
+| `aws.msk_cluster_arn` | Optional MSK cluster ARN for Flink IAM permissions. |
+| `aws.encryption_kms_key_arn` | Optional KMS key used by RDS, Secrets Manager, DynamoDB, and Polaris storage policy. |
+| `aws.encryption_kms_key_arns` | Optional region-to-KMS-key map for DynamoDB replicas. |
 
 ```hcl
 orchestration = {
@@ -170,8 +184,9 @@ orchestration = {
     artifact_prefix = "s3://example-artifacts"
     zipline_version = "example-version"
   }
-  database = {
-    host = "example.postgres.amazonaws.com"
+  image_pull_secret = {
+    create          = true
+    dockerhub_token = "..."
   }
   ingress = {
     domain = "zipline.example.com"
@@ -179,24 +194,23 @@ orchestration = {
 }
 
 aws = {
-  region                 = "us-west-2"
-  database_secret_arn    = "arn:aws:secretsmanager:us-west-2:123456789012:secret:zipline-db"
-  warehouse_bucket       = "example-warehouse"
-  orchestration_role_arn = "arn:aws:iam::123456789012:role/orchestration"
-  spark_compute_role_arn = "arn:aws:iam::123456789012:role/spark-compute"
-  flink_compute_role_arn = "arn:aws:iam::123456789012:role/flink-compute"
-  polaris_storage_role_arn = "arn:aws:iam::123456789012:role/polaris-storage"
+  region              = "us-west-2"
+  warehouse_bucket    = "example-warehouse"
+  vpc_id              = "vpc-..."
+  primary_subnet_id   = "subnet-..."
+  secondary_subnet_id = "subnet-..."
+
+  auth_secret_values = {
+    google_oauth_client_secret = "..."
+    github_oauth_client_secret = "..."
+    sso_client_secret          = "..."
+  }
 }
 ```
-
-`flink_compute_role_arn` can be omitted when Flink should use the same service
-account annotation as Spark.
 
 Initialize this wrapper with a backend configured for the target environment:
 
 ```shell
-aws eks update-kubeconfig --region us-west-2 --name example-eks
-
 tofu init -reconfigure \
   -backend-config=bucket=example-opentofu-state \
   -backend-config=key=zipline-orchestration-state \

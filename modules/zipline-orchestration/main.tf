@@ -6,8 +6,12 @@ locals {
   provider_context           = var.provider_context
   provider_compute           = try(local.provider_context.compute, {})
   provider_secrets           = try(local.provider_context.secrets, {})
+  provider_database          = try(local.provider_context.database, {})
+  provider_prometheus        = try(local.provider_context.prometheus, {})
   orchestration_compute      = try(local.orchestration_input.compute, {})
   orchestration_secrets      = try(local.orchestration_input.secrets, {})
+  orchestration_database     = try(local.orchestration_input.database, {})
+  orchestration_prometheus   = try(local.orchestration_input.prometheus, {})
   orchestration_image_secret = try(local.orchestration_input.image_pull_secret, {})
   orchestration_ingress      = try(local.orchestration_input.ingress, {})
   orchestration_addons       = try(local.orchestration_input.addons, {})
@@ -20,6 +24,14 @@ locals {
     eval = merge(
       try(local.orchestration_input.eval, {}),
       try(local.provider_context.eval, {}),
+    )
+    database = merge(
+      local.orchestration_database,
+      local.provider_database,
+    )
+    prometheus = merge(
+      local.orchestration_prometheus,
+      local.provider_prometheus,
     )
     compute = merge(local.orchestration_compute, local.provider_compute, {
       service_account = merge(
@@ -48,8 +60,8 @@ locals {
       local.orchestration_ingress,
     )
     addons = merge(
-      try(local.provider_context.addons, {}),
       local.orchestration_addons,
+      try(local.provider_context.addons, {}),
     )
     secrets = merge(local.orchestration_secrets, local.provider_secrets, {
       database_object_names = merge(
