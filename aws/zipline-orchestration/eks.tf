@@ -279,6 +279,7 @@ resource "aws_eks_node_group" "default" {
   node_role_arn   = aws_iam_role.eks_node_role.arn
   subnet_ids      = [local.cloud_args.primary_subnet_id, local.cloud_args.secondary_subnet_id]
   instance_types  = [local.cloud_args.eks_instance_type]
+  version         = aws_eks_cluster.main.version
 
   launch_template {
     id      = aws_launch_template.eks_nodes.id

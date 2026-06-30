@@ -28,16 +28,17 @@ resource "azurerm_kubernetes_cluster" "main" {
   }
 
   default_node_pool {
-    name                = local.default_node_pool.name
-    vm_size             = local.default_node_pool.vm_size
-    vnet_subnet_id      = azurerm_subnet.aks.id
-    enable_auto_scaling = local.default_node_pool.auto_scaling_enabled
-    node_count          = local.default_node_pool.node_count
-    min_count           = local.default_node_pool.min_count
-    max_count           = local.default_node_pool.max_count
-    os_disk_size_gb     = local.default_node_pool.os_disk_size_gb
-    os_disk_type        = local.default_node_pool.os_disk_type
-    os_sku              = local.default_node_pool.os_sku
+    name                 = local.default_node_pool.name
+    vm_size              = local.default_node_pool.vm_size
+    vnet_subnet_id       = azurerm_subnet.aks.id
+    enable_auto_scaling  = local.default_node_pool.auto_scaling_enabled
+    node_count           = local.default_node_pool.node_count
+    min_count            = local.default_node_pool.min_count
+    max_count            = local.default_node_pool.max_count
+    os_disk_size_gb      = local.default_node_pool.os_disk_size_gb
+    os_disk_type         = local.default_node_pool.os_disk_type
+    os_sku               = local.default_node_pool.os_sku
+    orchestrator_version = local.cloud_args.kubernetes_version
   }
 
   network_profile {
@@ -54,7 +55,6 @@ resource "azurerm_kubernetes_cluster" "main" {
     ignore_changes = [
       default_node_pool[0].node_count,
       default_node_pool[0].upgrade_settings,
-      kubernetes_version,
     ]
   }
 }
@@ -74,6 +74,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "user" {
   os_sku                = try(each.value.os_sku, "Ubuntu")
   os_disk_type          = try(each.value.os_disk_type, "Managed")
   os_disk_size_gb       = try(each.value.os_disk_size_gb, 128)
+  orchestrator_version  = local.cloud_args.kubernetes_version
   priority              = try(each.value.priority, "Regular")
   eviction_policy       = try(each.value.eviction_policy, null)
   spot_max_price        = try(each.value.spot_max_price, null)
