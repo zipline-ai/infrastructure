@@ -11,18 +11,18 @@ metadata:
     {{- with .Values.ingress.hub.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
-    {{- with .Values.ingress.hub.browserAuth }}
-    {{- if .enabled }}
+    {{- $ba := .Values.ingress.hub.browserAuth }}
+    {{- if $ba.enabled }}
     # Browser forward-auth: nginx subrequest mints a JWT from the better-auth
     # session cookie via the UI; CLI traffic with Authorization: Bearer is
-    # unchanged (no subrequest fires when the header is already present).
-    nginx.ingress.kubernetes.io/auth-url: {{ .forwardUrl | quote }}
+    # unchanged (the forward endpoint echoes the header through).
+    {{- $defaultForward := printf "http://orchestration-ui-service.%s.svc.cluster.local/auth/forward" .Release.Namespace }}
+    nginx.ingress.kubernetes.io/auth-url: {{ default $defaultForward $ba.forwardUrl | quote }}
     nginx.ingress.kubernetes.io/auth-method: "GET"
     nginx.ingress.kubernetes.io/auth-response-headers: "Authorization"
-    nginx.ingress.kubernetes.io/auth-signin: {{ .signinUrl | quote }}
-    nginx.ingress.kubernetes.io/auth-cache-key: {{ .cacheKey | quote }}
-    nginx.ingress.kubernetes.io/auth-cache-duration: {{ .cacheDuration | quote }}
-    {{- end }}
+    nginx.ingress.kubernetes.io/auth-signin: {{ default "https://$host/auth/login?redirect=$escaped_request_uri" $ba.signinUrl | quote }}
+    nginx.ingress.kubernetes.io/auth-cache-key: {{ default "$http_authorization|$cookie_better_auth_session_token" $ba.cacheKey | quote }}
+    nginx.ingress.kubernetes.io/auth-cache-duration: {{ default "200 60s" $ba.cacheDuration | quote }}
     {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.hub.className }}
