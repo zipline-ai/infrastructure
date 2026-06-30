@@ -465,6 +465,13 @@ promtail:
     snippets:
       pipelineStages:
         - cri: {}
+        - json:
+            expressions:
+              workflowId: workflowId
+              stepId: stepId
+        - structured_metadata:
+            workflowId:
+            stepId:
       extraRelabelConfigs:
         - source_labels: [__meta_kubernetes_namespace]
           action: drop
