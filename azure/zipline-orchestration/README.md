@@ -12,10 +12,10 @@ Azure-specific work stays at this layer:
   storage account.
 - ABFS event log and Polaris catalog paths supplied as runtime values.
 
-The wrapper assumes the AKS cluster already has workload identity and the Azure
-Key Vault CSI provider path available. It keeps the Terraform surface to Azure
-orchestration plumbing. Shared install inputs live under the `orchestration`
-object and are consumed by
+The wrapper enables AKS workload identity and uses External Secrets Operator to
+sync Azure Key Vault objects through generic chart `secrets` values. It keeps
+the Terraform surface to Azure orchestration plumbing. Shared install inputs
+live under the `orchestration` object and are consumed by
 `modules/zipline-orchestration`; Azure-specific inputs live under the `azure`
 object.
 Run this wrapper with a kubeconfig context already authenticated to the target
