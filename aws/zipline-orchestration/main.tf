@@ -20,9 +20,20 @@ variable "aws" {
     error_message = "aws must include non-empty warehouse_bucket, region, vpc_id, primary_subnet_id, and secondary_subnet_id."
   }
 
-  validation {
-    condition     = !try(var.orchestration.auth.enabled, false) || trimspace(try(var.aws.auth_secret_arn, try(var.orchestration.auth.secrets_arn, ""))) != "" || length(keys(try(var.aws.auth_secret_values, {}))) > 0
-    error_message = "When auth.enabled is true, set aws.auth_secret_arn, orchestration.auth.secrets_arn, or aws.auth_secret_values so the AWS wrapper can provide the auth secret."
+}
+
+resource "terraform_data" "configuration_validation" {
+  input = {
+    auth_enabled       = local.auth_enabled
+    auth_secret_arn    = local.configured_auth_secret_arn
+    create_auth_secret = local.create_auth_secret
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !local.auth_enabled || local.create_auth_secret || trimspace(local.configured_auth_secret_arn) != ""
+      error_message = "When auth.enabled is true, set aws.auth_secret_arn, orchestration.auth.secrets_arn, or aws.auth_secret_values so the AWS wrapper can provide the auth secret."
+    }
   }
 }
 
@@ -39,5 +50,6 @@ module "zipline_orchestration" {
     helm_release.aws_load_balancer_controller,
     helm_release.fluent_bit,
     helm_release.secrets_store_csi_aws,
+    terraform_data.configuration_validation,
   ]
 }

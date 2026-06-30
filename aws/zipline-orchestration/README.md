@@ -183,6 +183,13 @@ as `aws.additional_data_buckets`, `aws.additional_flink_s3_buckets`,
 `aws.shared_warehouse_bucket`, and `aws.spark_libs_bucket`, are treated as
 external buckets and are not created by this wrapper.
 
+The shared Helm chart also bootstraps Polaris runtime authentication. On each
+install or upgrade, the Polaris bootstrap hook reconciles a non-root `chronon`
+principal, grants it access to the seeded catalog role, writes its
+`client_id:client_secret` value into the `polaris-client-credentials` Kubernetes
+Secret as `OC_CREDENTIAL`, and restarts Hub so Spark catalog placeholders can be
+resolved without customer-supplied Polaris credentials.
+
 ```hcl
 orchestration = {
   install = {

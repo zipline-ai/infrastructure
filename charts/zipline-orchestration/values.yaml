@@ -263,6 +263,16 @@ polaris:
             - TABLE_FULL_METADATA
             - TABLE_READ_DATA
             - TABLE_WRITE_DATA
+    runtimeClient:
+      # Creates a non-root Polaris principal for Spark/Iceberg clients and
+      # writes client_id:client_secret to a Kubernetes Secret for Hub.
+      principal: "chronon"
+      principalRole: "chronon-engine"
+      # Defaults to polaris.bootstrap.rbac.catalogRole when unset.
+      catalogRole: ""
+      credentialsSecret:
+        name: "polaris-client-credentials"
+        key: "OC_CREDENTIAL"
   extraConfig: {}
   extraEnv: []
   nodeSelector: {}

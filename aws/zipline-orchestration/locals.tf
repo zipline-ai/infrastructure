@@ -117,6 +117,18 @@ locals {
       local.cloud_args.kv_table_prefix == "" ? [] : [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }],
       local.cloud_args.kv_enable_ttl ? [] : [{ name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) }],
       length(local.cloud_args.kv_replica_regions) == 0 ? [] : [{ name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) }],
+      [
+        {
+          name = "OC_CREDENTIAL"
+          valueFrom = {
+            secretKeyRef = {
+              name     = local.polaris_client_secret_name
+              key      = local.polaris_client_secret_key
+              optional = true
+            }
+          }
+        }
+      ],
     )
     ui_env = local.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.eks_log_group }]
     values = local.provider_values
@@ -132,6 +144,8 @@ locals {
   eval_image                  = "ziplineai/eval-aws"
   hub_verticle_class          = "ai.chronon.hub.AWSOrchestrationVerticle,ai.chronon.hub.AWSWorkflowExecutionVerticle"
   polaris_base_location       = "s3://${local.cloud_args.warehouse_bucket}/polaris/polaris_${local.deployment.customer_name}/"
+  polaris_client_secret_name  = "polaris-client-credentials"
+  polaris_client_secret_key   = "OC_CREDENTIAL"
   polaris_storage_external_id = "zipline:${local.name_prefix}:polaris-storage"
   polaris_storage_allowed_buckets = distinct(compact([
     for bucket in [local.cloud_args.warehouse_bucket] :
@@ -216,6 +230,12 @@ locals {
         { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
       ]
       bootstrap = {
+        runtimeClient = {
+          credentialsSecret = {
+            name = local.polaris_client_secret_name
+            key  = local.polaris_client_secret_key
+          }
+        }
         rbac = {
           catalog = {
             defaultBaseLocation = local.polaris_base_location

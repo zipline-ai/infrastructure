@@ -25,6 +25,8 @@
 {{- end -}}
 {{- $bootstrapCredentialsSecretName := default "polaris-bootstrap-credentials" $polaris.bootstrap.credentialsSecret.name -}}
 {{- $bootstrapCredentialsSecretKey := default "credentials" $polaris.bootstrap.credentialsSecret.key -}}
+{{- $runtimeClient := default dict $polaris.bootstrap.runtimeClient -}}
+{{- $runtimeClientCredentialsSecret := default dict $runtimeClient.credentialsSecret -}}
 {{- $polarisDatabaseCredentialsSecret := default dict $polaris.database.credentialsSecret -}}
 {{- $polarisDatabaseCredentialsSecretName := default (include "zipline-orchestration.databaseCredentialsSecretName" .) (index $polarisDatabaseCredentialsSecret "name") -}}
 {{- $polarisDatabaseCredentialsUsernameKey := default (include "zipline-orchestration.databaseCredentialsUsernameKey" .) (index $polarisDatabaseCredentialsSecret "usernameKey") -}}
@@ -261,6 +263,16 @@ spec:
               value: {{ toJson (default (list) $polaris.bootstrap.rbac.catalogGrants) | quote }}
             - name: POLARIS_NAMESPACES
               value: {{ toJson (default (list) $polaris.bootstrap.rbac.namespaces) | quote }}
+            - name: POLARIS_RUNTIME_CLIENT_PRINCIPAL
+              value: {{ default "chronon" $runtimeClient.principal | quote }}
+            - name: POLARIS_RUNTIME_CLIENT_PRINCIPAL_ROLE
+              value: {{ default "chronon-engine" $runtimeClient.principalRole | quote }}
+            - name: POLARIS_RUNTIME_CLIENT_CATALOG_ROLE
+              value: {{ default $polaris.bootstrap.rbac.catalogRole $runtimeClient.catalogRole | quote }}
+            - name: POLARIS_RUNTIME_CLIENT_SECRET_NAME
+              value: {{ default "polaris-client-credentials" $runtimeClientCredentialsSecret.name | quote }}
+            - name: POLARIS_RUNTIME_CLIENT_SECRET_KEY
+              value: {{ default "OC_CREDENTIAL" $runtimeClientCredentialsSecret.key | quote }}
           command:
             - /bin/sh
             - -ec
@@ -270,6 +282,7 @@ spec:
               import base64
               import json
               import os
+              import ssl
               import sys
               import time
               import urllib.error
@@ -304,14 +317,23 @@ spec:
               def is_duplicate_write_error(payload):
                   return "duplicate key value violates unique constraint" in payload
 
-              def http_json(method, url, token=None, body=None, ok=(200,), retry_conflict=False, retry_not_found=False):
+              def http_json(
+                  method,
+                  url,
+                  token=None,
+                  body=None,
+                  ok=(200,),
+                  retry_conflict=False,
+                  retry_not_found=False,
+                  content_type="application/json",
+              ):
                   data = None
                   headers = {"Polaris-Realm": realm, "realm": realm}
                   if token:
                       headers["Authorization"] = f"Bearer {token}"
                   if body is not None:
                       data = json.dumps(body).encode("utf-8")
-                      headers["Content-Type"] = "application/json"
+                      headers["Content-Type"] = content_type
                   request = urllib.request.Request(url, data=data, headers=headers, method=method)
                   try:
                       with urllib.request.urlopen(request, timeout=30) as response:
@@ -329,6 +351,295 @@ spec:
                           return error.code, None
                       raise RuntimeError(f"{method} {url} returned {error.code}: {payload}") from error
 
+              def try_http_json(method, url, token=None, body=None, ok=(200,), retry_conflict=False):
+                  data = None
+                  headers = {"Polaris-Realm": realm, "realm": realm}
+                  if token:
+                      headers["Authorization"] = f"Bearer {token}"
+                  if body is not None:
+                      data = json.dumps(body).encode("utf-8")
+                      headers["Content-Type"] = "application/json"
+                  request = urllib.request.Request(url, data=data, headers=headers, method=method)
+                  try:
+                      with urllib.request.urlopen(request, timeout=30) as response:
+                          payload = response.read().decode("utf-8")
+                          if response.status not in ok:
+                              return False, response.status, None, payload
+                          return True, response.status, json.loads(payload) if payload else None, ""
+                  except urllib.error.HTTPError as error:
+                      payload = error.read().decode("utf-8", "replace")
+                      if error.code == 409 and retry_conflict:
+                          return True, error.code, None, payload
+                      if error.code == 500 and retry_conflict and is_duplicate_write_error(payload):
+                          return True, error.code, None, payload
+                      return False, error.code, None, payload
+                  except Exception as error:
+                      return False, None, None, str(error)
+
+              def first_present(*values):
+                  for value in values:
+                      if value:
+                          return value
+                  return None
+
+              def extract_credentials(payload, fallback_client_id=None):
+                  payload = payload or {}
+                  containers = [
+                      payload,
+                      payload.get("credentials") or {},
+                      payload.get("credential") or {},
+                      payload.get("principalCredentials") or {},
+                      payload.get("principalCredential") or {},
+                      payload.get("principal") or {},
+                  ]
+                  client_id = fallback_client_id
+                  client_secret = None
+                  for item in containers:
+                      if not isinstance(item, dict):
+                          continue
+                      client_id = first_present(
+                          item.get("clientId"),
+                          item.get("client_id"),
+                          item.get("principalClientId"),
+                          item.get("principal_client_id"),
+                          client_id,
+                      )
+                      client_secret = first_present(
+                          item.get("clientSecret"),
+                          item.get("client_secret"),
+                          item.get("principalClientSecret"),
+                          item.get("principal_client_secret"),
+                          item.get("secret"),
+                          client_secret,
+                      )
+                  if client_id and client_secret:
+                      return f"{client_id}:{client_secret}"
+                  return None
+
+              def ensure_principal_role(role_name):
+                  role_url = f"{management_api_url}/principal-roles/{quote_path(role_name)}"
+                  status, _ = http_json("GET", role_url, token=token, ok=(200,), retry_not_found=True)
+                  if status == 404:
+                      http_json(
+                          "POST",
+                          f"{management_api_url}/principal-roles",
+                          token=token,
+                          body={"principalRole": {"name": role_name}},
+                          ok=(200, 201),
+                          retry_conflict=True,
+                      )
+
+              def grant_catalog_role_to_principal_role(role_name, role_catalog_name, role_catalog_role):
+                  http_json(
+                      "PUT",
+                      f"{management_api_url}/principal-roles/{quote_path(role_name)}/catalog-roles/{quote_path(role_catalog_name)}",
+                      token=token,
+                      body={"catalogRole": {"name": role_catalog_role}},
+                      ok=(200, 201, 204),
+                      retry_conflict=True,
+                  )
+
+              def read_kubernetes_secret_credential(secret_name, secret_key):
+                  status, payload = kubernetes_json(
+                      "GET",
+                      f"/api/v1/namespaces/{quote_path(kubernetes_namespace)}/secrets/{quote_path(secret_name)}",
+                      ok=(200,),
+                      retry_not_found=True,
+                  )
+                  if status == 404:
+                      return None
+                  data = (payload or {}).get("data") or {}
+                  encoded = data.get(secret_key)
+                  if not encoded:
+                      return None
+                  return base64.b64decode(encoded).decode("utf-8")
+
+              def rotate_principal_credentials(principal_name):
+                  errors = []
+                  for method, path, body in [
+                      ("POST", f"/principals/{quote_path(principal_name)}/credentials", {}),
+                      ("POST", f"/principals/{quote_path(principal_name)}/rotate-credentials", {}),
+                      ("POST", f"/principals/{quote_path(principal_name)}/reset-credentials", {}),
+                      ("PUT", f"/principals/{quote_path(principal_name)}/credentials", {}),
+                  ]:
+                      ok_status, status, payload, error = try_http_json(
+                          method,
+                          f"{management_api_url}{path}",
+                          token=token,
+                          body=body,
+                          ok=(200, 201),
+                      )
+                      if ok_status:
+                          credential = extract_credentials(payload, fallback_client_id=principal_name)
+                          if credential:
+                              return credential
+                      errors.append(f"{method} {path} -> {status}: {error}")
+                  raise RuntimeError(
+                      "Polaris principal already exists but no Kubernetes credential secret was found, "
+                      f"and credential rotation did not succeed: {'; '.join(errors)}"
+                  )
+
+              def ensure_principal(principal_name, secret_name, secret_key):
+                  principal_url = f"{management_api_url}/principals/{quote_path(principal_name)}"
+                  status, _ = http_json("GET", principal_url, token=token, ok=(200,), retry_not_found=True)
+                  if status != 404:
+                      existing_credential = read_kubernetes_secret_credential(secret_name, secret_key)
+                      if existing_credential:
+                          return existing_credential
+                      return rotate_principal_credentials(principal_name)
+
+                  errors = []
+                  for body in [
+                      {"principal": {"name": principal_name}},
+                      {"principal": {"name": principal_name, "type": "SERVICE"}},
+                  ]:
+                      ok_status, post_status, payload, error = try_http_json(
+                          "POST",
+                          f"{management_api_url}/principals",
+                          token=token,
+                          body=body,
+                          ok=(200, 201),
+                          retry_conflict=True,
+                      )
+                      if ok_status and post_status in (200, 201):
+                          credential = extract_credentials(payload, fallback_client_id=principal_name)
+                          if credential:
+                              return credential
+                          errors.append("POST /principals succeeded but did not return client credentials")
+                      elif ok_status:
+                          return rotate_principal_credentials(principal_name)
+                      else:
+                          errors.append(f"POST /principals -> {post_status}: {error}")
+                  raise RuntimeError(f"Failed to create Polaris runtime principal {principal_name}: {'; '.join(errors)}")
+
+              def assign_principal_role(principal_name, role_name):
+                  attempts = [
+                      (
+                          "PUT",
+                          f"/principal-roles/{quote_path(role_name)}/principals",
+                          {"principal": {"name": principal_name}},
+                      ),
+                      (
+                          "POST",
+                          f"/principal-roles/{quote_path(role_name)}/principals",
+                          {"principal": {"name": principal_name}},
+                      ),
+                      (
+                          "PUT",
+                          f"/principals/{quote_path(principal_name)}/principal-roles",
+                          {"principalRole": {"name": role_name}},
+                      ),
+                      (
+                          "POST",
+                          f"/principals/{quote_path(principal_name)}/principal-roles",
+                          {"principalRole": {"name": role_name}},
+                      ),
+                  ]
+                  errors = []
+                  for method, path, body in attempts:
+                      ok_status, status, _, error = try_http_json(
+                          method,
+                          f"{management_api_url}{path}",
+                          token=token,
+                          body=body,
+                          ok=(200, 201, 204),
+                          retry_conflict=True,
+                      )
+                      if ok_status:
+                          return
+                      errors.append(f"{method} {path} -> {status}: {error}")
+                  raise RuntimeError(
+                      f"Failed to assign Polaris principal {principal_name} to principal role {role_name}: "
+                      + "; ".join(errors)
+                  )
+
+              def kubernetes_json(method, path, body=None, ok=(200,), retry_not_found=False, content_type="application/json"):
+                  with open("/var/run/secrets/kubernetes.io/serviceaccount/token", encoding="utf-8") as token_file:
+                      kubernetes_token = token_file.read().strip()
+                  ca_file = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+                  host = os.environ["KUBERNETES_SERVICE_HOST"]
+                  port = os.getenv("KUBERNETES_SERVICE_PORT_HTTPS", os.getenv("KUBERNETES_SERVICE_PORT", "443"))
+                  data = None
+                  headers = {"Authorization": f"Bearer {kubernetes_token}"}
+                  if body is not None:
+                      data = json.dumps(body).encode("utf-8")
+                      headers["Content-Type"] = content_type
+                  request = urllib.request.Request(f"https://{host}:{port}{path}", data=data, headers=headers, method=method)
+                  context = ssl.create_default_context(cafile=ca_file)
+                  try:
+                      with urllib.request.urlopen(request, timeout=30, context=context) as response:
+                          payload = response.read().decode("utf-8")
+                          if response.status not in ok:
+                              raise RuntimeError(f"{method} {path} returned {response.status}: {payload}")
+                          return response.status, json.loads(payload) if payload else None
+                  except urllib.error.HTTPError as error:
+                      payload = error.read().decode("utf-8", "replace")
+                      if error.code == 404 and retry_not_found:
+                          return error.code, None
+                      if error.code not in ok:
+                          raise RuntimeError(f"{method} {path} returned {error.code}: {payload}") from error
+                      return error.code, json.loads(payload) if payload else None
+
+              def write_kubernetes_secret(secret_name, secret_key, credential_value):
+                  encoded_credential = base64.b64encode(credential_value.encode("utf-8")).decode("ascii")
+                  secret_path = f"/api/v1/namespaces/{quote_path(kubernetes_namespace)}/secrets/{quote_path(secret_name)}"
+                  status, _ = kubernetes_json("GET", secret_path, ok=(200,), retry_not_found=True)
+                  patch_body = {
+                      "metadata": {
+                          "labels": {
+                              "app": "polaris",
+                              "app.kubernetes.io/component": "polaris-runtime-client",
+                          }
+                      },
+                      "data": {secret_key: encoded_credential},
+                  }
+                  if status == 404:
+                      create_body = {
+                          "apiVersion": "v1",
+                          "kind": "Secret",
+                          "metadata": {
+                              "name": secret_name,
+                              "namespace": kubernetes_namespace,
+                              "labels": patch_body["metadata"]["labels"],
+                          },
+                          "type": "Opaque",
+                          "data": patch_body["data"],
+                      }
+                      kubernetes_json(
+                          "POST",
+                          f"/api/v1/namespaces/{quote_path(kubernetes_namespace)}/secrets",
+                          body=create_body,
+                          ok=(200, 201),
+                      )
+                  else:
+                      kubernetes_json(
+                          "PATCH",
+                          secret_path,
+                          body=patch_body,
+                          ok=(200,),
+                          content_type="application/merge-patch+json",
+                      )
+
+              def restart_hub_deployment():
+                  restarted_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                  kubernetes_json(
+                      "PATCH",
+                      f"/apis/apps/v1/namespaces/{quote_path(kubernetes_namespace)}/deployments/zipline-orchestration-hub",
+                      body={
+                          "spec": {
+                              "template": {
+                                  "metadata": {
+                                      "annotations": {
+                                          "zipline.ai/polaris-runtime-client-restarted-at": restarted_at,
+                                      }
+                                  }
+                              }
+                          }
+                      },
+                      ok=(200,),
+                      content_type="application/merge-patch+json",
+                  )
+
               with open("/etc/polaris-bootstrap/credentials", encoding="utf-8") as credentials_file:
                   credential_parts = credentials_file.read().strip().split(",", 2)
               if len(credential_parts) != 3:
@@ -343,6 +654,13 @@ spec:
               catalog_role = os.environ["POLARIS_CATALOG_ROLE"]
               catalog_grants = load_json_env("POLARIS_CATALOG_GRANTS", [])
               namespaces = load_json_env("POLARIS_NAMESPACES", [])
+              runtime_client_principal = os.environ["POLARIS_RUNTIME_CLIENT_PRINCIPAL"]
+              runtime_client_principal_role = os.environ["POLARIS_RUNTIME_CLIENT_PRINCIPAL_ROLE"]
+              runtime_client_catalog_role = os.environ["POLARIS_RUNTIME_CLIENT_CATALOG_ROLE"]
+              runtime_client_secret_name = os.environ["POLARIS_RUNTIME_CLIENT_SECRET_NAME"]
+              runtime_client_secret_key = os.environ["POLARIS_RUNTIME_CLIENT_SECRET_KEY"]
+              with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace", encoding="utf-8") as namespace_file:
+                  kubernetes_namespace = namespace_file.read().strip()
 
               token_url = f"{catalog_api_url}/v1/oauth/tokens"
               auth = base64.b64encode(f"{client_id}:{client_secret}".encode("utf-8")).decode("ascii")
@@ -485,6 +803,25 @@ spec:
                           ok=(200, 201, 204),
                           retry_conflict=True,
                       )
+
+              ensure_principal_role(runtime_client_principal_role)
+              grant_catalog_role_to_principal_role(
+                  runtime_client_principal_role,
+                  catalog_name,
+                  runtime_client_catalog_role,
+              )
+              runtime_credential = ensure_principal(
+                  runtime_client_principal,
+                  runtime_client_secret_name,
+                  runtime_client_secret_key,
+              )
+              assign_principal_role(runtime_client_principal, runtime_client_principal_role)
+              write_kubernetes_secret(
+                  runtime_client_secret_name,
+                  runtime_client_secret_key,
+                  runtime_credential,
+              )
+              restart_hub_deployment()
 
               print(f"Polaris RBAC reconciled for catalog {catalog_name}, principal role {principal_role}, catalog role {catalog_role}")
               PY
