@@ -396,22 +396,17 @@ ingress:
     # (e.g. live SparkUI under /services/hub/api/v1/.../ui). Browser requests
     # are gated via a subrequest to the UI's `/auth/forward` endpoint, which
     # mints a JWT from the better-auth session cookie. nginx propagates that
-    # JWT to Hub as Authorization: Bearer …, matching what the UI sends on
+    # JWT to Hub as `Authorization: Bearer …`, matching what the UI sends on
     # internal API calls. CLI / curl traffic with an existing Authorization
     # header bypasses (the forward endpoint echoes the header through).
-    # Defaults work out-of-the-box for shared-domain deployments — the
-    # forward URL is computed from .Release.Namespace.
+    # cacheKey MUST include `$http_authorization` so anon (no cookie) and
+    # Bearer (with cookie empty) requests don't share a key — otherwise a
+    # cached Bearer-200 from /forward would let anon traffic skip auth.
     browserAuth:
-      enabled: true
-      # Empty → template defaults. Override only for multi-domain deployments
-      # where the UI service isn't in the chart's release namespace.
-      forwardUrl: ""        # default: http://orchestration-ui-service.<release-ns>.svc.cluster.local/auth/forward
-      signinUrl: ""         # default: https://$host/auth/login?redirect=$escaped_request_uri
-      # auth-cache. MUST differentiate by Authorization header AND cookie:
-      # keying on cookie alone lets a Bearer-200 cache entry serve anon
-      # requests (same empty-cookie key), bypassing auth.
-      cacheKey: ""          # default: $http_authorization|$cookie_better_auth_session_token
-      cacheDuration: ""     # default: 200 60s
+      forwardUrl: "http://orchestration-ui-service.zipline-system.svc.cluster.local/auth/forward"
+      signinUrl: "https://$host/auth/login?redirect=$escaped_request_uri"
+      cacheKey: "$http_authorization|$cookie_better_auth_session_token"
+      cacheDuration: "200 60s"
   fetcher:
     className: nginx-ui
     host: ""
