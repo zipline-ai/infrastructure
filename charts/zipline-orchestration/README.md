@@ -22,6 +22,8 @@ The chart does not branch on a cloud provider. Cloud-specific infrastructure is 
 - ingress controller service annotations for load balancer behavior
 - `ingress.*.tls` for Kubernetes TLS secrets when TLS terminates at ingress-nginx
 - `runtime.env` and service-specific `orchestration.*.env` for application runtime settings
+- `orchestration.hub.metricsReader`, `orchestration.hub.metricsPort`, and
+  optional `orchestration.hub.podAnnotations` for Hub metrics exposure
 
 ## Required Overrides
 

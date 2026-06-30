@@ -124,7 +124,9 @@ Supported shared fields:
 | `orchestration.service_account.create` | Whether to create the orchestration service account. |
 | `orchestration.service_account.name` | Orchestration service account name. |
 | `orchestration.service_account.annotations` | Orchestration service account annotations. |
-| `orchestration.hub.chronon_metrics_reader` | Hub metrics reader mode. |
+| `orchestration.hub.chronon_metrics_reader` | Hub metrics reader mode. Defaults to `prometheus`. |
+| `orchestration.hub.metrics_port` | Hub Prometheus metrics port. Defaults to `8905` when the metrics reader is `prometheus`. |
+| `orchestration.hub.pod_annotations` | Extra Hub pod annotations, including optional scrape annotations. |
 | `orchestration.hub.data_quality_metrics_dataset` | Data-quality metrics dataset name. |
 | `orchestration.hub.image` | Hub image override. |
 | `orchestration.hub.verticle_class` | Hub verticle class override. |

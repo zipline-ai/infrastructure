@@ -15,6 +15,10 @@ spec:
       app: orchestration-hub
   template:
     metadata:
+      {{- with .Values.orchestration.hub.podAnnotations }}
+      annotations:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
       labels:
         app: orchestration-hub
         {{- with .Values.podLabels }}
@@ -95,6 +99,34 @@ spec:
               value: "{{ .Values.auth.enabled }}"
             - name: AUTH_JWKS_URL
               value: "http://orchestration-ui-service/api/auth/jwks"
+            {{- $configuredEnvNames := list }}
+            {{- $configuredMetricsReader := "" }}
+            {{- range .Values.runtime.env }}
+            {{- $configuredEnvNames = append $configuredEnvNames .name }}
+            {{- if eq .name "CHRONON_METRICS_READER" }}
+            {{- $configuredMetricsReader = .value | default "" }}
+            {{- end }}
+            {{- end }}
+            {{- range .Values.orchestration.hub.env }}
+            {{- $configuredEnvNames = append $configuredEnvNames .name }}
+            {{- if eq .name "CHRONON_METRICS_READER" }}
+            {{- $configuredMetricsReader = .value | default "" }}
+            {{- end }}
+            {{- end }}
+            {{- $hasMetricsReaderEnv := has "CHRONON_METRICS_READER" $configuredEnvNames }}
+            {{- $metricsReader := .Values.orchestration.hub.metricsReader | default "" }}
+            {{- $effectiveMetricsReader := $metricsReader }}
+            {{- if $hasMetricsReaderEnv }}
+            {{- $effectiveMetricsReader = $configuredMetricsReader }}
+            {{- end }}
+            {{- if and $metricsReader (not $hasMetricsReaderEnv) }}
+            - name: CHRONON_METRICS_READER
+              value: {{ $metricsReader | quote }}
+            {{- end }}
+            {{- if and (eq $effectiveMetricsReader "prometheus") .Values.orchestration.hub.metricsPort (not (has "CHRONON_PROMETHEUS_SERVER_PORT" $configuredEnvNames)) }}
+            - name: CHRONON_PROMETHEUS_SERVER_PORT
+              value: {{ .Values.orchestration.hub.metricsPort | quote }}
+            {{- end }}
             {{- with .Values.runtime.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -103,6 +135,11 @@ spec:
             {{- end }}
           ports:
             - containerPort: {{ .Values.orchestration.hub.port }}
+            {{- if and (eq $effectiveMetricsReader "prometheus") .Values.orchestration.hub.metricsPort }}
+            - name: metrics
+              containerPort: {{ .Values.orchestration.hub.metricsPort }}
+              protocol: TCP
+            {{- end }}
           resources:
           {{- toYaml .Values.orchestration.hub.resources | nindent 12 }}
           livenessProbe:

@@ -303,6 +303,9 @@ orchestration:
     verticleClass: ""
     replicas: 1
     port: 3903
+    metricsReader: prometheus
+    metricsPort: 8905
+    podAnnotations: {}
     env: []
     nodeSelector: {}
     tolerations: []

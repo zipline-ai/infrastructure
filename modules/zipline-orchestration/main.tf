@@ -195,15 +195,41 @@ locals {
     )
   })
 
+  hub_input = try(local.orchestration.hub, {})
   hub_defaults = {
-    chronon_metrics_reader       = "http"
+    chronon_metrics_reader       = "prometheus"
     data_quality_metrics_dataset = "DATA_QUALITY_METRICS"
     image                        = ""
+    metrics_port                 = null
+    pod_annotations              = {}
     verticle_class               = ""
     env                          = []
   }
-  hub                = merge(local.hub_defaults, try(local.orchestration.hub, {}))
+  hub                = merge(local.hub_defaults, local.hub_input)
   hub_verticle_class = local.hub.verticle_class != "" ? local.hub.verticle_class : try(local.hub.verticleClass, "")
+  hub_chronon_metrics_reader = (
+    try(local.hub_input.chronon_metrics_reader, null) != null
+    ? local.hub_input.chronon_metrics_reader
+    : (
+      try(local.hub_input.metricsReader, null) != null
+      ? local.hub_input.metricsReader
+      : local.hub_defaults.chronon_metrics_reader
+    )
+  )
+  hub_explicit_metrics_port = (
+    try(local.hub_input.metrics_port, null) != null
+    ? local.hub_input.metrics_port
+    : try(local.hub_input.metricsPort, null)
+  )
+  hub_metrics_port = (
+    local.hub_chronon_metrics_reader == "prometheus"
+    ? (
+      local.hub_explicit_metrics_port != null
+      ? local.hub_explicit_metrics_port
+      : 8905
+    )
+    : local.hub_explicit_metrics_port
+  )
 
   eval_defaults = {
     image = ""
@@ -216,12 +242,6 @@ locals {
   ui = merge(local.ui_defaults, try(local.orchestration.ui, {}))
 
   hub_env = concat(
-    local.hub.chronon_metrics_reader == "" ? [] : [
-      {
-        name  = "CHRONON_METRICS_READER"
-        value = local.hub.chronon_metrics_reader
-      }
-    ],
     local.hub.data_quality_metrics_dataset == "" ? [] : [
       {
         name  = "DATA_QUALITY_METRICS_DATASET"
@@ -537,9 +557,12 @@ locals {
 
     orchestration = {
       hub = {
-        image         = local.hub.image
-        verticleClass = local.hub_verticle_class
-        env           = local.hub_env
+        image          = local.hub.image
+        verticleClass  = local.hub_verticle_class
+        metricsReader  = local.hub_chronon_metrics_reader
+        metricsPort    = local.hub_metrics_port
+        podAnnotations = try(local.hub.pod_annotations, try(local.hub.podAnnotations, {}))
+        env            = local.hub_env
       }
       ui = {
         origin = local.ui.origin

@@ -8,6 +8,11 @@ for cloud-specific values such as identity annotations, runtime environment,
 object store settings, and Helm provider values. This module owns the merge
 between those two inputs before rendering chart values.
 
+Hub metrics default to Chronon's Prometheus reader on port `8905` in this shared
+module/chart layer, so AWS and Azure wrappers inherit the same behavior. Set
+`orchestration.hub.chronon_metrics_reader` or `orchestration.hub.metrics_port`
+to override it.
+
 The module owns common Kubernetes installation mechanics:
 
 - Namespace creation.
