@@ -392,6 +392,30 @@ ingress:
       nginx.ingress.kubernetes.io/proxy-body-size: "20m"
       nginx.ingress.kubernetes.io/rewrite-target: "/$2"
       nginx.ingress.kubernetes.io/use-regex: "true"
+    # nginx auth_request forward-auth for browser traffic on Hub routes
+    # (e.g. live SparkUI under /services/hub/api/v1/.../ui). When enabled, an
+    # unauthenticated browser request is bounced to the UI's `/auth/forward`
+    # subrequest endpoint, which mints a JWT from the better-auth session
+    # cookie. nginx propagates that JWT to Hub as Authorization: Bearer …,
+    # matching what the UI already sends on internal API calls.
+    # CLI / curl traffic with an existing Authorization header bypasses this.
+    browserAuth:
+      enabled: false
+      # URL the auth_request subrequest hits. Defaults to the in-cluster UI
+      # service so the subrequest never leaves the cluster.
+      forwardUrl: ""        # e.g. http://orchestration-ui-service.zipline-system.svc.cluster.local/auth/forward
+      # URL the browser is 302'd to on 401. Defaults to a public login redirect
+      # that bounces back to the original Hub URL after sign-in.
+      signinUrl: ""         # e.g. https://$host/auth/login?redirect=$escaped_request_uri
+      # auth-cache settings — collapse repeat subrequests to ~1 per session.
+      # MUST differentiate by Authorization header AND cookie: if only
+      # `$cookie_…` is the key, an anon request (no cookie) would share a key
+      # with a successful Bearer request, causing the cached 200 from /forward
+      # to bypass auth for anon traffic. Including `$http_authorization`
+      # bucket-separates cookie-bearing browsers from Bearer-bearing CLIs
+      # and from fully unauthenticated callers (all three keys are distinct).
+      cacheKey: "$http_authorization|$cookie_better_auth_session_token"
+      cacheDuration: "200 60s"
   fetcher:
     className: nginx-ui
     host: ""
