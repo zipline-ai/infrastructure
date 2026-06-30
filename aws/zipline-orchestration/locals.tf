@@ -64,7 +64,55 @@ locals {
   create_auth_secret         = local.auth_enabled && length(keys(local.cloud_args.auth_secret_values)) > 0
   auth_secret_arn            = local.create_auth_secret ? aws_secretsmanager_secret.zipline_auth[0].arn : local.configured_auth_secret_arn
 
-  extra_external_secrets = try(local.cloud_args.extra_external_secrets, [])
+  legacy_extra_secret_provider_objects = try(local.cloud_args.extra_secret_provider_objects, [])
+  legacy_extra_secret_objects          = try(var.orchestration.secrets.extra_secret_objects, [])
+  legacy_secret_provider_alias_refs = merge(
+    {},
+    [
+      for object in local.legacy_extra_secret_provider_objects : {
+        for item in try(object.jmesPath, []) : tostring(item.objectAlias) => {
+          key      = tostring(object.objectName)
+          property = trimprefix(trimsuffix(tostring(try(item.path, item.objectAlias)), "\""), "\"")
+        }
+        if try(object.objectType, "secretsmanager") == "secretsmanager" && startswith(tostring(try(object.objectName, "")), "arn:")
+      }
+    ]...
+  )
+  legacy_extra_external_secrets = [
+    for secret_object in local.legacy_extra_secret_objects : {
+      name = secret_object.secretName
+      spec = {
+        refreshInterval = "1h"
+        secretStoreRef = {
+          name = "zipline-secret-store"
+          kind = "SecretStore"
+        }
+        target = {
+          name           = secret_object.secretName
+          creationPolicy = "Owner"
+          template = {
+            type = try(secret_object.type, "Opaque")
+          }
+        }
+        data = [
+          for item in try(secret_object.data, []) : {
+            secretKey = item.key
+            remoteRef = try(
+              local.legacy_secret_provider_alias_refs[item.objectName],
+              {
+                key      = item.objectName
+                property = item.objectName
+              }
+            )
+          }
+        ]
+      }
+    }
+  ]
+  extra_external_secrets = concat(
+    try(local.cloud_args.extra_external_secrets, []),
+    local.legacy_extra_external_secrets,
+  )
   extra_external_secret_arns = distinct(compact(concat(
     try(local.cloud_args.extra_secret_arns, []),
     flatten([
@@ -74,6 +122,13 @@ locals {
       ]
     ]),
   )))
+
+  module_orchestration = merge(var.orchestration, {
+    extra_secret_objects = []
+    secrets = merge(try(var.orchestration.secrets, {}), {
+      extra_secret_objects = []
+    })
+  })
 
   provider_context = {
     database = {

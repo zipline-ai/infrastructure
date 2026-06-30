@@ -40,7 +40,7 @@ resource "terraform_data" "configuration_validation" {
 module "zipline_orchestration" {
   source = "../../modules/zipline-orchestration"
 
-  orchestration    = var.orchestration
+  orchestration    = local.module_orchestration
   provider_context = local.provider_context
 
   depends_on = [
