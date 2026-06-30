@@ -105,12 +105,16 @@ locals {
   image_pull_secret      = merge(local.image_pull_secret_defaults, try(local.orchestration.image_pull_secret, {}))
   image_pull_secret_name = local.image_pull_secret.create ? kubernetes_secret_v1.docker_hub_creds[0].metadata[0].name : local.image_pull_secret.name
   image_pull_secrets     = local.image_pull_secret_name == "" ? [] : [{ name = local.image_pull_secret_name }]
+  helm_release_name      = local.install.release_name
+  helm_fullname          = strcontains(local.helm_release_name, "zipline-orchestration") ? local.helm_release_name : "${local.helm_release_name}-zipline-orchestration"
+  loki_service_url       = "http://${local.helm_fullname}-loki.${local.install.namespace}.svc.cluster.local:3100/loki/api/v1/push"
 
   addons_defaults = {
     install_secrets_store_csi_driver = true
     install_cert_manager             = true
     install_flink_operator           = true
     install_opentelemetry_operator   = false
+    cert_manager_values              = {}
   }
   addons = merge(local.addons_defaults, try(local.orchestration.addons, {}))
 
@@ -437,6 +441,16 @@ locals {
       namespace     = local.install.namespace
     }
 
+    promtail = {
+      config = {
+        clients = [
+          {
+            url = local.loki_service_url
+          }
+        ]
+      }
+    }
+
     certManager = {
       enabled     = local.addons.install_cert_manager
       installCRDs = local.addons.install_cert_manager
@@ -545,6 +559,7 @@ module "addons" {
 
   install_secrets_store_csi_driver = local.addons.install_secrets_store_csi_driver
   install_cert_manager             = local.addons.install_cert_manager
+  cert_manager_values              = local.addons.cert_manager_values
   install_flink_operator           = local.addons.install_flink_operator
   install_opentelemetry_operator   = local.addons.install_opentelemetry_operator
 }

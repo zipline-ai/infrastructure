@@ -16,15 +16,11 @@ variable "azure" {
     condition = alltrue([
       for key in [
         "location",
-        "tenant_id",
-        "keyvault_name",
-        "keyvault_identity_client_id",
-        "workload_identity_client_id",
         "warehouse_container_name",
         "storage_account_name",
       ] : trimspace(tostring(try(var.azure[key], ""))) != ""
     ])
-    error_message = "azure must include non-empty location, tenant_id, keyvault_name, keyvault_identity_client_id, workload_identity_client_id, warehouse_container_name, and storage_account_name."
+    error_message = "azure must include non-empty location, warehouse_container_name, and storage_account_name."
   }
 }
 
@@ -33,4 +29,16 @@ module "zipline_orchestration" {
 
   orchestration    = var.orchestration
   provider_context = local.provider_context
+
+  depends_on = [
+    azurerm_kubernetes_cluster_node_pool.user,
+    azurerm_key_vault_secret.db_password,
+    azurerm_key_vault_secret.db_username,
+    azurerm_private_endpoint.postgres,
+    azurerm_storage_data_lake_gen2_path.spark_events,
+    azurerm_role_assignment.csi_keyvault_secrets_user,
+    azurerm_role_assignment.workload_keyvault_secrets_user,
+    azurerm_role_assignment.workload_storage,
+    azurerm_role_assignment.aks_acr_pull,
+  ]
 }

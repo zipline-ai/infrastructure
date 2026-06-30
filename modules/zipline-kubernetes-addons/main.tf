@@ -8,9 +8,6 @@ locals {
 
   cert_manager_values = merge({
     installCRDs = true
-    extraArgs = [
-      "--acme-http01-solver-nameservers=1.1.1.1:53,8.8.8.8:53",
-    ]
   }, var.cert_manager_values)
 
   flink_operator_values = merge({
