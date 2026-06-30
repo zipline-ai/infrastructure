@@ -19,8 +19,8 @@ locals {
     extra_secret_provider_objects  = []
     additional_data_buckets        = []
     additional_flink_s3_buckets    = []
-    shared_warehouse_bucket        = "zipline-warehouse"
-    spark_libs_bucket              = "zipline-spark-libs"
+    shared_warehouse_bucket        = ""
+    spark_libs_bucket              = ""
     logs_bucket                    = ""
     glue_schema_registry_name      = ""
     msk_cluster_arn                = ""
@@ -90,7 +90,8 @@ locals {
         bucket = local.cloud_args.warehouse_bucket
         region = local.cloud_args.region
       }
-      spark_event_log_dir = local.spark_event_log_dir
+      spark_event_log_dir    = local.spark_event_log_dir
+      history_server_options = local.spark_history_opts
       service_account = {
         annotations = {
           "eks.amazonaws.com/role-arn" = aws_iam_role.spark_compute_execution.arn
@@ -105,9 +106,6 @@ locals {
           "eks.amazonaws.com/role-arn" = aws_iam_role.flink_compute_execution.arn
         }
       }
-    }
-    addons = {
-      install_secrets_store_csi_driver = false
     }
     service_account_annotations = {
       "eks.amazonaws.com/role-arn" = aws_iam_role.orchestration_irsa.arn
@@ -124,7 +122,12 @@ locals {
     values = local.provider_values
   }
 
-  spark_event_log_dir         = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "s3a://${local.cloud_args.warehouse_bucket}/spark-events"
+  spark_event_log_dir = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "s3a://${local.cloud_args.warehouse_bucket}/spark-events"
+  spark_history_opts = [
+    "-Dspark.hadoop.fs.s3a.aws.credentials.provider=com.amazonaws.auth.WebIdentityTokenCredentialsProvider",
+    "-Dspark.hadoop.fs.s3a.connection.maximum=200",
+    "-Dspark.hadoop.fs.s3a.threads.max=50",
+  ]
   hub_image                   = "ziplineai/hub-aws"
   eval_image                  = "ziplineai/eval-aws"
   hub_verticle_class          = "ai.chronon.hub.AWSOrchestrationVerticle,ai.chronon.hub.AWSWorkflowExecutionVerticle"
@@ -148,6 +151,28 @@ locals {
   msk_group_arn_prefix = local.cloud_args.msk_cluster_arn != "" ? replace(local.cloud_args.msk_cluster_arn, ":cluster/", ":group/") : ""
   eks_log_group        = local.cloud_args.eks_log_group != "" ? local.cloud_args.eks_log_group : "/aws/eks/${local.cluster_name}/containers"
   amp_workspace_arn    = local.cloud_args.amp_workspace_arn != "" ? local.cloud_args.amp_workspace_arn : aws_prometheus_workspace.main.arn
+  orchestration_s3_read_buckets = distinct(compact(concat(
+    [local.cloud_args.shared_warehouse_bucket],
+    local.cloud_args.additional_data_buckets,
+  )))
+  spark_compute_s3_buckets = distinct(compact(concat(
+    [
+      local.cloud_args.warehouse_bucket,
+      local.artifact_bucket,
+      local.cloud_args.spark_libs_bucket,
+      local.logs_bucket,
+    ],
+    local.cloud_args.additional_data_buckets,
+  )))
+  flink_compute_s3_buckets = distinct(compact(concat(
+    [
+      local.cloud_args.warehouse_bucket,
+      local.artifact_bucket,
+      local.cloud_args.spark_libs_bucket,
+      local.logs_bucket,
+    ],
+    local.cloud_args.additional_flink_s3_buckets,
+  )))
 
   ingress_lb_service = {
     annotations = {

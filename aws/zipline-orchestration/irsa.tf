@@ -63,20 +63,8 @@ data "aws_iam_policy_document" "orchestration_s3_policy" {
     ]
   }
 
-  statement {
-    effect = "Allow"
-    actions = [
-      "s3:GetObject",
-      "s3:ListBucket",
-    ]
-    resources = [
-      "arn:aws:s3:::${local.cloud_args.shared_warehouse_bucket}",
-      "arn:aws:s3:::${local.cloud_args.shared_warehouse_bucket}/*",
-    ]
-  }
-
   dynamic "statement" {
-    for_each = length(local.cloud_args.additional_data_buckets) > 0 ? [1] : []
+    for_each = length(local.orchestration_s3_read_buckets) > 0 ? [1] : []
     content {
       effect = "Allow"
       actions = [
@@ -84,7 +72,7 @@ data "aws_iam_policy_document" "orchestration_s3_policy" {
         "s3:ListBucket",
       ]
       resources = flatten([
-        for bucket in local.cloud_args.additional_data_buckets : [
+        for bucket in local.orchestration_s3_read_buckets : [
           "arn:aws:s3:::${bucket}",
           "arn:aws:s3:::${bucket}/*",
         ]
@@ -271,24 +259,12 @@ data "aws_iam_policy_document" "spark_compute_s3_policy" {
       "s3:ListBucket",
       "s3:PutObject",
     ]
-    resources = concat(
-      [
-        "arn:aws:s3:::${local.cloud_args.warehouse_bucket}",
-        "arn:aws:s3:::${local.cloud_args.warehouse_bucket}/*",
-        "arn:aws:s3:::${local.artifact_bucket}",
-        "arn:aws:s3:::${local.artifact_bucket}/*",
-        "arn:aws:s3:::${local.cloud_args.spark_libs_bucket}",
-        "arn:aws:s3:::${local.cloud_args.spark_libs_bucket}/*",
-        "arn:aws:s3:::${local.logs_bucket}",
-        "arn:aws:s3:::${local.logs_bucket}/*",
-      ],
-      flatten([
-        for bucket in local.cloud_args.additional_data_buckets : [
-          "arn:aws:s3:::${bucket}",
-          "arn:aws:s3:::${bucket}/*",
-        ]
-      ]),
-    )
+    resources = flatten([
+      for bucket in local.spark_compute_s3_buckets : [
+        "arn:aws:s3:::${bucket}",
+        "arn:aws:s3:::${bucket}/*",
+      ]
+    ])
   }
 }
 
@@ -407,24 +383,12 @@ data "aws_iam_policy_document" "flink_compute_s3_policy" {
       "s3:ListBucket",
       "s3:PutObject",
     ]
-    resources = concat(
-      [
-        "arn:aws:s3:::${local.cloud_args.warehouse_bucket}",
-        "arn:aws:s3:::${local.cloud_args.warehouse_bucket}/*",
-        "arn:aws:s3:::${local.artifact_bucket}",
-        "arn:aws:s3:::${local.artifact_bucket}/*",
-        "arn:aws:s3:::${local.cloud_args.spark_libs_bucket}",
-        "arn:aws:s3:::${local.cloud_args.spark_libs_bucket}/*",
-        "arn:aws:s3:::${local.logs_bucket}",
-        "arn:aws:s3:::${local.logs_bucket}/*",
-      ],
-      flatten([
-        for bucket in local.cloud_args.additional_flink_s3_buckets : [
-          "arn:aws:s3:::${bucket}",
-          "arn:aws:s3:::${bucket}/*",
-        ]
-      ]),
-    )
+    resources = flatten([
+      for bucket in local.flink_compute_s3_buckets : [
+        "arn:aws:s3:::${bucket}",
+        "arn:aws:s3:::${bucket}/*",
+      ]
+    ])
   }
 }
 

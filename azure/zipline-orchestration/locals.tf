@@ -27,6 +27,7 @@ locals {
     database_name                           = ""
     database_port                           = 5432
     database_server_name                    = ""
+    database_credentials_secret_name        = ""
     database_admin_username                 = "locker_user"
     database_password_secret_name           = "pg-admin-password"
     database_username_secret_name           = "pg-admin-username"
@@ -41,22 +42,23 @@ locals {
     load_balancer_resource_group            = ""
   }, var.azure)
 
-  deployment                     = var.orchestration.deployment
-  name_prefix                    = local.deployment.customer_name
-  resource_group_name            = local.cloud_args.resource_group_name != "" ? local.cloud_args.resource_group_name : "${local.name_prefix}-crucible-rg"
-  cluster_name                   = local.cloud_args.cluster_name != "" ? local.cloud_args.cluster_name : "${local.name_prefix}-aks"
-  aks_dns_prefix                 = local.cloud_args.aks_dns_prefix != "" ? local.cloud_args.aks_dns_prefix : local.cluster_name
-  keyvault_name                  = local.cloud_args.keyvault_name != "" ? local.cloud_args.keyvault_name : "${local.name_prefix}-zipline-secrets"
-  workload_identity_name         = local.cloud_args.workload_identity_name != "" ? local.cloud_args.workload_identity_name : "${local.name_prefix}-workload-identity"
-  storage_account_resource_group = local.cloud_args.storage_account_resource_group != "" ? local.cloud_args.storage_account_resource_group : local.resource_group_name
-  database_name                  = local.cloud_args.database_name != "" ? local.cloud_args.database_name : try(var.orchestration.database.name, "execution_info")
-  database_server_name           = local.cloud_args.database_server_name != "" ? local.cloud_args.database_server_name : "${local.name_prefix}-zipline-orch-instance"
-  database_host                  = local.cloud_args.database_host != "" ? local.cloud_args.database_host : azurerm_postgresql_flexible_server.main.fqdn
-  database_location              = local.cloud_args.database_location != "" ? local.cloud_args.database_location : local.cloud_args.location
-  tenant_id                      = local.cloud_args.tenant_id != "" ? local.cloud_args.tenant_id : data.azurerm_client_config.current.tenant_id
-  workload_identity_client_id    = local.cloud_args.workload_identity_client_id != "" ? local.cloud_args.workload_identity_client_id : azurerm_user_assigned_identity.workload.client_id
-  keyvault_identity_client_id    = local.cloud_args.keyvault_identity_client_id != "" ? local.cloud_args.keyvault_identity_client_id : azurerm_kubernetes_cluster.main.key_vault_secrets_provider[0].secret_identity[0].client_id
-  load_balancer_resource_group   = local.cloud_args.load_balancer_resource_group != "" ? local.cloud_args.load_balancer_resource_group : azurerm_kubernetes_cluster.main.node_resource_group
+  deployment                       = var.orchestration.deployment
+  name_prefix                      = local.deployment.customer_name
+  resource_group_name              = local.cloud_args.resource_group_name != "" ? local.cloud_args.resource_group_name : "${local.name_prefix}-crucible-rg"
+  cluster_name                     = local.cloud_args.cluster_name != "" ? local.cloud_args.cluster_name : "${local.name_prefix}-aks"
+  aks_dns_prefix                   = local.cloud_args.aks_dns_prefix != "" ? local.cloud_args.aks_dns_prefix : local.cluster_name
+  keyvault_name                    = local.cloud_args.keyvault_name != "" ? local.cloud_args.keyvault_name : "${local.name_prefix}-zipline-secrets"
+  workload_identity_name           = local.cloud_args.workload_identity_name != "" ? local.cloud_args.workload_identity_name : "${local.name_prefix}-workload-identity"
+  storage_account_resource_group   = local.cloud_args.storage_account_resource_group != "" ? local.cloud_args.storage_account_resource_group : local.resource_group_name
+  database_name                    = local.cloud_args.database_name != "" ? local.cloud_args.database_name : try(var.orchestration.database.name, "execution_info")
+  database_server_name             = local.cloud_args.database_server_name != "" ? local.cloud_args.database_server_name : "${local.name_prefix}-zipline-orch-instance"
+  database_credentials_secret_name = local.cloud_args.database_credentials_secret_name != "" ? local.cloud_args.database_credentials_secret_name : "${local.name_prefix}-postgres-credentials"
+  database_host                    = local.cloud_args.database_host != "" ? local.cloud_args.database_host : azurerm_postgresql_flexible_server.main.fqdn
+  database_location                = local.cloud_args.database_location != "" ? local.cloud_args.database_location : local.cloud_args.location
+  tenant_id                        = local.cloud_args.tenant_id != "" ? local.cloud_args.tenant_id : data.azurerm_client_config.current.tenant_id
+  workload_identity_client_id      = local.cloud_args.workload_identity_client_id != "" ? local.cloud_args.workload_identity_client_id : azurerm_user_assigned_identity.workload.client_id
+  keyvault_identity_client_id      = local.cloud_args.keyvault_identity_client_id != "" ? local.cloud_args.keyvault_identity_client_id : azurerm_kubernetes_cluster.main.key_vault_secrets_provider[0].secret_identity[0].client_id
+  load_balancer_resource_group     = local.cloud_args.load_balancer_resource_group != "" ? local.cloud_args.load_balancer_resource_group : azurerm_kubernetes_cluster.main.node_resource_group
 
   auth_saml_enabled = try(var.orchestration.auth.sso_use_saml, false)
   auth_secret_keys = concat(
@@ -75,6 +77,11 @@ locals {
       host = local.database_host
       port = local.cloud_args.database_port
       name = local.database_name
+      credentials_secret = {
+        name         = local.database_credentials_secret_name
+        username_key = local.cloud_args.database_username_secret_name
+        password_key = local.cloud_args.database_password_secret_name
+      }
     }
     hub = {
       image          = local.hub_image
@@ -102,9 +109,6 @@ locals {
       tls_secret_name             = "zipline-tls-secret"
       cert_manager_cluster_issuer = "letsencrypt-prod"
     }
-    addons = {
-      install_secrets_store_csi_driver = false
-    }
     secrets = {
       database_object_names = {
         username = local.cloud_args.database_username_secret_name
@@ -124,8 +128,8 @@ locals {
   normalized_storage_path     = trim(local.cloud_args.storage_path_prefix, "/")
   storage_path_prefix_segment = local.normalized_storage_path == "" ? "" : "${local.normalized_storage_path}/"
   abfs_base_uri               = "abfss://${local.cloud_args.warehouse_container_name}@${local.cloud_args.storage_account_name}.dfs.core.windows.net/${local.storage_path_prefix_segment}"
-  spark_event_log_dir         = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "${local.abfs_base_uri}spark-events"
   spark_event_log_uri_prefix  = "abfss://${local.cloud_args.warehouse_container_name}@${local.cloud_args.storage_account_name}.dfs.core.windows.net/"
+  spark_event_log_dir         = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "${local.spark_event_log_uri_prefix}spark-events"
   spark_event_log_managed     = startswith(local.spark_event_log_dir, local.spark_event_log_uri_prefix)
   spark_event_log_path        = trim(trimprefix(local.spark_event_log_dir, local.spark_event_log_uri_prefix), "/")
   polaris_base_location       = "${local.abfs_base_uri}polaris/polaris_${local.deployment.customer_name}/"

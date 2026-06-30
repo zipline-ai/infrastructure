@@ -1,7 +1,7 @@
 variable "install_secrets_store_csi_driver" {
   description = "Install the Kubernetes Secrets Store CSI driver."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "secrets_store_csi_driver_version" {

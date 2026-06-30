@@ -110,7 +110,7 @@ locals {
   loki_service_url       = "http://${local.helm_fullname}-loki.${local.install.namespace}.svc.cluster.local:3100/loki/api/v1/push"
 
   addons_defaults = {
-    install_secrets_store_csi_driver = true
+    install_secrets_store_csi_driver = false
     install_cert_manager             = true
     install_flink_operator           = true
     install_opentelemetry_operator   = false
