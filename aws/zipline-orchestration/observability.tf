@@ -29,9 +29,9 @@ scrape_configs:
       - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
         action: keep
         regex: "true"
-      - source_labels: [__meta_kubernetes_pod_container_port_number, __meta_kubernetes_pod_annotation_prometheus_io_port]
-        action: keep
-        regex: "(\\d+);\\1"
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: keepequal
+        target_label: __meta_kubernetes_pod_container_port_number
       - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
         action: replace
         target_label: __metrics_path__
