@@ -1,17 +1,17 @@
-variable "install_secrets_store_csi_driver" {
-  description = "Install the Kubernetes Secrets Store CSI driver."
+variable "install_external_secrets_operator" {
+  description = "Install External Secrets Operator."
   type        = bool
   default     = false
 }
 
-variable "secrets_store_csi_driver_version" {
-  description = "Secrets Store CSI driver chart version."
+variable "external_secrets_operator_version" {
+  description = "External Secrets Operator chart version."
   type        = string
-  default     = "1.4.1"
+  default     = "2.7.0"
 }
 
-variable "secrets_store_csi_driver_values" {
-  description = "Additional Secrets Store CSI driver chart values."
+variable "external_secrets_operator_values" {
+  description = "Additional External Secrets Operator chart values."
   type        = any
   default     = {}
 }

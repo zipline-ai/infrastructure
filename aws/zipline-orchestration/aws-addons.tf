@@ -171,36 +171,6 @@ resource "helm_release" "aws_load_balancer_controller" {
   ]
 }
 
-resource "helm_release" "secrets_store_csi_driver" {
-  name       = "secrets-store-csi-driver"
-  repository = "https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts"
-  chart      = "secrets-store-csi-driver"
-  namespace  = "kube-system"
-  version    = "1.4.1"
-
-  set {
-    name  = "syncSecret.enabled"
-    value = "true"
-  }
-
-  set {
-    name  = "enableSecretRotation"
-    value = "true"
-  }
-
-  depends_on = [aws_eks_node_group.default]
-}
-
-resource "helm_release" "secrets_store_csi_aws" {
-  name       = "secrets-store-csi-driver-provider-aws"
-  repository = "https://aws.github.io/secrets-store-csi-driver-provider-aws"
-  chart      = "secrets-store-csi-driver-provider-aws"
-  namespace  = "kube-system"
-  version    = "0.3.6"
-
-  depends_on = [helm_release.secrets_store_csi_driver]
-}
-
 data "aws_iam_policy_document" "fluent_bit_cloudwatch" {
   statement {
     effect = "Allow"

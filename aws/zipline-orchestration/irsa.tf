@@ -38,7 +38,7 @@ data "aws_iam_policy_document" "orchestration_secrets_policy" {
     resources = compact(concat([
       aws_secretsmanager_secret.db_credentials.arn,
       local.auth_enabled ? local.auth_secret_arn : "",
-    ], local.extra_secret_provider_arns))
+    ], local.extra_external_secret_arns))
   }
 }
 

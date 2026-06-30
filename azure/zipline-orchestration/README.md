@@ -112,16 +112,16 @@ Supported shared fields:
 | `orchestration.image_pull_secret.create` | Whether Terraform creates the Docker Hub Secret. |
 | `orchestration.image_pull_secret.dockerhub_username` | Docker Hub username when creating the Secret. |
 | `orchestration.image_pull_secret.dockerhub_token` | Docker Hub token when creating the Secret. |
-| `orchestration.addons.install_secrets_store_csi_driver` | Install Secrets Store CSI driver. |
+| `orchestration.addons.install_external_secrets_operator` | Install External Secrets Operator. |
 | `orchestration.addons.install_cert_manager` | Install cert-manager. |
 | `orchestration.addons.install_flink_operator` | Install Flink operator. |
 | `orchestration.addons.install_opentelemetry_operator` | Install OpenTelemetry operator. |
 | `orchestration.prometheus.query_endpoint` | Prometheus query endpoint. |
-| `orchestration.secrets.class_name` | SecretProviderClass name. |
-| `orchestration.secrets.database_object_names.username` | Provider object name for DB username. |
-| `orchestration.secrets.database_object_names.password` | Provider object name for DB password. |
-| `orchestration.secrets.auth_object_names` | Provider object names for auth Secret keys. |
-| `orchestration.secrets.extra_secret_objects` | Additional synced Kubernetes Secret objects. |
+| `orchestration.secrets.secret_store` | External Secrets Operator SecretStore settings. |
+| `orchestration.secrets.database_remote_refs.username` | ESO remoteRef for DB username. |
+| `orchestration.secrets.database_remote_refs.password` | ESO remoteRef for DB password. |
+| `orchestration.secrets.auth_remote_refs` | ESO remoteRefs for auth Secret keys. |
+| `orchestration.secrets.extra_external_secrets` | Additional ExternalSecret resources. |
 | `orchestration.service_account.create` | Whether to create the orchestration service account. |
 | `orchestration.service_account.name` | Orchestration service account name. |
 | `orchestration.service_account.annotations` | Orchestration service account annotations. |
@@ -137,7 +137,6 @@ Supported shared fields:
 | `orchestration.ui_env` | Extra UI environment variables. |
 | `orchestration.fetcher_env` | Extra Fetcher environment variables. |
 | `orchestration.eval_env` | Extra Eval environment variables. |
-| `orchestration.extra_secret_objects` | Additional SecretProviderClass secret objects. |
 | `orchestration.values` | Raw Helm values merged before extra values. |
 | `orchestration.extra_values` | Additional raw Helm values. |
 | `orchestration.extra_values_yaml` | Additional raw Helm values YAML strings. |
@@ -150,7 +149,6 @@ Supported Azure-specific fields:
 | `azure.location` | Azure location. Required. |
 | `azure.tenant_id` | Azure tenant ID. Required. |
 | `azure.keyvault_name` | Key Vault name. Required. |
-| `azure.keyvault_identity_client_id` | User-assigned identity client ID for Key Vault CSI access. Required. |
 | `azure.workload_identity_client_id` | Workload identity client ID for Zipline pods. Required. |
 | `azure.warehouse_container_name` | Warehouse storage container name. Terraform creates this container. Required. |
 | `azure.logs_container_name` | Logs storage container name. Terraform creates this container. Defaults to `zipline-logs-<customer_name>`. |
@@ -196,7 +194,6 @@ azure = {
   location                    = "westus2"
   tenant_id                   = "00000000-0000-0000-0000-000000000000"
   keyvault_name               = "example-keyvault"
-  keyvault_identity_client_id = "00000000-0000-0000-0000-000000000000"
   workload_identity_client_id = "00000000-0000-0000-0000-000000000000"
   warehouse_container_name    = "warehouse"
   logs_container_name         = "zipline-logs-example"

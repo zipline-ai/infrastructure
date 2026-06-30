@@ -14,7 +14,6 @@ locals {
     default_node_pool                       = {}
     node_pools                              = {}
     keyvault_name                           = ""
-    keyvault_identity_client_id             = ""
     workload_identity_name                  = ""
     workload_identity_client_id             = ""
     storage_account_resource_group          = ""
@@ -57,7 +56,6 @@ locals {
   database_location                = local.cloud_args.database_location != "" ? local.cloud_args.database_location : local.cloud_args.location
   tenant_id                        = local.cloud_args.tenant_id != "" ? local.cloud_args.tenant_id : data.azurerm_client_config.current.tenant_id
   workload_identity_client_id      = local.cloud_args.workload_identity_client_id != "" ? local.cloud_args.workload_identity_client_id : azurerm_user_assigned_identity.workload.client_id
-  keyvault_identity_client_id      = local.cloud_args.keyvault_identity_client_id != "" ? local.cloud_args.keyvault_identity_client_id : azurerm_kubernetes_cluster.main.key_vault_secrets_provider[0].secret_identity[0].client_id
   load_balancer_resource_group     = local.cloud_args.load_balancer_resource_group != "" ? local.cloud_args.load_balancer_resource_group : azurerm_kubernetes_cluster.main.node_resource_group
 
   auth_saml_enabled = try(var.orchestration.auth.sso_use_saml, false)
@@ -110,9 +108,34 @@ locals {
       cert_manager_cluster_issuer = "letsencrypt-prod"
     }
     secrets = {
-      database_object_names = {
-        username = local.cloud_args.database_username_secret_name
-        password = local.cloud_args.database_password_secret_name
+      secret_store = {
+        create = true
+        name   = "zipline-secret-store"
+        kind   = "SecretStore"
+        spec = {
+          provider = {
+            azurekv = {
+              authType = "WorkloadIdentity"
+              vaultUrl = "https://${local.keyvault_name}.vault.azure.net"
+              serviceAccountRef = {
+                name = local.orchestration_service_account
+              }
+            }
+          }
+        }
+      }
+      database_remote_refs = {
+        username = {
+          key = local.cloud_args.database_username_secret_name
+        }
+        password = {
+          key = local.cloud_args.database_password_secret_name
+        }
+      }
+      auth_remote_refs = {
+        for key in local.auth_secret_keys : key => {
+          key = key
+        }
       }
     }
     service_account_annotations = local.workload_identity_annotations
@@ -173,16 +196,6 @@ locals {
     },
   )
 
-  keyvault_secret_names = concat(
-    [local.cloud_args.database_password_secret_name, local.cloud_args.database_username_secret_name],
-    local.auth_enabled ? local.auth_secret_keys : [],
-  )
-
-  keyvault_objects = join("\n", concat(
-    ["array:"],
-    [for name in local.keyvault_secret_names : "  - |\n    objectName: ${name}\n    objectType: secret"],
-  ))
-
   spark_history_opts = [
     "-Dspark.hadoop.fs.azure.account.auth.type=OAuth",
     "-Dspark.hadoop.fs.azure.account.oauth.provider.type=org.apache.hadoop.fs.azurebfs.oauth2.WorkloadIdentityTokenProvider",
@@ -194,18 +207,6 @@ locals {
   provider_values = {
     podLabels = {
       "azure.workload.identity/use" = "true"
-    }
-
-    secrets = {
-      provider = "azure"
-      parameters = {
-        usePodIdentity         = "false"
-        useVMManagedIdentity   = "true"
-        userAssignedIdentityID = local.keyvault_identity_client_id
-        keyvaultName           = local.keyvault_name
-        tenantId               = local.tenant_id
-        objects                = local.keyvault_objects
-      }
     }
 
     polaris = {

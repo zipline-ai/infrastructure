@@ -19,6 +19,6 @@ The module owns common Kubernetes installation mechanics:
 - Provider-neutral public ingress outputs, including
   `ingress_load_balancer_target`, for environment-specific DNS automation.
 
-Provider-specific controllers such as the AWS Secrets Store provider, AWS Load
-Balancer Controller, and cloud identity bindings stay in cloud-specific
-wrappers.
+Provider-specific controllers such as the AWS Load Balancer Controller and cloud
+identity bindings stay in cloud-specific wrappers. Shared controllers such as
+External Secrets Operator are installed through the add-ons module.

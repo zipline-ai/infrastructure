@@ -16,7 +16,8 @@ locals {
     eks_log_group                  = ""
     auth_secret_arn                = ""
     auth_secret_values             = {}
-    extra_secret_provider_objects  = []
+    extra_external_secrets         = []
+    extra_secret_arns              = []
     additional_data_buckets        = []
     additional_flink_s3_buckets    = []
     shared_warehouse_bucket        = ""
@@ -63,11 +64,16 @@ locals {
   create_auth_secret         = local.auth_enabled && length(keys(local.cloud_args.auth_secret_values)) > 0
   auth_secret_arn            = local.create_auth_secret ? aws_secretsmanager_secret.zipline_auth[0].arn : local.configured_auth_secret_arn
 
-  extra_secret_provider_objects = try(local.cloud_args.extra_secret_provider_objects, [])
-  extra_secret_provider_arns = [
-    for object in local.extra_secret_provider_objects : object.objectName
-    if try(object.objectType, "secretsmanager") == "secretsmanager" && startswith(tostring(try(object.objectName, "")), "arn:")
-  ]
+  extra_external_secrets = try(local.cloud_args.extra_external_secrets, [])
+  extra_external_secret_arns = distinct(compact(concat(
+    try(local.cloud_args.extra_secret_arns, []),
+    flatten([
+      for external_secret in local.extra_external_secrets : [
+        for item in try(external_secret.spec.data, []) : tostring(try(item.remoteRef.key, ""))
+        if startswith(tostring(try(item.remoteRef.key, "")), "arn:")
+      ]
+    ]),
+  )))
 
   provider_context = {
     database = {
@@ -109,6 +115,45 @@ locals {
     }
     service_account_annotations = {
       "eks.amazonaws.com/role-arn" = aws_iam_role.orchestration_irsa.arn
+    }
+    secrets = {
+      secret_store = {
+        create = true
+        name   = "zipline-secret-store"
+        kind   = "SecretStore"
+        spec = {
+          provider = {
+            aws = {
+              service = "SecretsManager"
+              region  = local.cloud_args.region
+              auth = {
+                jwt = {
+                  serviceAccountRef = {
+                    name = local.orchestration_service_account
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      database_remote_refs = {
+        username = {
+          key      = aws_secretsmanager_secret.db_credentials.arn
+          property = "username"
+        }
+        password = {
+          key      = aws_secretsmanager_secret.db_credentials.arn
+          property = "password"
+        }
+      }
+      auth_remote_refs = {
+        for key in local.auth_secret_keys : key => {
+          key      = local.auth_secret_arn
+          property = key
+        }
+      }
+      extra_external_secrets = local.extra_external_secrets
     }
     runtime_env = [
       { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
@@ -196,35 +241,7 @@ locals {
     }
   }
 
-  secret_provider_objects = concat(
-    [
-      {
-        objectName = aws_secretsmanager_secret.db_credentials.arn
-        objectType = "secretsmanager"
-        jmesPath = [
-          { path = "password", objectAlias = "password" },
-          { path = "username", objectAlias = "username" },
-        ]
-      }
-    ],
-    local.extra_secret_provider_objects,
-    local.auth_enabled ? [
-      {
-        objectName = local.auth_secret_arn
-        objectType = "secretsmanager"
-        jmesPath   = [for key in local.auth_secret_keys : { path = "\"${key}\"", objectAlias = key }]
-      }
-    ] : [],
-  )
-
   provider_values = {
-    secrets = {
-      provider = "aws"
-      parameters = {
-        objects = yamlencode(local.secret_provider_objects)
-      }
-    }
-
     polaris = {
       extraEnv = [
         { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },

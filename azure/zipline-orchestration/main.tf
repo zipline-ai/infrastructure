@@ -36,7 +36,6 @@ module "zipline_orchestration" {
     azurerm_key_vault_secret.db_username,
     azurerm_private_endpoint.postgres,
     azurerm_storage_data_lake_gen2_path.spark_events,
-    azurerm_role_assignment.csi_keyvault_secrets_user,
     azurerm_role_assignment.workload_keyvault_secrets_user,
     azurerm_role_assignment.workload_storage,
     azurerm_role_assignment.aks_acr_pull,

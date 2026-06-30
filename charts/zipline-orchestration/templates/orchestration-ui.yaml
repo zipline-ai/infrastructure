@@ -151,10 +151,6 @@ spec:
             {{- with .Values.orchestration.ui.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
-          volumeMounts:
-            - name: secrets-store-inline
-              mountPath: {{ .Values.secrets.mountPath | quote }}
-              readOnly: true
           resources:
           {{- toYaml .Values.orchestration.ui.resources | nindent 12 }}
           ports:
@@ -171,13 +167,6 @@ spec:
               port: {{ .Values.orchestration.ui.port }}
             initialDelaySeconds: 10
             periodSeconds: 5
-      volumes:
-        - name: secrets-store-inline
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: {{ include "zipline-orchestration.secretProviderClassName" . | quote }}
 ---
 apiVersion: v1
 kind: Service

@@ -111,16 +111,16 @@ Supported shared fields:
 | `orchestration.image_pull_secret.create` | Whether Terraform creates the Docker Hub Secret. |
 | `orchestration.image_pull_secret.dockerhub_username` | Docker Hub username when creating the Secret. |
 | `orchestration.image_pull_secret.dockerhub_token` | Docker Hub token when creating the Secret. |
-| `orchestration.addons.install_secrets_store_csi_driver` | Install Secrets Store CSI driver. |
+| `orchestration.addons.install_external_secrets_operator` | Install External Secrets Operator. |
 | `orchestration.addons.install_cert_manager` | Install cert-manager. |
 | `orchestration.addons.install_flink_operator` | Install Flink operator. |
 | `orchestration.addons.install_opentelemetry_operator` | Install OpenTelemetry operator. |
 | `orchestration.prometheus.query_endpoint` | Prometheus query endpoint. |
-| `orchestration.secrets.class_name` | SecretProviderClass name. |
-| `orchestration.secrets.database_object_names.username` | Provider object name for DB username. |
-| `orchestration.secrets.database_object_names.password` | Provider object name for DB password. |
-| `orchestration.secrets.auth_object_names` | Provider object names for auth Secret keys. |
-| `orchestration.secrets.extra_secret_objects` | Additional synced Kubernetes Secret objects. |
+| `orchestration.secrets.secret_store` | External Secrets Operator SecretStore settings. |
+| `orchestration.secrets.database_remote_refs.username` | ESO remoteRef for DB username. |
+| `orchestration.secrets.database_remote_refs.password` | ESO remoteRef for DB password. |
+| `orchestration.secrets.auth_remote_refs` | ESO remoteRefs for auth Secret keys. |
+| `orchestration.secrets.extra_external_secrets` | Additional ExternalSecret resources. |
 | `orchestration.service_account.create` | Whether to create the orchestration service account. |
 | `orchestration.service_account.name` | Orchestration service account name. |
 | `orchestration.service_account.annotations` | Orchestration service account annotations. |
@@ -136,7 +136,6 @@ Supported shared fields:
 | `orchestration.ui_env` | Extra UI environment variables. |
 | `orchestration.fetcher_env` | Extra Fetcher environment variables. |
 | `orchestration.eval_env` | Extra Eval environment variables. |
-| `orchestration.extra_secret_objects` | Additional SecretProviderClass secret objects. |
 | `orchestration.values` | Raw Helm values merged before extra values. |
 | `orchestration.extra_values` | Additional raw Helm values. |
 | `orchestration.extra_values_yaml` | Additional raw Helm values YAML strings. |
@@ -159,7 +158,8 @@ Supported AWS-specific fields:
 | `aws.personnel_arns` | IAM principals granted EKS cluster-admin access. |
 | `aws.auth_secret_arn` | Existing Secrets Manager ARN for auth secrets. Required when auth is enabled unless `aws.auth_secret_values` is supplied. |
 | `aws.auth_secret_values` | Secret values used to create the auth Secrets Manager secret. |
-| `aws.extra_secret_provider_objects` | Additional AWS Secrets Store CSI provider objects for externally managed secrets. |
+| `aws.extra_external_secrets` | Additional ExternalSecret resources for externally managed secrets. |
+| `aws.extra_secret_arns` | Additional Secrets Manager ARNs granted to the ESO SecretStore service account. |
 | `aws.kv_table_prefix` | DynamoDB KV table prefix. |
 | `aws.kv_enable_ttl` | Enable TTL on KV records. |
 | `aws.kv_replica_regions` | DynamoDB KV replica regions. |

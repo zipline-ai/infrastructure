@@ -40,10 +40,6 @@ resource "azurerm_kubernetes_cluster" "main" {
     os_sku              = local.default_node_pool.os_sku
   }
 
-  key_vault_secrets_provider {
-    secret_rotation_enabled = true
-  }
-
   network_profile {
     network_plugin      = "azure"
     network_plugin_mode = "overlay"

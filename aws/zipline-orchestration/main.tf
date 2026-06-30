@@ -49,7 +49,6 @@ module "zipline_orchestration" {
     kubernetes_storage_class_v1.gp3,
     helm_release.aws_load_balancer_controller,
     helm_release.fluent_bit,
-    helm_release.secrets_store_csi_aws,
     terraform_data.configuration_validation,
   ]
 }

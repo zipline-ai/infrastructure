@@ -26,7 +26,10 @@
 {{- $bootstrapCredentialsSecretName := default "polaris-bootstrap-credentials" $polaris.bootstrap.credentialsSecret.name -}}
 {{- $bootstrapCredentialsSecretKey := default "credentials" $polaris.bootstrap.credentialsSecret.key -}}
 {{- $runtimeClient := default dict $polaris.bootstrap.runtimeClient -}}
+{{- $runtimeClientPrincipal := default "chronon" $runtimeClient.principal -}}
 {{- $runtimeClientCredentialsSecret := default dict $runtimeClient.credentialsSecret -}}
+{{- $runtimeClientCredentialsSecretName := default "polaris-client-credentials" $runtimeClientCredentialsSecret.name -}}
+{{- $runtimeClientCredentialsSecretKey := default "OC_CREDENTIAL" $runtimeClientCredentialsSecret.key -}}
 {{- $polarisDatabaseCredentialsSecret := default dict $polaris.database.credentialsSecret -}}
 {{- $polarisDatabaseCredentialsSecretName := default (include "zipline-orchestration.databaseCredentialsSecretName" .) (index $polarisDatabaseCredentialsSecret "name") -}}
 {{- $polarisDatabaseCredentialsUsernameKey := default (include "zipline-orchestration.databaseCredentialsUsernameKey" .) (index $polarisDatabaseCredentialsSecret "usernameKey") -}}
@@ -40,6 +43,15 @@
 {{- if hasKey $existingBootstrapSecretData $bootstrapCredentialsSecretKey -}}
 {{- $bootstrapCredentials = index $existingBootstrapSecretData $bootstrapCredentialsSecretKey -}}
 {{- end -}}
+{{- $existingRuntimeClientSecret := lookup "v1" "Secret" .Release.Namespace $runtimeClientCredentialsSecretName -}}
+{{- $existingRuntimeClientSecretData := dict -}}
+{{- if $existingRuntimeClientSecret -}}
+{{- $existingRuntimeClientSecretData = default dict $existingRuntimeClientSecret.data -}}
+{{- end -}}
+{{- $runtimeClientCredentials := printf "%s:%s" $runtimeClientPrincipal (randAlphaNum 48) | b64enc -}}
+{{- if hasKey $existingRuntimeClientSecretData $runtimeClientCredentialsSecretKey -}}
+{{- $runtimeClientCredentials = index $existingRuntimeClientSecretData $runtimeClientCredentialsSecretKey -}}
+{{- end -}}
 {{- $databaseName := required "polaris.database.name is required" $polaris.database.name -}}
 {{- $databaseHost := required "database.host is required" .Values.database.host -}}
 {{- $databaseAddress := printf "%s:%v" $databaseHost (.Values.database.port | default 5432) -}}
@@ -51,6 +63,8 @@ kind: Secret
 metadata:
   name: {{ $bootstrapCredentialsSecretName | quote }}
   namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/resource-policy": keep
   labels:
     app: polaris
     app.kubernetes.io/component: polaris-bootstrap
@@ -58,6 +72,21 @@ metadata:
 type: Opaque
 data:
   {{ $bootstrapCredentialsSecretKey }}: {{ $bootstrapCredentials | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $runtimeClientCredentialsSecretName | quote }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/resource-policy": keep
+  labels:
+    app: polaris
+    app.kubernetes.io/component: polaris-runtime-client
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+type: Opaque
+data:
+  {{ $runtimeClientCredentialsSecretKey }}: {{ $runtimeClientCredentials | quote }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -158,6 +187,10 @@ spec:
               value: {{ $psqlAdminUrl | quote }}
             - name: PG_POLARIS_URL
               value: {{ $psqlPolarisUrl | quote }}
+            - name: POLARIS_RUNTIME_CLIENT_SECRET_KEY
+              value: {{ $runtimeClientCredentialsSecretKey | quote }}
+            - name: POLARIS_RUNTIME_CLIENT_PRINCIPAL
+              value: {{ $runtimeClientPrincipal | quote }}
           command:
             - /bin/sh
             - -ec
@@ -183,20 +216,71 @@ spec:
               fi
               {{- end }}
               if psql "$PG_POLARIS_URL" --set=ON_ERROR_STOP=1 -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema = 'polaris_schema' AND table_name = 'principal_authentication_data'" | grep -q 1; then
+                reconcile_auth_row() {
+                  row_realm="$1"
+                  row_client_id="$2"
+                  row_client_secret="$3"
+                  case "$row_realm" in (*[!A-Za-z0-9_.-]*|"") echo "Invalid Polaris realm: $row_realm" >&2; exit 1;; esac
+                  case "$row_client_id" in (*[!A-Za-z0-9_.-]*|"") echo "Invalid Polaris client id: $row_client_id" >&2; exit 1;; esac
+                  salt="$(psql "$PG_POLARIS_URL" --set=ON_ERROR_STOP=1 -tAc "SELECT secret_salt FROM polaris_schema.principal_authentication_data WHERE realm_id = '$row_realm' AND principal_client_id = '$row_client_id';")"
+                  if [ -z "$salt" ]; then
+                    return 0
+                  fi
+                  tmp="$(mktemp)"
+                  printf "%s:%s" "$row_client_secret" "$salt" > "$tmp"
+                  hash_line="$(sha256sum "$tmp")"
+                  rm -f "$tmp"
+                  hash="${hash_line%% *}"
+                  psql "$PG_POLARIS_URL" --set=ON_ERROR_STOP=1 -q -c "UPDATE polaris_schema.principal_authentication_data SET main_secret_hash = '$hash', secondary_secret_hash = '$hash' WHERE realm_id = '$row_realm' AND principal_client_id = '$row_client_id';"
+                  echo "Reconciled Polaris auth row for realm=$row_realm client=$row_client_id"
+                }
+                reconcile_principal_auth_row() {
+                  row_realm="$1"
+                  row_principal_name="$2"
+                  row_client_id="$3"
+                  row_client_secret="$4"
+                  case "$row_realm" in (*[!A-Za-z0-9_.-]*|"") echo "Invalid Polaris realm: $row_realm" >&2; exit 1;; esac
+                  case "$row_principal_name" in (*[!A-Za-z0-9_.-]*|"") echo "Invalid Polaris principal: $row_principal_name" >&2; exit 1;; esac
+                  case "$row_client_id" in (*[!A-Za-z0-9_.-]*|"") echo "Invalid Polaris client id: $row_client_id" >&2; exit 1;; esac
+                  principal_id="$(psql "$PG_POLARIS_URL" --set=ON_ERROR_STOP=1 -tAc "SELECT id FROM polaris_schema.entities WHERE realm_id = '$row_realm' AND name = '$row_principal_name';")"
+                  case "$principal_id" in (*[!0-9]*|"") return 0;; esac
+                  salt="$(psql "$PG_POLARIS_URL" --set=ON_ERROR_STOP=1 -tAc "SELECT secret_salt FROM polaris_schema.principal_authentication_data WHERE realm_id = '$row_realm' AND principal_id = $principal_id;")"
+                  if [ -z "$salt" ]; then
+                    return 0
+                  fi
+                  tmp="$(mktemp)"
+                  printf "%s:%s" "$row_client_secret" "$salt" > "$tmp"
+                  hash_line="$(sha256sum "$tmp")"
+                  rm -f "$tmp"
+                  hash="${hash_line%% *}"
+                  psql "$PG_POLARIS_URL" --set=ON_ERROR_STOP=1 -q -c "UPDATE polaris_schema.principal_authentication_data SET principal_client_id = '$row_client_id', main_secret_hash = '$hash', secondary_secret_hash = '$hash' WHERE realm_id = '$row_realm' AND principal_id = $principal_id;"
+                  psql "$PG_POLARIS_URL" --set=ON_ERROR_STOP=1 -q -c "UPDATE polaris_schema.entities SET internal_properties = jsonb_set(internal_properties, '{client_id}', to_jsonb('$row_client_id'::text), true) WHERE realm_id = '$row_realm' AND id = $principal_id;"
+                  echo "Reconciled Polaris auth row for realm=$row_realm principal=$row_principal_name client=$row_client_id"
+                }
                 if psql "$PG_POLARIS_URL" --set=ON_ERROR_STOP=1 -tAc "SELECT 1 FROM polaris_schema.principal_authentication_data WHERE realm_id = '$realm' AND principal_client_id = '$client_id'" | grep -q 1; then
+                  client_secret="${remaining#*,}"
+                  reconcile_auth_row "$realm" "$client_id" "$client_secret"
                   echo "Polaris root principal $client_id already exists in realm $realm; skipping bootstrap"
                   touch /bootstrap-state/skip-bootstrap
+                fi
+                runtime_credential="$(cat "/etc/polaris-runtime-client/$POLARIS_RUNTIME_CLIENT_SECRET_KEY")"
+                runtime_client_id="${runtime_credential%%:*}"
+                runtime_client_secret="${runtime_credential#*:}"
+                if [ "$runtime_client_id" != "$runtime_credential" ] && [ -n "$runtime_client_id" ] && [ -n "$runtime_client_secret" ] && psql "$PG_POLARIS_URL" --set=ON_ERROR_STOP=1 -tAc "SELECT 1 FROM polaris_schema.principal_authentication_data WHERE realm_id = '$realm' AND principal_client_id = '$runtime_client_id'" | grep -q 1; then
+                  reconcile_auth_row "$realm" "$runtime_client_id" "$runtime_client_secret"
+                elif [ "$runtime_client_id" != "$runtime_credential" ] && [ -n "$runtime_client_id" ] && [ -n "$runtime_client_secret" ]; then
+                  reconcile_principal_auth_row "$realm" "$POLARIS_RUNTIME_CLIENT_PRINCIPAL" "$runtime_client_id" "$runtime_client_secret"
                 fi
               fi
           volumeMounts:
             - name: polaris-bootstrap-credentials
               mountPath: /etc/polaris-bootstrap
               readOnly: true
+            - name: polaris-runtime-client-credentials
+              mountPath: /etc/polaris-runtime-client
+              readOnly: true
             - name: bootstrap-state
               mountPath: /bootstrap-state
-            - name: secrets-store-inline
-              mountPath: {{ .Values.secrets.mountPath | quote }}
-              readOnly: true
       containers:
         - name: bootstrap-polaris
           image: "{{ $polaris.bootstrap.image.repository }}:{{ default $polaris.image.tag $polaris.bootstrap.image.tag }}"
@@ -234,9 +318,6 @@ spec:
               readOnly: true
             - name: bootstrap-state
               mountPath: /bootstrap-state
-            - name: secrets-store-inline
-              mountPath: {{ .Values.secrets.mountPath | quote }}
-              readOnly: true
           resources:
 {{- toYaml $polaris.bootstrap.resources | nindent 12 }}
         - name: configure-polaris-rbac
@@ -264,15 +345,15 @@ spec:
             - name: POLARIS_NAMESPACES
               value: {{ toJson (default (list) $polaris.bootstrap.rbac.namespaces) | quote }}
             - name: POLARIS_RUNTIME_CLIENT_PRINCIPAL
-              value: {{ default "chronon" $runtimeClient.principal | quote }}
+              value: {{ $runtimeClientPrincipal | quote }}
             - name: POLARIS_RUNTIME_CLIENT_PRINCIPAL_ROLE
               value: {{ default "chronon-engine" $runtimeClient.principalRole | quote }}
             - name: POLARIS_RUNTIME_CLIENT_CATALOG_ROLE
               value: {{ default $polaris.bootstrap.rbac.catalogRole $runtimeClient.catalogRole | quote }}
             - name: POLARIS_RUNTIME_CLIENT_SECRET_NAME
-              value: {{ default "polaris-client-credentials" $runtimeClientCredentialsSecret.name | quote }}
+              value: {{ $runtimeClientCredentialsSecretName | quote }}
             - name: POLARIS_RUNTIME_CLIENT_SECRET_KEY
-              value: {{ default "OC_CREDENTIAL" $runtimeClientCredentialsSecret.key | quote }}
+              value: {{ $runtimeClientCredentialsSecretKey | quote }}
           command:
             - /bin/sh
             - -ec
@@ -600,6 +681,9 @@ spec:
                           "metadata": {
                               "name": secret_name,
                               "namespace": kubernetes_namespace,
+                              "annotations": {
+                                  "helm.sh/resource-policy": "keep",
+                              },
                               "labels": patch_body["metadata"]["labels"],
                           },
                           "type": "Opaque",
@@ -838,14 +922,14 @@ spec:
             items:
               - key: {{ $bootstrapCredentialsSecretKey | quote }}
                 path: credentials
+        - name: polaris-runtime-client-credentials
+          secret:
+            secretName: {{ $runtimeClientCredentialsSecretName | quote }}
+            items:
+              - key: {{ $runtimeClientCredentialsSecretKey | quote }}
+                path: {{ $runtimeClientCredentialsSecretKey | quote }}
         - name: bootstrap-state
           emptyDir: {}
-        - name: secrets-store-inline
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: {{ include "zipline-orchestration.secretProviderClassName" . | quote }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -933,10 +1017,6 @@ spec:
               else
                 psql "$PG_ADMIN_URL" --set=ON_ERROR_STOP=1 -c "CREATE DATABASE \"$POLARIS_DB_NAME\" OWNER \"$DB_USERNAME\""
               fi
-          volumeMounts:
-            - name: secrets-store-inline
-              mountPath: {{ .Values.secrets.mountPath | quote }}
-              readOnly: true
       {{- end }}
       containers:
         - name: polaris
@@ -973,9 +1053,6 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
-            - name: secrets-store-inline
-              mountPath: {{ .Values.secrets.mountPath | quote }}
-              readOnly: true
           ports:
             - name: http
               containerPort: {{ $polaris.ports.http }}
@@ -1003,12 +1080,6 @@ spec:
             name: polaris-config
         - name: tmp
           emptyDir: {}
-        - name: secrets-store-inline
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: {{ include "zipline-orchestration.secretProviderClassName" . | quote }}
 ---
 apiVersion: v1
 kind: Service

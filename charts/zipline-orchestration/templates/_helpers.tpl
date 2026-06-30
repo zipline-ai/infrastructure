@@ -199,13 +199,6 @@ Database credentials Secret references.
 {{- end }}
 
 {{/*
-Name of the SecretProviderClass mounted into orchestration pods.
-*/}}
-{{- define "zipline-orchestration.secretProviderClassName" -}}
-{{- .Values.secrets.className | default "zipline-secret-provider" -}}
-{{- end }}
-
-{{/*
 Spark History Server proxy base path.
 */}}
 {{- define "zipline-orchestration.historyServerProxyBase" -}}

@@ -15,7 +15,7 @@ The chart renders:
 The chart does not branch on a cloud provider. Cloud-specific infrastructure is supplied through values by Terraform:
 
 - `serviceAccount.annotations` and `podLabels` for workload identity
-- `secrets.provider`, `secrets.parameters`, and `secrets.secretObjects` for the CSI Secrets Store driver
+- `secrets.externalSecrets.*` for External Secrets Operator SecretStores and ExternalSecrets
 - `database.*` and `database.credentialsSecret.*` for Postgres connectivity
 - `compute.objectStore.*`, `compute.sparkDefaults.eventLogDir`, and Loki storage settings for object storage
 - `polaris.bootstrap.rbac.catalog.storage.*` for Polaris storage config
@@ -36,7 +36,7 @@ At minimum, each Terraform module should provide:
 - `compute.objectStore.bucket`
 - `compute.sparkDefaults.eventLogDir`
 - `polaris.bootstrap.rbac.catalog.storage.type`
-- `secrets.provider`
+- `secrets.externalSecrets.secretStore` and `secrets.externalSecrets.targets` when the chart should create runtime Kubernetes Secrets
 
 `compute.objectStore.bucket` is the bucket or container name only. Do not pass an object-store URI there; pass full provider-native paths only to values that expect paths, such as Spark event logs or Polaris base locations.
 
@@ -49,7 +49,6 @@ helm template zipline charts/zipline-orchestration \
   --namespace zipline-system \
   --set global.customer_name=test-customer \
   --set global.version=test \
-  --set secrets.provider=test \
   --set database.host=postgres.example.com \
   --set compute.objectStore.bucket=test-bucket \
   --set compute.sparkDefaults.eventLogDir=test-bucket/spark-events \

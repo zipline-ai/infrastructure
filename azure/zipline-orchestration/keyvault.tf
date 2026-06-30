@@ -23,12 +23,6 @@ resource "azurerm_role_assignment" "workload_keyvault_secrets_user" {
   principal_id         = azurerm_user_assigned_identity.workload.principal_id
 }
 
-resource "azurerm_role_assignment" "csi_keyvault_secrets_user" {
-  scope                = azurerm_key_vault.main.id
-  role_definition_name = "Key Vault Secrets User"
-  principal_id         = azurerm_kubernetes_cluster.main.key_vault_secrets_provider[0].secret_identity[0].object_id
-}
-
 resource "random_password" "db_password" {
   length  = 24
   special = true
