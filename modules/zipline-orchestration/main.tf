@@ -6,8 +6,12 @@ locals {
   provider_context           = var.provider_context
   provider_compute           = try(local.provider_context.compute, {})
   provider_secrets           = try(local.provider_context.secrets, {})
+  provider_database          = try(local.provider_context.database, {})
+  provider_prometheus        = try(local.provider_context.prometheus, {})
   orchestration_compute      = try(local.orchestration_input.compute, {})
   orchestration_secrets      = try(local.orchestration_input.secrets, {})
+  orchestration_database     = try(local.orchestration_input.database, {})
+  orchestration_prometheus   = try(local.orchestration_input.prometheus, {})
   orchestration_image_secret = try(local.orchestration_input.image_pull_secret, {})
   orchestration_ingress      = try(local.orchestration_input.ingress, {})
   orchestration_addons       = try(local.orchestration_input.addons, {})
@@ -20,6 +24,14 @@ locals {
     eval = merge(
       try(local.orchestration_input.eval, {}),
       try(local.provider_context.eval, {}),
+    )
+    database = merge(
+      local.orchestration_database,
+      local.provider_database,
+    )
+    prometheus = merge(
+      local.orchestration_prometheus,
+      local.provider_prometheus,
     )
     compute = merge(local.orchestration_compute, local.provider_compute, {
       service_account = merge(
@@ -48,17 +60,25 @@ locals {
       local.orchestration_ingress,
     )
     addons = merge(
-      try(local.provider_context.addons, {}),
       local.orchestration_addons,
+      try(local.provider_context.addons, {}),
     )
     secrets = merge(local.orchestration_secrets, local.provider_secrets, {
-      database_object_names = merge(
-        try(local.provider_secrets.database_object_names, {}),
-        try(local.orchestration_secrets.database_object_names, {}),
+      secret_store = merge(
+        try(local.provider_secrets.secret_store, {}),
+        try(local.orchestration_secrets.secret_store, {}),
       )
-      extra_secret_objects = concat(
-        try(local.orchestration_secrets.extra_secret_objects, []),
-        try(local.provider_secrets.extra_secret_objects, []),
+      database_remote_refs = merge(
+        try(local.provider_secrets.database_remote_refs, {}),
+        try(local.orchestration_secrets.database_remote_refs, {}),
+      )
+      auth_remote_refs = merge(
+        try(local.provider_secrets.auth_remote_refs, {}),
+        try(local.orchestration_secrets.auth_remote_refs, {}),
+      )
+      extra_external_secrets = concat(
+        try(local.orchestration_secrets.extra_external_secrets, []),
+        try(local.provider_secrets.extra_external_secrets, []),
       )
     })
     provider_service_account_annotations = try(local.provider_context.service_account_annotations, try(local.orchestration_input.provider_service_account_annotations, {}))
@@ -93,12 +113,17 @@ locals {
   image_pull_secret      = merge(local.image_pull_secret_defaults, try(local.orchestration.image_pull_secret, {}))
   image_pull_secret_name = local.image_pull_secret.create ? kubernetes_secret_v1.docker_hub_creds[0].metadata[0].name : local.image_pull_secret.name
   image_pull_secrets     = local.image_pull_secret_name == "" ? [] : [{ name = local.image_pull_secret_name }]
+  helm_release_name      = local.install.release_name
+  helm_fullname          = strcontains(local.helm_release_name, "zipline-orchestration") ? local.helm_release_name : "${local.helm_release_name}-zipline-orchestration"
+  loki_service_url       = "http://${local.helm_fullname}-loki.${local.install.namespace}.svc.cluster.local:3100/loki/api/v1/push"
 
   addons_defaults = {
-    install_secrets_store_csi_driver = true
-    install_cert_manager             = true
-    install_flink_operator           = true
-    install_opentelemetry_operator   = false
+    install_external_secrets_operator = true
+    install_cert_manager              = true
+    install_flink_operator            = true
+    install_opentelemetry_operator    = false
+    external_secrets_operator_values  = {}
+    cert_manager_values               = {}
   }
   addons = merge(local.addons_defaults, try(local.orchestration.addons, {}))
 
@@ -133,18 +158,26 @@ locals {
   )
 
   secrets_defaults = {
-    class_name = "zipline-secret-provider"
-    database_object_names = {
-      username = "username"
-      password = "password"
+    external_secrets_enabled = true
+    refresh_interval         = "1h"
+    secret_store = {
+      create = true
+      name   = "zipline-secret-store"
+      kind   = "SecretStore"
+      spec   = {}
     }
-    auth_object_names    = { for key in local.auth_secret_keys : key => key }
-    extra_secret_objects = []
+    database_remote_refs = {
+      username = {}
+      password = {}
+    }
+    auth_remote_refs       = { for key in local.auth_secret_keys : key => {} }
+    extra_external_secrets = []
   }
   secrets_input = try(local.orchestration.secrets, {})
   secrets = merge(local.secrets_defaults, local.secrets_input, {
-    database_object_names = merge(local.secrets_defaults.database_object_names, try(local.secrets_input.database_object_names, {}))
-    auth_object_names     = merge(local.secrets_defaults.auth_object_names, try(local.secrets_input.auth_object_names, {}))
+    secret_store         = merge(local.secrets_defaults.secret_store, try(local.secrets_input.secret_store, {}))
+    database_remote_refs = merge(local.secrets_defaults.database_remote_refs, try(local.secrets_input.database_remote_refs, {}))
+    auth_remote_refs     = merge(local.secrets_defaults.auth_remote_refs, try(local.secrets_input.auth_remote_refs, {}))
   })
   auth_enabled = try(local.orchestration.auth.enabled, false)
 
@@ -162,15 +195,41 @@ locals {
     )
   })
 
+  hub_input = try(local.orchestration.hub, {})
   hub_defaults = {
-    chronon_metrics_reader       = "http"
+    chronon_metrics_reader       = "prometheus"
     data_quality_metrics_dataset = "DATA_QUALITY_METRICS"
     image                        = ""
+    metrics_port                 = null
+    pod_annotations              = {}
     verticle_class               = ""
     env                          = []
   }
-  hub                = merge(local.hub_defaults, try(local.orchestration.hub, {}))
+  hub                = merge(local.hub_defaults, local.hub_input)
   hub_verticle_class = local.hub.verticle_class != "" ? local.hub.verticle_class : try(local.hub.verticleClass, "")
+  hub_chronon_metrics_reader = (
+    try(local.hub_input.chronon_metrics_reader, null) != null
+    ? local.hub_input.chronon_metrics_reader
+    : (
+      try(local.hub_input.metricsReader, null) != null
+      ? local.hub_input.metricsReader
+      : local.hub_defaults.chronon_metrics_reader
+    )
+  )
+  hub_explicit_metrics_port = (
+    try(local.hub_input.metrics_port, null) != null
+    ? local.hub_input.metrics_port
+    : try(local.hub_input.metricsPort, null)
+  )
+  hub_metrics_port = (
+    local.hub_chronon_metrics_reader == "prometheus"
+    ? (
+      local.hub_explicit_metrics_port != null
+      ? local.hub_explicit_metrics_port
+      : 8905
+    )
+    : local.hub_explicit_metrics_port
+  )
 
   eval_defaults = {
     image = ""
@@ -183,12 +242,6 @@ locals {
   ui = merge(local.ui_defaults, try(local.orchestration.ui, {}))
 
   hub_env = concat(
-    local.hub.chronon_metrics_reader == "" ? [] : [
-      {
-        name  = "CHRONON_METRICS_READER"
-        value = local.hub.chronon_metrics_reader
-      }
-    ],
     local.hub.data_quality_metrics_dataset == "" ? [] : [
       {
         name  = "DATA_QUALITY_METRICS_DATASET"
@@ -200,38 +253,82 @@ locals {
     try(local.orchestration.hub_env, []),
   )
 
-  database_secret_object = {
-    secretName = local.database_credentials_secret.name
-    type       = "Opaque"
-    data = [
-      {
-        objectName = local.secrets.database_object_names.password
-        key        = local.database_credentials_secret.password_key
-      },
-      {
-        objectName = local.secrets.database_object_names.username
-        key        = local.database_credentials_secret.username_key
-      },
-    ]
-  }
-
-  auth_secret_object = {
-    secretName = "auth-secret"
-    type       = "Opaque"
-    data = [
-      for key in local.auth_secret_keys : {
-        objectName = local.secrets.auth_object_names[key]
-        key        = key
+  database_external_secret = {
+    name = local.database_credentials_secret.name
+    spec = {
+      refreshInterval = local.secrets.refresh_interval
+      secretStoreRef = {
+        name = local.secrets.secret_store.name
+        kind = local.secrets.secret_store.kind
       }
-    ]
+      target = {
+        name           = local.database_credentials_secret.name
+        creationPolicy = "Owner"
+        template = {
+          type = "Opaque"
+        }
+      }
+      data = [
+        {
+          secretKey = local.database_credentials_secret.password_key
+          remoteRef = local.secrets.database_remote_refs.password
+        },
+        {
+          secretKey = local.database_credentials_secret.username_key
+          remoteRef = local.secrets.database_remote_refs.username
+        },
+      ]
+    }
   }
 
-  secret_objects = concat(
-    [local.database_secret_object],
-    local.auth_enabled ? [local.auth_secret_object] : [],
-    try(local.orchestration.extra_secret_objects, []),
-    local.secrets.extra_secret_objects,
+  auth_external_secret = {
+    name = "auth-secret"
+    spec = {
+      refreshInterval = local.secrets.refresh_interval
+      secretStoreRef = {
+        name = local.secrets.secret_store.name
+        kind = local.secrets.secret_store.kind
+      }
+      target = {
+        name           = "auth-secret"
+        creationPolicy = "Owner"
+        template = {
+          type = "Opaque"
+        }
+      }
+      data = [
+        for key in local.auth_secret_keys : {
+          secretKey = key
+          remoteRef = local.secrets.auth_remote_refs[key]
+        }
+      ]
+    }
+  }
+
+  external_secret_targets = concat(
+    [local.database_external_secret],
+    local.auth_enabled ? [local.auth_external_secret] : [],
+    local.secrets.extra_external_secrets,
   )
+
+  database_remote_refs_configured = alltrue([
+    for ref in values(local.secrets.database_remote_refs) : trimspace(tostring(try(ref.key, ""))) != ""
+  ])
+  auth_remote_refs_configured = alltrue([
+    for key in local.auth_secret_keys : trimspace(tostring(try(local.secrets.auth_remote_refs[key].key, ""))) != ""
+  ])
+
+  legacy_secret_objects = concat(
+    try(local.orchestration.extra_secret_objects, []),
+    try(local.secrets.extra_secret_objects, []),
+  )
+
+  legacy_object_names = concat(
+    compact(values(try(local.secrets.database_object_names, {}))),
+    compact(values(try(local.secrets.auth_object_names, {}))),
+  )
+
+  legacy_secret_provider_class_name = try(local.secrets.class_name, "")
 
   ingress_defaults = {
     class_name                   = "nginx-ui"
@@ -367,8 +464,12 @@ locals {
     }
 
     secrets = {
-      className     = local.secrets.class_name
-      secretObjects = local.secret_objects
+      externalSecrets = {
+        enabled         = local.secrets.external_secrets_enabled
+        refreshInterval = local.secrets.refresh_interval
+        secretStore     = local.secrets.secret_store
+        targets         = local.external_secret_targets
+      }
     }
 
     compute = {
@@ -425,6 +526,16 @@ locals {
       namespace     = local.install.namespace
     }
 
+    promtail = {
+      config = {
+        clients = [
+          {
+            url = local.loki_service_url
+          }
+        ]
+      }
+    }
+
     certManager = {
       enabled     = local.addons.install_cert_manager
       installCRDs = local.addons.install_cert_manager
@@ -446,9 +557,12 @@ locals {
 
     orchestration = {
       hub = {
-        image         = local.hub.image
-        verticleClass = local.hub_verticle_class
-        env           = local.hub_env
+        image          = local.hub.image
+        verticleClass  = local.hub_verticle_class
+        metricsReader  = local.hub_chronon_metrics_reader
+        metricsPort    = local.hub_metrics_port
+        podAnnotations = try(local.hub.pod_annotations, try(local.hub.podAnnotations, {}))
+        env            = local.hub_env
       }
       ui = {
         origin = local.ui.origin
@@ -478,6 +592,7 @@ resource "terraform_data" "configuration_validation" {
   input = {
     create_image_pull_secret = local.image_pull_secret.create
     object_store_bucket      = local.compute_object_store_bucket
+    secrets_enabled          = local.secrets.external_secrets_enabled
   }
 
   lifecycle {
@@ -489,6 +604,21 @@ resource "terraform_data" "configuration_validation" {
     precondition {
       condition     = !strcontains(local.compute_object_store_bucket, "://")
       error_message = "orchestration.compute.object_store.bucket must be a bucket/container name only, not a URI."
+    }
+
+    precondition {
+      condition     = !local.secrets.external_secrets_enabled || local.database_remote_refs_configured
+      error_message = "orchestration.secrets.database_remote_refs.username.key and password.key must be set when External Secrets are enabled."
+    }
+
+    precondition {
+      condition     = !local.secrets.external_secrets_enabled || !local.auth_enabled || local.auth_remote_refs_configured
+      error_message = "orchestration.secrets.auth_remote_refs must include a remoteRef.key for every enabled auth secret key."
+    }
+
+    precondition {
+      condition     = length(local.legacy_secret_objects) == 0 && length(local.legacy_object_names) == 0 && local.legacy_secret_provider_class_name == ""
+      error_message = "SecretProviderClass values are no longer supported. Use orchestration.secrets.database_remote_refs, auth_remote_refs, and extra_external_secrets for External Secrets Operator."
     }
   }
 }
@@ -531,10 +661,12 @@ resource "kubernetes_secret_v1" "docker_hub_creds" {
 module "addons" {
   source = "../zipline-kubernetes-addons"
 
-  install_secrets_store_csi_driver = local.addons.install_secrets_store_csi_driver
-  install_cert_manager             = local.addons.install_cert_manager
-  install_flink_operator           = local.addons.install_flink_operator
-  install_opentelemetry_operator   = local.addons.install_opentelemetry_operator
+  install_external_secrets_operator = local.addons.install_external_secrets_operator
+  external_secrets_operator_values  = local.addons.external_secrets_operator_values
+  install_cert_manager              = local.addons.install_cert_manager
+  cert_manager_values               = local.addons.cert_manager_values
+  install_flink_operator            = local.addons.install_flink_operator
+  install_opentelemetry_operator    = local.addons.install_opentelemetry_operator
 }
 
 resource "helm_release" "this" {
@@ -562,4 +694,13 @@ resource "helm_release" "this" {
     kubernetes_secret_v1.docker_hub_creds,
     module.addons,
   ]
+}
+
+data "kubernetes_service_v1" "ingress_controller" {
+  metadata {
+    name      = "${local.install.release_name}-ingress-nginx-ui-controller"
+    namespace = local.install.namespace
+  }
+
+  depends_on = [helm_release.this]
 }

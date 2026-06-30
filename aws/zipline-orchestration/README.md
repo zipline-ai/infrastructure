@@ -1,25 +1,26 @@
 # AWS Zipline Orchestration
 
-Installs the shared `charts/zipline-orchestration` chart on EKS and wires AWS
-infrastructure into cloud-neutral chart values.
+Creates the AWS cloud primitives for Zipline orchestration, installs the shared
+`charts/zipline-orchestration` chart on EKS, and wires AWS infrastructure into
+cloud-neutral chart values.
 
 AWS-specific work stays at this layer:
 
-- IAM role annotations for orchestration and compute service accounts.
-- AWS Secrets Manager objects projected through the generic chart
-  `secrets` values.
+- EKS, the EBS CSI driver, AWS Load Balancer Controller, and AWS Secrets Store
+  CSI provider.
+- RDS Postgres and Secrets Manager credentials projected through the generic
+  chart `database` and `secrets` values.
+- IAM roles and service-account annotations for orchestration and compute pods.
+- DynamoDB metadata tables, Glue registry, AMP workspace, and Polaris storage
+  vending role.
 - NLB annotations on the shared ingress-nginx controller Services.
 
-The wrapper assumes the EKS cluster already has cluster-level AWS addons such as
-the AWS Load Balancer Controller and AWS Secrets Store CSI provider installed.
-It keeps the Terraform surface to AWS orchestration plumbing. Shared install
-inputs live under the `orchestration` object and are consumed by
-`modules/zipline-orchestration`; AWS-specific inputs live under the `aws`
-object.
-Run this wrapper with a kubeconfig context already authenticated to the target
-EKS cluster; Kubernetes and Helm providers use the standard local provider
-configuration instead of discovering cluster credentials through AWS data
-sources.
+The wrapper owns AWS-specific resources and exposes only generic deployment
+context to `modules/zipline-orchestration`: database connection details,
+object-store location, Kubernetes service-account annotations, secret provider
+objects, metrics endpoint, and ingress service settings. Azure should implement
+the same contract with AKS, Azure Postgres, Key Vault, Azure storage, and
+workload identity rather than adding cloud-specific behavior to the chart.
 The shared module owns common service value generation such as image propagation,
 compute defaults, and Polaris bootstrap defaults. Use
 `orchestration.extra_values` only for intentional one-off Helm overrides.
@@ -50,10 +51,10 @@ Supported shared fields:
 | `orchestration.install.cleanup_on_fail` | Clean up failed Helm upgrades. |
 | `orchestration.install.dependency_update` | Update Helm chart dependencies during install. |
 | `orchestration.deployment.customer_name` | Customer or environment name used in rendered resources. |
-| `orchestration.deployment.artifact_prefix` | Artifact object-store prefix. |
+| `orchestration.deployment.artifact_prefix` | Artifact S3 URI. Terraform creates the bucket portion of this URI. |
 | `orchestration.deployment.zipline_version` | Image tag used across Zipline services. |
 | `orchestration.deployment.deploy_fetcher` | Whether to deploy the optional fetcher service. |
-| `orchestration.database.host` | Postgres host. |
+| `orchestration.database.host` | Postgres host when the cloud wrapper does not provide one. |
 | `orchestration.database.port` | Postgres port. |
 | `orchestration.database.name` | Postgres database name. |
 | `orchestration.database.ssl_mode` | Postgres SSL mode. |
@@ -110,20 +111,22 @@ Supported shared fields:
 | `orchestration.image_pull_secret.create` | Whether Terraform creates the Docker Hub Secret. |
 | `orchestration.image_pull_secret.dockerhub_username` | Docker Hub username when creating the Secret. |
 | `orchestration.image_pull_secret.dockerhub_token` | Docker Hub token when creating the Secret. |
-| `orchestration.addons.install_secrets_store_csi_driver` | Install Secrets Store CSI driver. |
+| `orchestration.addons.install_external_secrets_operator` | Install External Secrets Operator. |
 | `orchestration.addons.install_cert_manager` | Install cert-manager. |
 | `orchestration.addons.install_flink_operator` | Install Flink operator. |
 | `orchestration.addons.install_opentelemetry_operator` | Install OpenTelemetry operator. |
 | `orchestration.prometheus.query_endpoint` | Prometheus query endpoint. |
-| `orchestration.secrets.class_name` | SecretProviderClass name. |
-| `orchestration.secrets.database_object_names.username` | Provider object name for DB username. |
-| `orchestration.secrets.database_object_names.password` | Provider object name for DB password. |
-| `orchestration.secrets.auth_object_names` | Provider object names for auth Secret keys. |
-| `orchestration.secrets.extra_secret_objects` | Additional synced Kubernetes Secret objects. |
+| `orchestration.secrets.secret_store` | External Secrets Operator SecretStore settings. |
+| `orchestration.secrets.database_remote_refs.username` | ESO remoteRef for DB username. |
+| `orchestration.secrets.database_remote_refs.password` | ESO remoteRef for DB password. |
+| `orchestration.secrets.auth_remote_refs` | ESO remoteRefs for auth Secret keys. |
+| `orchestration.secrets.extra_external_secrets` | Additional ExternalSecret resources. |
 | `orchestration.service_account.create` | Whether to create the orchestration service account. |
 | `orchestration.service_account.name` | Orchestration service account name. |
 | `orchestration.service_account.annotations` | Orchestration service account annotations. |
-| `orchestration.hub.chronon_metrics_reader` | Hub metrics reader mode. |
+| `orchestration.hub.chronon_metrics_reader` | Hub metrics reader mode. Defaults to `prometheus`. |
+| `orchestration.hub.metrics_port` | Hub Prometheus metrics port. Defaults to `8905` when the metrics reader is `prometheus`. |
+| `orchestration.hub.pod_annotations` | Extra Hub pod annotations, including optional scrape annotations. |
 | `orchestration.hub.data_quality_metrics_dataset` | Data-quality metrics dataset name. |
 | `orchestration.hub.image` | Hub image override. |
 | `orchestration.hub.verticle_class` | Hub verticle class override. |
@@ -135,7 +138,6 @@ Supported shared fields:
 | `orchestration.ui_env` | Extra UI environment variables. |
 | `orchestration.fetcher_env` | Extra Fetcher environment variables. |
 | `orchestration.eval_env` | Extra Eval environment variables. |
-| `orchestration.extra_secret_objects` | Additional SecretProviderClass secret objects. |
 | `orchestration.values` | Raw Helm values merged before extra values. |
 | `orchestration.extra_values` | Additional raw Helm values. |
 | `orchestration.extra_values_yaml` | Additional raw Helm values YAML strings. |
@@ -145,18 +147,50 @@ Supported AWS-specific fields:
 | Field | Notes |
 | --- | --- |
 | `aws.region` | AWS region. Required. |
-| `aws.database_secret_arn` | Secrets Manager ARN for DB credentials. Required. |
-| `aws.warehouse_bucket` | S3 warehouse bucket name. Required. |
-| `aws.orchestration_role_arn` | IAM role ARN for orchestration services. Required. |
-| `aws.spark_compute_role_arn` | IAM role ARN for Spark compute. Required. |
-| `aws.auth_secret_arn` | Secrets Manager ARN for auth secrets. Required when `orchestration.auth.enabled` is true. |
-| `aws.flink_compute_role_arn` | IAM role ARN for Flink compute. Defaults to Spark role when omitted. |
-| `aws.polaris_storage_role_arn` | IAM role ARN for Polaris storage access. |
+| `aws.warehouse_bucket` | S3 warehouse bucket name. Terraform creates this bucket. Required. |
+| `aws.logs_bucket` | S3 logs bucket name. Terraform creates this bucket. Defaults to `zipline-logs-<customer_name>`. |
+| `aws.vpc_id` | VPC for EKS and RDS. Required. |
+| `aws.primary_subnet_id` | Primary subnet for EKS, RDS, and AMP scraper. Required. |
+| `aws.secondary_subnet_id` | Secondary subnet for EKS, RDS, and AMP scraper. Required. |
+| `aws.cluster_name` | Optional EKS cluster name. Defaults to `<customer_name>-eks`. |
+| `aws.eks_version` | EKS Kubernetes version. |
+| `aws.eks_instance_type` | EKS node instance type. |
+| `aws.eks_min_size` / `aws.eks_desired_size` / `aws.eks_max_size` | Default node-group sizing. |
+| `aws.eks_disk_size` | Default node root volume size in GB. |
+| `aws.personnel_arns` | IAM principals granted EKS cluster-admin access. |
+| `aws.auth_secret_arn` | Existing Secrets Manager ARN for auth secrets. Required when auth is enabled unless `aws.auth_secret_values` is supplied. |
+| `aws.auth_secret_values` | Secret values used to create the auth Secrets Manager secret. |
+| `aws.extra_external_secrets` | Additional ExternalSecret resources for externally managed secrets. |
+| `aws.extra_secret_arns` | Additional Secrets Manager ARNs granted to the ESO SecretStore service account. |
 | `aws.kv_table_prefix` | DynamoDB KV table prefix. |
 | `aws.kv_enable_ttl` | Enable TTL on KV records. |
 | `aws.kv_replica_regions` | DynamoDB KV replica regions. |
+| `aws.kv_read_capacity` / `aws.kv_write_capacity` | Provisioned capacity for the table-partitions table. |
 | `aws.eks_log_group` | EKS log group used by UI log links. |
-| `aws.databricks_sp_secret_arn` | Secrets Manager ARN for Databricks service principal credentials. |
+| `aws.additional_data_buckets` | Extra buckets granted to Spark compute and orchestration read paths. |
+| `aws.additional_flink_s3_buckets` | Extra buckets granted to Flink compute. |
+| `aws.glue_schema_registry_name` | Existing Glue registry name. Defaults to creating `zipline-<customer_name>`. |
+| `aws.msk_cluster_arn` | Optional MSK cluster ARN for Flink IAM permissions. |
+| `aws.encryption_kms_key_arn` | Optional KMS key used by RDS, Secrets Manager, DynamoDB, and Polaris storage policy. |
+| `aws.encryption_kms_key_arns` | Optional region-to-KMS-key map for DynamoDB replicas. |
+DNS records are intentionally not managed by this wrapper. The wrapper outputs
+`ingress_load_balancer_target`, which environment-specific DNS automation can
+route through the DNS provider selected by that environment.
+
+The AWS wrapper creates the customer-owned artifact, warehouse, and logs
+buckets. Bucket names are supplied through
+`orchestration.deployment.artifact_prefix`, `aws.warehouse_bucket`, and
+`aws.logs_bucket`. Buckets referenced only for additional read/write grants, such
+as `aws.additional_data_buckets`, `aws.additional_flink_s3_buckets`,
+`aws.shared_warehouse_bucket`, and `aws.spark_libs_bucket`, are treated as
+external buckets and are not created by this wrapper.
+
+The shared Helm chart also bootstraps Polaris runtime authentication. On each
+install or upgrade, the Polaris bootstrap hook reconciles a non-root `chronon`
+principal, grants it access to the seeded catalog role, writes its
+`client_id:client_secret` value into the `polaris-client-credentials` Kubernetes
+Secret as `OC_CREDENTIAL`, and restarts Hub so Spark catalog placeholders can be
+resolved without customer-supplied Polaris credentials.
 
 ```hcl
 orchestration = {
@@ -170,8 +204,9 @@ orchestration = {
     artifact_prefix = "s3://example-artifacts"
     zipline_version = "example-version"
   }
-  database = {
-    host = "example.postgres.amazonaws.com"
+  image_pull_secret = {
+    create          = true
+    dockerhub_token = "..."
   }
   ingress = {
     domain = "zipline.example.com"
@@ -179,24 +214,24 @@ orchestration = {
 }
 
 aws = {
-  region                 = "us-west-2"
-  database_secret_arn    = "arn:aws:secretsmanager:us-west-2:123456789012:secret:zipline-db"
-  warehouse_bucket       = "example-warehouse"
-  orchestration_role_arn = "arn:aws:iam::123456789012:role/orchestration"
-  spark_compute_role_arn = "arn:aws:iam::123456789012:role/spark-compute"
-  flink_compute_role_arn = "arn:aws:iam::123456789012:role/flink-compute"
-  polaris_storage_role_arn = "arn:aws:iam::123456789012:role/polaris-storage"
+  region              = "us-west-2"
+  warehouse_bucket    = "example-warehouse"
+  logs_bucket         = "example-logs"
+  vpc_id              = "vpc-..."
+  primary_subnet_id   = "subnet-..."
+  secondary_subnet_id = "subnet-..."
+
+  auth_secret_values = {
+    google_oauth_client_secret = "..."
+    github_oauth_client_secret = "..."
+    sso_client_secret          = "..."
+  }
 }
 ```
-
-`flink_compute_role_arn` can be omitted when Flink should use the same service
-account annotation as Spark.
 
 Initialize this wrapper with a backend configured for the target environment:
 
 ```shell
-aws eks update-kubeconfig --region us-west-2 --name example-eks
-
 tofu init -reconfigure \
   -backend-config=bucket=example-opentofu-state \
   -backend-config=key=zipline-orchestration-state \

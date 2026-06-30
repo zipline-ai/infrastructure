@@ -8,12 +8,14 @@ Azure-specific work stays at this layer:
 - Azure workload identity annotations and pod labels.
 - Azure Key Vault objects projected through the generic chart `secrets` values.
 - Static IP and resource-group settings for ingress-nginx controller Services.
+- Artifact, warehouse, and logs storage containers in the configured Azure
+  storage account.
 - ABFS event log and Polaris catalog paths supplied as runtime values.
 
-The wrapper assumes the AKS cluster already has workload identity and the Azure
-Key Vault CSI provider path available. It keeps the Terraform surface to Azure
-orchestration plumbing. Shared install inputs live under the `orchestration`
-object and are consumed by
+The wrapper enables AKS workload identity and uses External Secrets Operator to
+sync Azure Key Vault objects through generic chart `secrets` values. It keeps
+the Terraform surface to Azure orchestration plumbing. Shared install inputs
+live under the `orchestration` object and are consumed by
 `modules/zipline-orchestration`; Azure-specific inputs live under the `azure`
 object.
 Run this wrapper with a kubeconfig context already authenticated to the target
@@ -50,7 +52,7 @@ Supported shared fields:
 | `orchestration.install.cleanup_on_fail` | Clean up failed Helm upgrades. |
 | `orchestration.install.dependency_update` | Update Helm chart dependencies during install. |
 | `orchestration.deployment.customer_name` | Customer or environment name used in rendered resources. |
-| `orchestration.deployment.artifact_prefix` | Artifact object-store prefix. |
+| `orchestration.deployment.artifact_prefix` | Artifact ABFS/WASBS URI. Terraform creates the container portion of this URI. |
 | `orchestration.deployment.zipline_version` | Image tag used across Zipline services. |
 | `orchestration.deployment.deploy_fetcher` | Whether to deploy the optional fetcher service. |
 | `orchestration.database.host` | Postgres host. |
@@ -110,20 +112,22 @@ Supported shared fields:
 | `orchestration.image_pull_secret.create` | Whether Terraform creates the Docker Hub Secret. |
 | `orchestration.image_pull_secret.dockerhub_username` | Docker Hub username when creating the Secret. |
 | `orchestration.image_pull_secret.dockerhub_token` | Docker Hub token when creating the Secret. |
-| `orchestration.addons.install_secrets_store_csi_driver` | Install Secrets Store CSI driver. |
+| `orchestration.addons.install_external_secrets_operator` | Install External Secrets Operator. |
 | `orchestration.addons.install_cert_manager` | Install cert-manager. |
 | `orchestration.addons.install_flink_operator` | Install Flink operator. |
 | `orchestration.addons.install_opentelemetry_operator` | Install OpenTelemetry operator. |
 | `orchestration.prometheus.query_endpoint` | Prometheus query endpoint. |
-| `orchestration.secrets.class_name` | SecretProviderClass name. |
-| `orchestration.secrets.database_object_names.username` | Provider object name for DB username. |
-| `orchestration.secrets.database_object_names.password` | Provider object name for DB password. |
-| `orchestration.secrets.auth_object_names` | Provider object names for auth Secret keys. |
-| `orchestration.secrets.extra_secret_objects` | Additional synced Kubernetes Secret objects. |
+| `orchestration.secrets.secret_store` | External Secrets Operator SecretStore settings. |
+| `orchestration.secrets.database_remote_refs.username` | ESO remoteRef for DB username. |
+| `orchestration.secrets.database_remote_refs.password` | ESO remoteRef for DB password. |
+| `orchestration.secrets.auth_remote_refs` | ESO remoteRefs for auth Secret keys. |
+| `orchestration.secrets.extra_external_secrets` | Additional ExternalSecret resources. |
 | `orchestration.service_account.create` | Whether to create the orchestration service account. |
 | `orchestration.service_account.name` | Orchestration service account name. |
 | `orchestration.service_account.annotations` | Orchestration service account annotations. |
-| `orchestration.hub.chronon_metrics_reader` | Hub metrics reader mode. |
+| `orchestration.hub.chronon_metrics_reader` | Hub metrics reader mode. Defaults to `prometheus`. |
+| `orchestration.hub.metrics_port` | Hub Prometheus metrics port. Defaults to `8905` when the metrics reader is `prometheus`. |
+| `orchestration.hub.pod_annotations` | Extra Hub pod annotations, including optional scrape annotations. |
 | `orchestration.hub.data_quality_metrics_dataset` | Data-quality metrics dataset name. |
 | `orchestration.hub.image` | Hub image override. |
 | `orchestration.hub.verticle_class` | Hub verticle class override. |
@@ -135,7 +139,6 @@ Supported shared fields:
 | `orchestration.ui_env` | Extra UI environment variables. |
 | `orchestration.fetcher_env` | Extra Fetcher environment variables. |
 | `orchestration.eval_env` | Extra Eval environment variables. |
-| `orchestration.extra_secret_objects` | Additional SecretProviderClass secret objects. |
 | `orchestration.values` | Raw Helm values merged before extra values. |
 | `orchestration.extra_values` | Additional raw Helm values. |
 | `orchestration.extra_values_yaml` | Additional raw Helm values YAML strings. |
@@ -144,18 +147,26 @@ Supported Azure-specific fields:
 
 | Field | Notes |
 | --- | --- |
+| `azure.subscription_id` | Optional Azure subscription ID. Omit to use the authenticated Azure CLI/default subscription. |
 | `azure.location` | Azure location. Required. |
 | `azure.tenant_id` | Azure tenant ID. Required. |
 | `azure.keyvault_name` | Key Vault name. Required. |
-| `azure.keyvault_identity_client_id` | User-assigned identity client ID for Key Vault CSI access. Required. |
 | `azure.workload_identity_client_id` | Workload identity client ID for Zipline pods. Required. |
-| `azure.warehouse_container_name` | Warehouse storage container name. Required. |
-| `azure.storage_account_name` | Warehouse storage account name. Required. |
+| `azure.warehouse_container_name` | Warehouse storage container name. Terraform creates this container. Required. |
+| `azure.logs_container_name` | Logs storage container name. Terraform creates this container. Defaults to `zipline-logs-<customer_name>`. |
+| `azure.storage_account_name` | Storage account containing Zipline containers. Required. |
 | `azure.database_password_secret_name` | Key Vault secret name for DB password. |
 | `azure.database_username_secret_name` | Key Vault secret name for DB username. |
 | `azure.storage_path_prefix` | Optional path prefix inside the warehouse container. |
 | `azure.ingress_load_balancer_ip` | Static ingress load balancer IP. |
 | `azure.load_balancer_resource_group` | Resource group for the ingress load balancer IP. |
+
+The Azure wrapper creates the customer-owned artifact, warehouse, and logs
+containers. Container names are supplied through
+`orchestration.deployment.artifact_prefix`, `azure.warehouse_container_name`,
+and `azure.logs_container_name`. The storage account remains an environment
+input so installations can decide resource-group, ADLS/HNS, network access, and
+private endpoint policy outside of the orchestration chart boundary.
 
 ```hcl
 orchestration = {
@@ -185,9 +196,9 @@ azure = {
   location                    = "westus2"
   tenant_id                   = "00000000-0000-0000-0000-000000000000"
   keyvault_name               = "example-keyvault"
-  keyvault_identity_client_id = "00000000-0000-0000-0000-000000000000"
   workload_identity_client_id = "00000000-0000-0000-0000-000000000000"
   warehouse_container_name    = "warehouse"
+  logs_container_name         = "zipline-logs-example"
   storage_account_name        = "examplestorage"
 }
 ```

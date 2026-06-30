@@ -11,18 +11,15 @@ runtime:
   env: []
 
 secrets:
-  provider: ""
-  className: zipline-secret-provider
-  mountPath: /mnt/secrets-store
-  secretObjects:
-    - secretName: db-credentials
-      type: Opaque
-      data:
-        - objectName: password
-          key: password
-        - objectName: username
-          key: username
-  parameters: {}
+  externalSecrets:
+    enabled: false
+    refreshInterval: 1h
+    secretStore:
+      create: false
+      name: zipline-secret-store
+      kind: SecretStore
+      spec: {}
+    targets: []
 
 compute:
   defaultNamespace: zipline-default
@@ -212,6 +209,8 @@ polaris:
   realmContext:
     requireHeader: false
   bootstrap:
+    backoffLimit: 6
+    activeDeadlineSeconds: 900
     image:
       repository: "apache/polaris-admin-tool"
       tag: "1.5.0"
@@ -261,6 +260,16 @@ polaris:
             - TABLE_FULL_METADATA
             - TABLE_READ_DATA
             - TABLE_WRITE_DATA
+    runtimeClient:
+      # Creates a non-root Polaris principal for Spark/Iceberg clients and
+      # writes client_id:client_secret to a Kubernetes Secret for Hub.
+      principal: "chronon"
+      principalRole: "chronon-engine"
+      # Defaults to polaris.bootstrap.rbac.catalogRole when unset.
+      catalogRole: ""
+      credentialsSecret:
+        name: "polaris-client-credentials"
+        key: "OC_CREDENTIAL"
   extraConfig: {}
   extraEnv: []
   nodeSelector: {}
@@ -294,6 +303,9 @@ orchestration:
     verticleClass: ""
     replicas: 1
     port: 3903
+    metricsReader: prometheus
+    metricsPort: 8905
+    podAnnotations: {}
     env: []
     nodeSelector: {}
     tolerations: []
@@ -370,6 +382,8 @@ ingress-nginx-ui:
         memory: 256Mi
     service:
       annotations: {}
+    admissionWebhooks:
+      enabled: false
     electionID: ingress-controller-leader-ui
     namespaceOverride: ingress-nginx-ui
 
@@ -462,11 +476,17 @@ spark-operator:
 promtail:
   enabled: true
   config:
-    clients:
-      - url: http://zipline-orchestration-loki:3100/loki/api/v1/push
+    clients: []
     snippets:
       pipelineStages:
         - cri: {}
+        - json:
+            expressions:
+              workflowId: workflowId
+              stepId: stepId
+        - structured_metadata:
+            workflowId:
+            stepId:
       extraRelabelConfigs:
         - source_labels: [__meta_kubernetes_namespace]
           action: drop

@@ -25,6 +25,46 @@ require_grouped_tfvars() {
   fi
 }
 
+download_optional_s3_object() {
+  local bucket="$1"
+  local prefix="$2"
+  local name="$3"
+  local dest="$4"
+  local key="${prefix:+${prefix}/}${name}"
+
+  if aws s3 ls "s3://${bucket}/${key}" >/dev/null 2>&1; then
+    aws s3 cp "s3://${bucket}/${key}" "${dest}"
+  else
+    rm -f "${dest}"
+  fi
+}
+
+download_optional_azure_blob() {
+  local storage_account="$1"
+  local container="$2"
+  local name="$3"
+  local dest="$4"
+
+  if [ "$(az storage blob exists \
+    --account-name "${storage_account}" \
+    --container-name "${container}" \
+    --name "${name}" \
+    --auth-mode login \
+    --query exists \
+    --output tsv)" = "true" ]; then
+    az storage blob download \
+      --account-name "${storage_account}" \
+      --container-name "${container}" \
+      --name "${name}" \
+      --file "${dest}" \
+      --auth-mode login \
+      --overwrite true \
+      --output none
+  else
+    rm -f "${dest}"
+  fi
+}
+
 if [ "$#" -ne 1 ]; then
   usage
   exit 1
@@ -37,6 +77,10 @@ case "${cloud}" in
   aws)
     bucket="${CRUCIBLE_CONFIG_BUCKET:-zipline-crucible-vars}"
     wrapper_key="${CRUCIBLE_CONFIG_KEY:-zipline-orchestration/crucible.auto.tfvars.json}"
+    config_prefix="${wrapper_key%/*}"
+    if [ "${config_prefix}" = "${wrapper_key}" ]; then
+      config_prefix=""
+    fi
     root_dest="${CRUCIBLE_CONFIG_ROOT:-${repo_root}/aws/zipline-orchestration}"
 
     mkdir -p "${root_dest}"
@@ -48,6 +92,9 @@ case "${cloud}" in
     require_grouped_tfvars aws "${tmp_tfvars}"
     mv "${tmp_tfvars}" "${root_dest}/crucible.auto.tfvars.json"
     trap - EXIT
+
+    download_optional_s3_object "${bucket}" "${config_prefix}" "dns-provider.tf" "${root_dest}/dns-provider.tf"
+    download_optional_s3_object "${bucket}" "${config_prefix}" "dns.auto.tfvars.json" "${root_dest}/dns.auto.tfvars.json"
 
     cat <<EOF
 Pulled AWS Crucible orchestration config from:
@@ -91,6 +138,9 @@ EOF
     mv "${tmp_backend}" "${dest}/backend.hcl"
     mv "${tmp_tfvars}" "${dest}/crucible.auto.tfvars.json"
     trap - EXIT
+
+    download_optional_azure_blob "${storage_account}" "${container}" "${prefix}/dns-provider.tf" "${dest}/dns-provider.tf"
+    download_optional_azure_blob "${storage_account}" "${container}" "${prefix}/dns.auto.tfvars.json" "${dest}/dns.auto.tfvars.json"
 
     cat <<EOF
 Pulled Azure Crucible orchestration config from:
