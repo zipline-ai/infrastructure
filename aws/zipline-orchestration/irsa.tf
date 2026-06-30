@@ -287,6 +287,7 @@ data "aws_iam_policy_document" "spark_compute_dynamodb_policy" {
       "dynamodb:BatchWriteItem",
       "dynamodb:CreateTable",
       "dynamodb:DeleteItem",
+      "dynamodb:DescribeImport",
       "dynamodb:DescribeTable",
       "dynamodb:GetItem",
       "dynamodb:ImportTable",
@@ -305,6 +306,26 @@ resource "aws_iam_role_policy" "spark_compute_dynamodb" {
   name   = "${local.name_prefix}-spark-compute-dynamodb"
   role   = aws_iam_role.spark_compute_execution.id
   policy = data.aws_iam_policy_document.spark_compute_dynamodb_policy.json
+}
+
+data "aws_iam_policy_document" "spark_compute_cloudwatch_logs_policy" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:DescribeLogGroups",
+      "logs:DescribeLogStreams",
+      "logs:PutLogEvents",
+    ]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "spark_compute_cloudwatch_logs" {
+  name   = "${local.name_prefix}-spark-compute-cloudwatch-logs"
+  role   = aws_iam_role.spark_compute_execution.id
+  policy = data.aws_iam_policy_document.spark_compute_cloudwatch_logs_policy.json
 }
 
 data "aws_iam_policy_document" "spark_compute_glue_policy" {

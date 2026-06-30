@@ -1,7 +1,7 @@
 locals {
   cloud_args = merge({
     cluster_name                   = ""
-    eks_version                    = "1.34"
+    eks_version                    = "1.35"
     eks_instance_type              = "m8a.4xlarge"
     eks_desired_size               = 3
     eks_min_size                   = 3
