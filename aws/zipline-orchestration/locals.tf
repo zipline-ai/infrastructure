@@ -62,16 +62,14 @@ locals {
     version            = "1.13.0"
     enable_zonal_shift = false
     values             = {}
-    ec2_node_class = {
-      name                  = "zipline"
-      ami_family            = "AL2023"
-      ami_alias             = "al2023@latest"
-      metadata_options      = {}
-      block_device_mappings = []
-      tags                  = {}
-      user_data             = ""
-    }
-    node_pools = {}
+    # Overrides only. The real EC2NodeClass defaults — AMI, encrypted gp3+KMS
+    # root volume, and IMDSv2 (httpTokens=required) — are computed in
+    # karpenter_ec2_node_class below. This must stay sparse: merge() lets a
+    # later map win even when a key is {} or [], so non-empty defaults here
+    # (e.g. metadata_options={}, block_device_mappings=[]) would clobber the
+    # computed values and silently drop encryption + IMDSv2.
+    ec2_node_class = {}
+    node_pools     = {}
   }, local.cloud_args.karpenter)
   compute_team_slug_bases = {
     for team in local.compute_teams :
