@@ -216,8 +216,11 @@ data "aws_iam_policy_document" "eks_node_root_key_policy" {
     sid    = "AllowEKSNodeRole"
     effect = "Allow"
     principals {
-      type        = "AWS"
-      identifiers = [aws_iam_role.eks_node_role.arn]
+      type = "AWS"
+      identifiers = concat(
+        [aws_iam_role.eks_node_role.arn],
+        local.karpenter.enabled ? [aws_iam_role.karpenter_node[0].arn] : [],
+      )
     }
     actions = [
       "kms:Decrypt",

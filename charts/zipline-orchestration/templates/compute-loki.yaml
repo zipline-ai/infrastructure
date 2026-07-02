@@ -119,11 +119,20 @@ spec:
       securityContext:
         fsGroup: 10001
         fsGroupChangePolicy: OnRootMismatch
+      {{- with .Values.compute.loki.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.compute.loki.tolerations }}
+      tolerations:
+        {{- toYaml .Values.compute.loki.tolerations | nindent 8 }}
+      {{- else }}
       tolerations:
         - key: "kubernetes.io/arch"
           operator: "Equal"
           value: "arm64"
           effect: "NoSchedule"
+      {{- end }}
       containers:
         - name: loki
           image: {{ .Values.compute.loki.image | default "grafana/loki:3.4.2" }}

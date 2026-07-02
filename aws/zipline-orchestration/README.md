@@ -91,6 +91,7 @@ Supported shared fields:
 | `orchestration.auth.idp_group_claim` | IdP group claim name. |
 | `orchestration.compute.default_namespace` | Default compute namespace. |
 | `orchestration.compute.namespaces` | Compute namespaces and team labels. |
+| `orchestration.compute.namespace_defaults` | Default labels, annotations, ResourceQuota, and LimitRange settings for compute namespaces. |
 | `orchestration.compute.spark_image` | Spark image. |
 | `orchestration.compute.flink_image` | Flink image. |
 | `orchestration.compute.spark_service_account` | Spark compute service account name. |
@@ -157,6 +158,14 @@ Supported AWS-specific fields:
 | `aws.eks_instance_type` | EKS node instance type. |
 | `aws.eks_min_size` / `aws.eks_desired_size` / `aws.eks_max_size` | Default node-group sizing. |
 | `aws.eks_disk_size` | Default node root volume size in GB. |
+| `aws.karpenter.enabled` | Install Karpenter controller and Zipline NodePools. Defaults to `true`. |
+| `aws.karpenter.namespace` | Karpenter controller namespace. Defaults to `kube-system`. |
+| `aws.karpenter.release_name` | Karpenter Helm release name. Defaults to `karpenter`. |
+| `aws.karpenter.version` | Karpenter Helm chart version. Defaults to `1.13.0`. |
+| `aws.karpenter.enable_zonal_shift` | Enable Karpenter zonal shift integration. Defaults to `false`. |
+| `aws.karpenter.values` | Extra raw values merged into the Karpenter controller Helm release. |
+| `aws.karpenter.ec2_node_class` | Overrides for the generated Karpenter `EC2NodeClass`. |
+| `aws.karpenter.node_pools` | Overrides or additions for generated Karpenter `NodePool` resources. |
 | `aws.personnel_arns` | IAM principals granted EKS cluster-admin access. |
 | `aws.auth_secret_arn` | Existing Secrets Manager ARN for auth secrets. Required when auth is enabled unless `aws.auth_secret_values` is supplied. |
 | `aws.auth_secret_values` | Secret values used to create the auth Secrets Manager secret. |
@@ -173,6 +182,14 @@ Supported AWS-specific fields:
 | `aws.msk_cluster_arn` | Optional MSK cluster ARN for Flink IAM permissions. |
 | `aws.encryption_kms_key_arn` | Optional KMS key used by RDS, Secrets Manager, DynamoDB, and Polaris storage policy. |
 | `aws.encryption_kms_key_arns` | Optional region-to-KMS-key map for DynamoDB replicas. |
+
+Karpenter is the AWS capacity boundary. The wrapper creates a tainted `system`
+NodePool for `zipline-system` services and one tainted compute NodePool per
+configured compute team for each run mode: `backfill`, `streaming`, and
+`upload`. Node pools are labeled and tainted with
+`zipline.ai/node-pool=<team>-<mode>`. Platform submission code derives the
+matching pod selector and toleration from the job metadata team plus resolved
+run mode; those selectors are not passed through Helm environment variables.
 DNS records are intentionally not managed by this wrapper. The wrapper outputs
 `ingress_load_balancer_target`, which environment-specific DNS automation can
 route through the DNS provider selected by that environment.

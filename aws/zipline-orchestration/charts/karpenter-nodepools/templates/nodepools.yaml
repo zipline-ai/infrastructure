@@ -1,0 +1,63 @@
+{{- $nodeClass := .Values.ec2NodeClass | default dict -}}
+{{- $nodeClassName := get $nodeClass "name" -}}
+{{- range $key, $pool := .Values.nodePools }}
+{{- $enabled := true -}}
+{{- if hasKey $pool "enabled" }}
+{{- $enabled = $pool.enabled -}}
+{{- end }}
+{{- if $enabled }}
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: {{ ($pool.name | default $key) | quote }}
+spec:
+  template:
+    metadata:
+      {{- with $pool.labels }}
+      labels:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $pool.annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      nodeClassRef:
+        group: {{ (dig "nodeClassRef" "group" "karpenter.k8s.aws" $pool) | quote }}
+        kind: {{ (dig "nodeClassRef" "kind" "EC2NodeClass" $pool) | quote }}
+        name: {{ (dig "nodeClassRef" "name" $nodeClassName $pool) | quote }}
+      {{- with $pool.taints }}
+      taints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $pool.startupTaints }}
+      startupTaints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $pool.requirements }}
+      requirements:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $pool.expireAfter }}
+      expireAfter: {{ . | quote }}
+      {{- end }}
+      {{- with $pool.terminationGracePeriod }}
+      terminationGracePeriod: {{ . | quote }}
+      {{- end }}
+  {{- with $pool.limits }}
+  limits:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $pool.disruption }}
+  disruption:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- if hasKey $pool "weight" }}
+  weight: {{ $pool.weight }}
+  {{- end }}
+  {{- if hasKey $pool "replicas" }}
+  replicas: {{ $pool.replicas }}
+  {{- end }}
+{{- end }}
+{{- end }}

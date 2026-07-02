@@ -372,6 +372,7 @@ locals {
     history_server_options = []
     spark_defaults         = {}
     flink_defaults         = {}
+    namespace_defaults     = {}
     object_store = {
       bucket = ""
       region = ""
@@ -484,10 +485,11 @@ locals {
       rbac = {
         create = local.compute.rbac_create
       }
-      sparkDefaults = local.compute_spark_defaults
-      flinkDefaults = local.compute_flink_defaults
-      imagePrepull  = local.compute_image_prepull
-      historyServer = local.compute_history_server
+      sparkDefaults     = local.compute_spark_defaults
+      flinkDefaults     = local.compute_flink_defaults
+      namespaceDefaults = local.compute.namespace_defaults
+      imagePrepull      = local.compute_image_prepull
+      historyServer     = local.compute_history_server
     }
 
     ingress = {

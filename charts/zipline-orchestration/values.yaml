@@ -47,27 +47,6 @@ compute:
       team: default
       labels: {}
       annotations: {}
-  nodePools:
-    default:
-      team: default
-      mode: default
-      nodeSelector: {}
-      tolerations: []
-    batch:
-      team: default
-      mode: batch
-      nodeSelector: {}
-      tolerations: []
-    streaming:
-      team: default
-      mode: streaming
-      nodeSelector: {}
-      tolerations: []
-    model:
-      team: default
-      mode: model
-      nodeSelector: {}
-      tolerations: []
   objectStore:
     bucket: ""      # Bucket/container name only, no URI scheme.
     region: ""
@@ -88,11 +67,6 @@ compute:
     executorMemory: "48Gi"
     driverCores: 2
     driverMemory: "4Gi"
-    executorNodeSelector: {}
-    executorTolerations: []
-    spotNodeSelector: {}
-    driverNodeSelector: {}
-    driverTolerations: []
   flinkDefaults:
     image: "ziplineai/flink:1.20.3"
     serviceAccount: flink
@@ -138,6 +112,8 @@ compute:
         memory: "6Gi"
       limits:
         memory: "8Gi"
+    nodeSelector: {}
+    tolerations: []
     persistence:
       enabled: true
       storageClass: ""
@@ -158,6 +134,8 @@ compute:
         memory: 256Mi
       limits:
         memory: 1Gi
+    nodeSelector: {}
+    tolerations: []
     storage:
       enabled: true
       storageClass: ""

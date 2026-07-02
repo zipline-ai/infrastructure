@@ -35,6 +35,7 @@ locals {
     database_multi_az              = true
     database_publicly_accessible   = false
     database_backup_retention_days = 7
+    karpenter                      = {}
   }, var.aws)
 
   install                       = try(var.orchestration.install, {})
@@ -46,6 +47,229 @@ locals {
   compute_namespace_prefix      = try(local.cloud_args.compute_namespace_prefix, "zipline-")
   spark_service_account         = try(var.orchestration.compute.spark_service_account, "spark-operator-spark")
   flink_service_account         = try(var.orchestration.compute.flink_service_account, "flink")
+
+  compute_namespaces        = try(var.orchestration.compute.namespaces, [{ name = try(var.orchestration.compute.default_namespace, "zipline-default"), team = "default" }])
+  compute_teams             = distinct([for namespace in local.compute_namespaces : try(tostring(namespace.team), "default")])
+  default_compute_namespace = try(var.orchestration.compute.default_namespace, try(local.compute_namespaces[0].name, "zipline-default"))
+  default_compute_team = try(
+    [for namespace in local.compute_namespaces : tostring(namespace.team) if try(namespace.name, "") == local.default_compute_namespace][0],
+    try(tostring(local.compute_namespaces[0].team), "default"),
+  )
+  karpenter = merge({
+    enabled            = true
+    namespace          = "kube-system"
+    release_name       = "karpenter"
+    version            = "1.13.0"
+    enable_zonal_shift = false
+    values             = {}
+    ec2_node_class = {
+      name                  = "zipline"
+      ami_family            = "AL2023"
+      ami_alias             = "al2023@latest"
+      metadata_options      = {}
+      block_device_mappings = []
+      tags                  = {}
+      user_data             = ""
+    }
+    node_pools = {}
+  }, local.cloud_args.karpenter)
+  compute_team_slug_bases = {
+    for team in local.compute_teams :
+    team => trim(regexreplace(regexreplace(lower(trimspace(team)), "[^a-z0-9-]", "-"), "-+", "-"), "-")
+  }
+  compute_team_slugs = {
+    for team, slug in local.compute_team_slug_bases :
+    team => (
+      slug == "" ? "default" :
+      length(slug) <= 63 ? slug :
+      "${trimsuffix(substr(slug, 0, 54), "-")}-${substr(sha1(slug), 0, 8)}"
+    )
+  }
+  compute_node_pool_modes = ["backfill", "streaming", "upload"]
+  compute_node_pool_pairs = flatten([
+    for team in local.compute_teams : [
+      for mode in local.compute_node_pool_modes : {
+        team      = local.compute_team_slugs[team]
+        mode      = mode
+        node_pool = "${local.compute_team_slugs[team]}-${mode}"
+      }
+    ]
+  ])
+  compute_node_pool_slugs = {
+    for pool in local.compute_node_pool_pairs :
+    "${pool.team}:${pool.mode}" => (
+      length(pool.node_pool) <= 63 ? pool.node_pool :
+      "${trimsuffix(substr(pool.node_pool, 0, 54), "-")}-${substr(sha1(pool.node_pool), 0, 8)}"
+    )
+  }
+  default_compute_team_slug = try(local.compute_team_slugs[local.default_compute_team], "default")
+  system_node_pool          = "system"
+  batch_node_pool           = local.compute_node_pool_slugs["${local.default_compute_team_slug}:backfill"]
+  streaming_node_pool       = local.compute_node_pool_slugs["${local.default_compute_team_slug}:streaming"]
+  upload_node_pool          = local.compute_node_pool_slugs["${local.default_compute_team_slug}:upload"]
+  system_node_selector = local.karpenter.enabled ? {
+    "zipline.ai/node-pool" = local.system_node_pool
+  } : {}
+  batch_node_selector = local.karpenter.enabled ? {
+    "zipline.ai/node-pool" = local.batch_node_pool
+  } : {}
+  streaming_node_selector = local.karpenter.enabled ? {
+    "zipline.ai/node-pool" = local.streaming_node_pool
+  } : {}
+  system_node_tolerations = local.karpenter.enabled ? [
+    {
+      key      = "zipline.ai/node-pool"
+      operator = "Equal"
+      value    = local.system_node_pool
+      effect   = "NoSchedule"
+    }
+  ] : []
+  batch_node_tolerations = local.karpenter.enabled ? [
+    {
+      key      = "zipline.ai/node-pool"
+      operator = "Equal"
+      value    = local.batch_node_pool
+      effect   = "NoSchedule"
+    }
+  ] : []
+  streaming_node_tolerations = local.karpenter.enabled ? [
+    {
+      key      = "zipline.ai/node-pool"
+      operator = "Equal"
+      value    = local.streaming_node_pool
+      effect   = "NoSchedule"
+    }
+  ] : []
+  karpenter_ec2_node_class = merge({
+    name             = "zipline"
+    ami_family       = "AL2023"
+    ami_alias        = "al2023@latest"
+    instance_profile = try(aws_iam_instance_profile.karpenter_node[0].name, "")
+    subnet_selector_terms = [
+      { id = local.cloud_args.primary_subnet_id },
+      { id = local.cloud_args.secondary_subnet_id },
+    ]
+    security_group_selector_terms = [
+      { id = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id },
+    ]
+    metadata_options = {
+      httpEndpoint            = "enabled"
+      httpTokens              = "required"
+      httpPutResponseHopLimit = 2
+    }
+    block_device_mappings = [
+      {
+        deviceName = "/dev/xvda"
+        ebs = {
+          volumeSize          = "${local.cloud_args.eks_disk_size}Gi"
+          volumeType          = "gp3"
+          encrypted           = true
+          kmsKeyID            = aws_kms_key.eks_node_root.arn
+          deleteOnTermination = true
+        }
+      }
+    ]
+    tags      = {}
+    user_data = ""
+  }, try(local.karpenter.ec2_node_class, {}))
+  karpenter_node_pool_requirements = [
+    {
+      key      = "kubernetes.io/os"
+      operator = "In"
+      values   = ["linux"]
+    },
+    {
+      key      = "kubernetes.io/arch"
+      operator = "In"
+      values   = ["amd64"]
+    },
+    {
+      key      = "karpenter.sh/capacity-type"
+      operator = "In"
+      values   = ["on-demand"]
+    },
+    {
+      key      = "karpenter.k8s.aws/instance-category"
+      operator = "In"
+      values   = ["c", "m", "r"]
+    },
+    {
+      key      = "karpenter.k8s.aws/instance-generation"
+      operator = "Gt"
+      values   = ["2"]
+    },
+  ]
+  compute_node_pool_matrix = flatten([
+    for team in local.compute_teams : [
+      for mode in local.compute_node_pool_modes : {
+        key       = local.compute_node_pool_slugs["${local.compute_team_slugs[team]}:${mode}"]
+        team      = local.compute_team_slugs[team]
+        mode      = mode
+        node_pool = local.compute_node_pool_slugs["${local.compute_team_slugs[team]}:${mode}"]
+        tolerations = [
+          {
+            key      = "zipline.ai/node-pool"
+            operator = "Equal"
+            value    = local.compute_node_pool_slugs["${local.compute_team_slugs[team]}:${mode}"]
+            effect   = "NoSchedule"
+          }
+        ]
+      }
+    ]
+  ])
+  karpenter_system_node_pool = {
+    system = {
+      enabled = true
+      name    = local.system_node_pool
+      labels = {
+        "zipline.ai/team"      = "system"
+        "zipline.ai/mode"      = "system"
+        "zipline.ai/node-pool" = local.system_node_pool
+      }
+      taints       = local.system_node_tolerations
+      requirements = local.karpenter_node_pool_requirements
+      expireAfter  = "720h"
+      limits = {
+        cpu = "1000"
+      }
+      disruption = {
+        consolidationPolicy = "WhenEmptyOrUnderutilized"
+        consolidateAfter    = "1m"
+      }
+    }
+  }
+  karpenter_compute_node_pools = {
+    for pool in local.compute_node_pool_matrix :
+    pool.key => {
+      enabled = true
+      name    = pool.node_pool
+      labels = {
+        "zipline.ai/team"      = pool.team
+        "zipline.ai/mode"      = pool.mode
+        "zipline.ai/node-pool" = pool.node_pool
+      }
+      taints       = pool.tolerations
+      requirements = local.karpenter_node_pool_requirements
+      expireAfter  = "720h"
+      limits = {
+        cpu = "1000"
+      }
+      disruption = {
+        consolidationPolicy = "WhenEmptyOrUnderutilized"
+        consolidateAfter    = "1m"
+      }
+    }
+  }
+  karpenter_default_node_pools = merge(local.karpenter_system_node_pool, local.karpenter_compute_node_pools)
+  karpenter_node_pool_inputs = {
+    for key, pool in merge(local.karpenter_default_node_pools, try(local.karpenter.node_pools, {})) :
+    key => merge(try(local.karpenter_default_node_pools[key], {}), pool)
+  }
+  karpenter_node_pools = {
+    for key, pool in local.karpenter_node_pool_inputs :
+    key => pool
+    if local.karpenter.enabled && try(pool.enabled, true)
+  }
 
   auth_saml_enabled = try(var.orchestration.auth.sso_use_saml, false)
   auth_secret_keys = concat(
@@ -302,6 +526,8 @@ locals {
 
   provider_values = {
     polaris = {
+      nodeSelector = local.system_node_selector
+      tolerations  = local.system_node_tolerations
       extraEnv = [
         { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
       ]
@@ -331,20 +557,70 @@ locals {
 
     compute = {
       historyServer = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
         persistence = {
           storageClass = kubernetes_storage_class_v1.gp3.metadata[0].name
         }
       }
       loki = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
         storage = {
           storageClass = kubernetes_storage_class_v1.gp3.metadata[0].name
         }
+      }
+      imagePrepull = {
+        nodeSelector = local.batch_node_selector
+        tolerations  = local.batch_node_tolerations
+      }
+    }
+
+    orchestration = {
+      hub = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
+      }
+      ui = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
+      }
+      fetcher = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
+      }
+      eval = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
       }
     }
 
     "ingress-nginx-ui" = {
       controller = {
-        service = local.ingress_lb_service
+        nodeSelector = merge({
+          "kubernetes.io/os" = "linux"
+        }, local.system_node_selector)
+        tolerations = local.system_node_tolerations
+        service     = local.ingress_lb_service
+        admissionWebhooks = {
+          patch = {
+            nodeSelector = merge({
+              "kubernetes.io/os" = "linux"
+            }, local.system_node_selector)
+            tolerations = local.system_node_tolerations
+          }
+        }
+      }
+    }
+
+    "spark-operator" = {
+      hook = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
+      }
+      controller = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
       }
     }
   }
