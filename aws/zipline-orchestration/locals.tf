@@ -231,7 +231,11 @@ locals {
         cpu = "1000"
       }
       disruption = {
-        consolidationPolicy = "WhenEmptyOrUnderutilized"
+        # Only reclaim genuinely-empty nodes. WhenEmptyOrUnderutilized would
+        # drain still-in-use nodes, disrupting running Spark executors / Flink
+        # taskmanagers and stateful control-plane pods (loki, spark-history);
+        # the platform submitter does not set karpenter.sh/do-not-disrupt.
+        consolidationPolicy = "WhenEmpty"
         consolidateAfter    = "1m"
       }
     }
@@ -253,7 +257,11 @@ locals {
         cpu = "1000"
       }
       disruption = {
-        consolidationPolicy = "WhenEmptyOrUnderutilized"
+        # Only reclaim genuinely-empty nodes. WhenEmptyOrUnderutilized would
+        # drain still-in-use nodes, disrupting running Spark executors / Flink
+        # taskmanagers and stateful control-plane pods (loki, spark-history);
+        # the platform submitter does not set karpenter.sh/do-not-disrupt.
+        consolidationPolicy = "WhenEmpty"
         consolidateAfter    = "1m"
       }
     }
