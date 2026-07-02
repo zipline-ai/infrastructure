@@ -286,6 +286,8 @@ data "aws_iam_policy_document" "spark_compute_dynamodb_policy" {
       "dynamodb:BatchGetItem",
       "dynamodb:BatchWriteItem",
       "dynamodb:CreateTable",
+      "dynamodb:CreateTableReplica",
+      "dynamodb:ListTables",
       "dynamodb:DeleteItem",
       "dynamodb:DescribeImport",
       "dynamodb:DescribeTable",
