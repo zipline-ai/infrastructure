@@ -73,7 +73,7 @@ locals {
   }, local.cloud_args.karpenter)
   compute_team_slug_bases = {
     for team in local.compute_teams :
-    team => trim(regexreplace(regexreplace(lower(trimspace(team)), "[^a-z0-9-]", "-"), "-+", "-"), "-")
+    team => trim(replace(replace(lower(trimspace(team)), "/[^a-z0-9-]/", "-"), "/-+/", "-"), "-")
   }
   compute_team_slugs = {
     for team, slug in local.compute_team_slug_bases :
