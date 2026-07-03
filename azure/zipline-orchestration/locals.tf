@@ -99,9 +99,6 @@ locals {
       }
       history_server_options = local.spark_history_opts
     }
-    image_pull_secret = {
-      name = ""
-    }
     ingress = {
       class_name                  = "nginx-ui"
       tls_secret_name             = "zipline-tls-secret"
