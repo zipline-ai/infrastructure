@@ -182,8 +182,19 @@ data "aws_iam_policy_document" "eks_node_root_key_policy" {
     sid    = "AllowEKSServiceGrantsForEBS"
     effect = "Allow"
     principals {
-      type        = "AWS"
-      identifiers = [aws_iam_role.eks_cluster_role.arn]
+      type = "AWS"
+      # Karpenter launches nodes directly (no ASG) with the CMK-encrypted root
+      # volume. Both the controller (RunInstances caller) and the node/instance
+      # role must be able to create the EBS-encryption grant; without CreateGrant
+      # on the node role, EC2 terminates the instance at launch with
+      # Client.InvalidKMSKey.InvalidState and it never joins.
+      identifiers = concat(
+        [aws_iam_role.eks_cluster_role.arn],
+        local.karpenter.enabled ? [
+          aws_iam_role.karpenter_controller[0].arn,
+          aws_iam_role.karpenter_node[0].arn,
+        ] : [],
+      )
     }
     actions   = ["kms:CreateGrant"]
     resources = ["*"]
@@ -213,13 +224,21 @@ data "aws_iam_policy_document" "eks_node_root_key_policy" {
   }
 
   statement {
-    sid    = "AllowEKSNodeRole"
+    sid    = "AllowNodeAndKarpenterKeyUsage"
     effect = "Allow"
     principals {
       type = "AWS"
+      # The node/instance roles read their encrypted volume at boot. The
+      # Karpenter controller ALSO needs the key-usage ops (not just CreateGrant):
+      # it calls RunInstances directly, so it must GenerateDataKey/Decrypt to
+      # create the encrypted volume at launch — the managed node group gets this
+      # via the ASG service-linked role, which Karpenter has no equivalent of.
       identifiers = concat(
         [aws_iam_role.eks_node_role.arn],
-        local.karpenter.enabled ? [aws_iam_role.karpenter_node[0].arn] : [],
+        local.karpenter.enabled ? [
+          aws_iam_role.karpenter_node[0].arn,
+          aws_iam_role.karpenter_controller[0].arn,
+        ] : [],
       )
     }
     actions = [
