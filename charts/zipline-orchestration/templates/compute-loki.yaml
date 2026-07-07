@@ -105,6 +105,12 @@ metadata:
     app.kubernetes.io/component: loki
 spec:
   replicas: 1
+  # RWO EBS PVC: use Recreate so the old pod releases the volume before the new
+  # one starts. RollingUpdate deadlocks on any node move (the new pod can't
+  # attach the single-attach volume the old pod still holds — e.g. a Karpenter
+  # migration) — matching spark-history-server, which already uses Recreate.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/instance: {{ .Release.Name }}
