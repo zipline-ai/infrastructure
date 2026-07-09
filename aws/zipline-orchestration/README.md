@@ -184,12 +184,13 @@ Supported AWS-specific fields:
 | `aws.encryption_kms_key_arns` | Optional region-to-KMS-key map for DynamoDB replicas. |
 
 Karpenter is the AWS capacity boundary. The wrapper creates a tainted `system`
-NodePool for `zipline-system` services and one tainted compute NodePool per
-configured compute team for each run mode: `backfill`, `streaming`, and
-`upload`. Node pools are labeled and tainted with
-`zipline.ai/node-pool=<team>-<mode>`. Platform submission code derives the
-matching pod selector and toleration from the job metadata team plus resolved
-run mode; those selectors are not passed through Helm environment variables.
+NodePool for `zipline-system` services plus tainted compute NodePools for the
+supported workload placements: Spark `driver` / `executor` in `backfill` mode
+and Flink `jobmanager` / `taskmanager` in `deploy` mode. Compute nodes are
+labeled with `zipline.ai/team`, `zipline.ai/mode`, `zipline.ai/engine`, and
+`zipline.ai/role`, and are tainted with `zipline.ai/workload=<pool>`. Platform
+submission code sets matching pod `nodeSelector`s from the workflow mode, team,
+engine, and operator role, then adds the matching workload toleration.
 DNS records are intentionally not managed by this wrapper. The wrapper outputs
 `ingress_load_balancer_target`, which environment-specific DNS automation can
 route through the DNS provider selected by that environment.

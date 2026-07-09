@@ -71,11 +71,6 @@ compute:
     executorMemory: "48Gi"
     driverCores: 2
     driverMemory: "4Gi"
-    # Cluster-side placement (gateway injects onto job pods). Empty = unset.
-    driverNodeSelector: {}
-    driverTolerations: []
-    executorNodeSelector: {}
-    executorTolerations: []
     spotNodeSelector: {}
   flinkDefaults:
     image: "ziplineai/flink:1.20.3"

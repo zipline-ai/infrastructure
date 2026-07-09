@@ -83,36 +83,40 @@ locals {
       "${trimsuffix(substr(slug, 0, 54), "-")}-${substr(sha1(slug), 0, 8)}"
     )
   }
-  compute_node_pool_modes = ["backfill", "streaming", "upload"]
-  compute_node_pool_pairs = flatten([
-    for team in local.compute_teams : [
-      for mode in local.compute_node_pool_modes : {
-        team      = local.compute_team_slugs[team]
-        mode      = mode
-        node_pool = "${local.compute_team_slugs[team]}-${mode}"
-      }
-    ]
-  ])
+  compute_node_pool_workloads = [
+    { mode = "backfill", engine = "spark", role = "driver", size = "driver" },
+    { mode = "backfill", engine = "spark", role = "executor", size = "executor" },
+    { mode = "deploy", engine = "flink", role = "jobmanager", size = "driver" },
+    { mode = "deploy", engine = "flink", role = "taskmanager", size = "executor" },
+  ]
+  compute_node_pool_pairs = [
+    for workload in local.compute_node_pool_workloads : {
+      team      = "default"
+      mode      = workload.mode
+      engine    = workload.engine
+      role      = workload.role
+      size      = workload.size
+      node_pool = "default-${workload.mode}-${workload.engine}-${workload.role}"
+    }
+  ]
   compute_node_pool_slugs = {
     for pool in local.compute_node_pool_pairs :
-    "${pool.team}:${pool.mode}" => (
+    "${pool.team}:${pool.mode}:${pool.engine}:${pool.role}" => (
       length(pool.node_pool) <= 63 ? pool.node_pool :
       "${trimsuffix(substr(pool.node_pool, 0, 54), "-")}-${substr(sha1(pool.node_pool), 0, 8)}"
     )
   }
   default_compute_team_slug = try(local.compute_team_slugs[local.default_compute_team], "default")
   system_node_pool          = "system"
-  batch_node_pool           = local.compute_node_pool_slugs["${local.default_compute_team_slug}:backfill"]
-  streaming_node_pool       = local.compute_node_pool_slugs["${local.default_compute_team_slug}:streaming"]
-  upload_node_pool          = local.compute_node_pool_slugs["${local.default_compute_team_slug}:upload"]
+  image_prepull_node_pool   = local.compute_node_pool_slugs["default:backfill:spark:executor"]
   system_node_selector = local.karpenter.enabled ? {
     "zipline.ai/node-pool" = local.system_node_pool
   } : {}
-  batch_node_selector = local.karpenter.enabled ? {
-    "zipline.ai/node-pool" = local.batch_node_pool
-  } : {}
-  streaming_node_selector = local.karpenter.enabled ? {
-    "zipline.ai/node-pool" = local.streaming_node_pool
+  image_prepull_node_selector = local.karpenter.enabled ? {
+    "zipline.ai/team"   = "default"
+    "zipline.ai/mode"   = "backfill"
+    "zipline.ai/engine" = "spark"
+    "zipline.ai/role"   = "executor"
   } : {}
   system_node_tolerations = local.karpenter.enabled ? [
     {
@@ -122,19 +126,11 @@ locals {
       effect   = "NoSchedule"
     }
   ] : []
-  batch_node_tolerations = local.karpenter.enabled ? [
+  image_prepull_node_tolerations = local.karpenter.enabled ? [
     {
-      key      = "zipline.ai/node-pool"
+      key      = "zipline.ai/workload"
       operator = "Equal"
-      value    = local.batch_node_pool
-      effect   = "NoSchedule"
-    }
-  ] : []
-  streaming_node_tolerations = local.karpenter.enabled ? [
-    {
-      key      = "zipline.ai/node-pool"
-      operator = "Equal"
-      value    = local.streaming_node_pool
+      value    = local.image_prepull_node_pool
       effect   = "NoSchedule"
     }
   ] : []
@@ -254,24 +250,25 @@ locals {
   karpenter_system_expire_after             = try(local.karpenter.system_expire_after, "Never")
   karpenter_system_termination_grace_period = try(local.karpenter.system_termination_grace_period, "5m")
   karpenter_compute_expire_after            = try(local.karpenter.compute_expire_after, "720h")
-  compute_node_pool_matrix = flatten([
-    for team in local.compute_teams : [
-      for mode in local.compute_node_pool_modes : {
-        key       = local.compute_node_pool_slugs["${local.compute_team_slugs[team]}:${mode}"]
-        team      = local.compute_team_slugs[team]
-        mode      = mode
-        node_pool = local.compute_node_pool_slugs["${local.compute_team_slugs[team]}:${mode}"]
-        tolerations = [
-          {
-            key      = "zipline.ai/node-pool"
-            operator = "Equal"
-            value    = local.compute_node_pool_slugs["${local.compute_team_slugs[team]}:${mode}"]
-            effect   = "NoSchedule"
-          }
-        ]
-      }
-    ]
-  ])
+  compute_node_pool_matrix = [
+    for pool in local.compute_node_pool_pairs : {
+      key       = local.compute_node_pool_slugs["${pool.team}:${pool.mode}:${pool.engine}:${pool.role}"]
+      team      = pool.team
+      mode      = pool.mode
+      engine    = pool.engine
+      role      = pool.role
+      size      = pool.size
+      node_pool = local.compute_node_pool_slugs["${pool.team}:${pool.mode}:${pool.engine}:${pool.role}"]
+      taints = [
+        {
+          key      = "zipline.ai/workload"
+          operator = "Equal"
+          value    = local.compute_node_pool_slugs["${pool.team}:${pool.mode}:${pool.engine}:${pool.role}"]
+          effect   = "NoSchedule"
+        }
+      ]
+    }
+  ]
   karpenter_system_node_pool = {
     system = {
       enabled = true
@@ -302,14 +299,16 @@ locals {
       enabled = true
       name    = pool.node_pool
       labels = {
-        "zipline.ai/team"      = pool.team
-        "zipline.ai/mode"      = pool.mode
-        "zipline.ai/node-pool" = pool.node_pool
+        "zipline.ai/team"     = pool.team
+        "zipline.ai/mode"     = pool.mode
+        "zipline.ai/engine"   = pool.engine
+        "zipline.ai/role"     = pool.role
+        "zipline.ai/workload" = pool.node_pool
       }
-      taints       = pool.tolerations
-      requirements = local.karpenter_node_pool_requirements
+      taints       = pool.taints
+      requirements = pool.size == "driver" ? local.karpenter_driver_requirements : local.karpenter_executor_requirements
       expireAfter  = local.karpenter_compute_expire_after
-      limits       = local.karpenter_pool_limits
+      limits       = pool.size == "driver" ? local.karpenter_driver_limits : local.karpenter_executor_limits
       disruption = {
         # Only reclaim genuinely-empty nodes. WhenEmptyOrUnderutilized would
         # drain still-in-use nodes, disrupting running Spark executors / Flink
@@ -320,46 +319,9 @@ locals {
       }
     }
   }
-  # Role-based pools (drivers vs executors) matching the gateway's cluster-side
-  # placement (CRUCIBLE_DRIVER/EXECUTOR_NODE_SELECTOR). The per-mode pools above
-  # are vestigial now that placement is role-based; kept until cleaned up.
-  karpenter_driver_node_pool = {
-    "default-driver" = {
-      enabled = true
-      name    = "default-driver"
-      labels = {
-        "zipline.ai/team"      = "default"
-        "zipline.ai/mode"      = "driver"
-        "zipline.ai/node-pool" = "default-driver"
-      }
-      taints       = [{ key = "zipline.ai/node-pool", operator = "Equal", value = "default-driver", effect = "NoSchedule" }]
-      requirements = local.karpenter_driver_requirements
-      expireAfter  = local.karpenter_compute_expire_after
-      limits       = local.karpenter_driver_limits
-      disruption   = { consolidationPolicy = "WhenEmpty", consolidateAfter = "1m" }
-    }
-  }
-  karpenter_executor_node_pool = {
-    "default-executor" = {
-      enabled = true
-      name    = "default-executor"
-      labels = {
-        "zipline.ai/team"      = "default"
-        "zipline.ai/mode"      = "executor"
-        "zipline.ai/node-pool" = "default-executor"
-      }
-      taints       = [{ key = "zipline.ai/node-pool", operator = "Equal", value = "default-executor", effect = "NoSchedule" }]
-      requirements = local.karpenter_executor_requirements
-      expireAfter  = local.karpenter_compute_expire_after
-      limits       = local.karpenter_executor_limits
-      disruption   = { consolidationPolicy = "WhenEmpty", consolidateAfter = "1m" }
-    }
-  }
   karpenter_default_node_pools = merge(
     local.karpenter_system_node_pool,
     local.karpenter_compute_node_pools,
-    local.karpenter_driver_node_pool,
-    local.karpenter_executor_node_pool,
   )
   karpenter_node_pool_inputs = {
     for key, pool in merge(local.karpenter_default_node_pools, try(local.karpenter.node_pools, {})) :
@@ -671,8 +633,8 @@ locals {
         }
       }
       imagePrepull = {
-        nodeSelector = local.batch_node_selector
-        tolerations  = local.batch_node_tolerations
+        nodeSelector = local.image_prepull_node_selector
+        tolerations  = local.image_prepull_node_tolerations
       }
     }
 
