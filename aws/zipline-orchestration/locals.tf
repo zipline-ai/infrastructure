@@ -210,11 +210,11 @@ locals {
   #   aws.karpenter.system_expire_after / compute_expire_after
   #   aws.karpenter.system_termination_grace_period
   # ───────────────────────────────────────────────────────────────────────
-  karpenter_driver_arch         = try(local.karpenter.driver_arch, ["arm64"])
-  karpenter_driver_categories   = try(local.karpenter.driver_categories, ["m"])
-  karpenter_executor_arch       = try(local.karpenter.executor_arch, ["arm64"])
-  karpenter_executor_categories = try(local.karpenter.executor_categories, ["c", "m", "r"])
-  karpenter_executor_capacity   = try(local.karpenter.executor_capacity_type, ["spot"])
+  karpenter_driver_arch         = tolist(try(local.karpenter.driver_arch, ["arm64"]))
+  karpenter_driver_categories   = tolist(try(local.karpenter.driver_categories, ["m"]))
+  karpenter_executor_arch       = tolist(try(local.karpenter.executor_arch, ["arm64"]))
+  karpenter_executor_categories = tolist(try(local.karpenter.executor_categories, ["c", "m", "r"]))
+  karpenter_executor_capacity   = tolist(try(local.karpenter.executor_capacity_type, ["spot"]))
   karpenter_executor_min_values = try(local.karpenter.executor_min_categories, 2)
   karpenter_min_generation      = try(local.karpenter.min_instance_generation, "6")
   # Provisioning caps (max aggregate a pool may launch); memory cap alongside
@@ -226,20 +226,20 @@ locals {
   # Driver pool: on-demand — drivers are lightweight (1/job) and must NOT run on
   # spot (a spot eviction kills the whole job).
   karpenter_driver_requirements = [
-    { key = "kubernetes.io/os", operator = "In", values = ["linux"] },
+    { key = "kubernetes.io/os", operator = "In", values = tolist(["linux"]) },
     { key = "kubernetes.io/arch", operator = "In", values = local.karpenter_driver_arch },
-    { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand"] },
-    { key = "karpenter.k8s.aws/instance-category", operator = "In", values = local.karpenter_driver_categories },
-    { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = [local.karpenter_min_generation] },
+    { key = "karpenter.sh/capacity-type", operator = "In", values = tolist(["on-demand"]) },
+    { key = "karpenter.k8s.aws/instance-category", operator = "In", values = local.karpenter_driver_categories, minValues = null },
+    { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = tolist([local.karpenter_min_generation]) },
   ]
   # Executor pool: spot by default — the compute; spot decommission migrates
   # shuffle. minValues forces instance-type diversity for spot availability.
   karpenter_executor_requirements = [
-    { key = "kubernetes.io/os", operator = "In", values = ["linux"] },
+    { key = "kubernetes.io/os", operator = "In", values = tolist(["linux"]) },
     { key = "kubernetes.io/arch", operator = "In", values = local.karpenter_executor_arch },
     { key = "karpenter.sh/capacity-type", operator = "In", values = local.karpenter_executor_capacity },
     { key = "karpenter.k8s.aws/instance-category", operator = "In", values = local.karpenter_executor_categories, minValues = local.karpenter_executor_min_values },
-    { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = [local.karpenter_min_generation] },
+    { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = tolist([local.karpenter_min_generation]) },
   ]
   # The system pool hosts stateful control-plane pods (loki + spark-history
   # PVCs, polaris). Default to no forced node rotation and a real drain grace
