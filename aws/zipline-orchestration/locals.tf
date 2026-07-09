@@ -139,9 +139,12 @@ locals {
     }
   ] : []
   karpenter_ec2_node_class = merge({
-    name             = "zipline"
-    ami_family       = "AL2023"
-    ami_alias        = "al2023@latest"
+    name       = "zipline"
+    ami_family = "AL2023"
+    # Pinned to a specific AL2023 release for reproducible node provisioning
+    # (vs @latest, which silently rolls). Bump via aws.karpenter.ami_alias; look
+    # up newer releases with the EKS SSM optimized-ami release_version parameter.
+    ami_alias        = try(local.karpenter.ami_alias, "al2023@v20260625")
     instance_profile = try(aws_iam_instance_profile.karpenter_node[0].name, "")
     subnet_selector_terms = [
       { id = local.cloud_args.primary_subnet_id },
@@ -197,6 +200,60 @@ locals {
       values   = ["2"]
     },
   ]
+  # ───────────────────────────────────────────────────────────────────────
+  # Karpenter tunables — override any of these via aws.karpenter.<key> in the
+  # tfvars. All optional; the defaults shown here apply when unset. The
+  # instance-shape knobs (arch / categories / capacity / generation / minValues)
+  # build the driver & executor pool requirements below.
+  #   aws.karpenter.driver_arch              (default ["arm64"])
+  #   aws.karpenter.driver_categories        (default ["m"])
+  #   aws.karpenter.executor_arch            (default ["arm64"])
+  #   aws.karpenter.executor_categories      (default ["c","m","r"])
+  #   aws.karpenter.executor_capacity_type   (default ["spot"])
+  #   aws.karpenter.executor_min_categories  (default 2)     # spot diversity
+  #   aws.karpenter.min_instance_generation  (default "6")   # 7th-gen+
+  #   aws.karpenter.pool_limits/driver_limits/executor_limits  ({cpu,memory})
+  #   aws.karpenter.system_expire_after / compute_expire_after
+  #   aws.karpenter.system_termination_grace_period
+  # ───────────────────────────────────────────────────────────────────────
+  karpenter_driver_arch         = try(local.karpenter.driver_arch, ["arm64"])
+  karpenter_driver_categories   = try(local.karpenter.driver_categories, ["m"])
+  karpenter_executor_arch       = try(local.karpenter.executor_arch, ["arm64"])
+  karpenter_executor_categories = try(local.karpenter.executor_categories, ["c", "m", "r"])
+  karpenter_executor_capacity   = try(local.karpenter.executor_capacity_type, ["spot"])
+  karpenter_executor_min_values = try(local.karpenter.executor_min_categories, 2)
+  karpenter_min_generation      = try(local.karpenter.min_instance_generation, "6")
+  # Provisioning caps (max aggregate a pool may launch); memory cap alongside
+  # cpu so a runaway pool can't exhaust either. Role-sized: drivers small,
+  # executors fat.
+  karpenter_pool_limits     = merge({ cpu = "1000", memory = "4000Gi" }, try(local.karpenter.pool_limits, {}))
+  karpenter_driver_limits   = merge({ cpu = "100", memory = "400Gi" }, try(local.karpenter.driver_limits, {}))
+  karpenter_executor_limits = merge({ cpu = "1000", memory = "4000Gi" }, try(local.karpenter.executor_limits, {}))
+  # Driver pool: on-demand — drivers are lightweight (1/job) and must NOT run on
+  # spot (a spot eviction kills the whole job).
+  karpenter_driver_requirements = [
+    { key = "kubernetes.io/os", operator = "In", values = ["linux"] },
+    { key = "kubernetes.io/arch", operator = "In", values = local.karpenter_driver_arch },
+    { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand"] },
+    { key = "karpenter.k8s.aws/instance-category", operator = "In", values = local.karpenter_driver_categories },
+    { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = [local.karpenter_min_generation] },
+  ]
+  # Executor pool: spot by default — the compute; spot decommission migrates
+  # shuffle. minValues forces instance-type diversity for spot availability.
+  karpenter_executor_requirements = [
+    { key = "kubernetes.io/os", operator = "In", values = ["linux"] },
+    { key = "kubernetes.io/arch", operator = "In", values = local.karpenter_executor_arch },
+    { key = "karpenter.sh/capacity-type", operator = "In", values = local.karpenter_executor_capacity },
+    { key = "karpenter.k8s.aws/instance-category", operator = "In", values = local.karpenter_executor_categories, minValues = local.karpenter_executor_min_values },
+    { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = [local.karpenter_min_generation] },
+  ]
+  # The system pool hosts stateful control-plane pods (loki + spark-history
+  # PVCs, polaris). Default to no forced node rotation and a real drain grace
+  # period so a rotation doesn't strand a PVC in the wrong AZ or cut loki off
+  # mid-flush. Compute pools keep the 30-day recycle. All configurable.
+  karpenter_system_expire_after             = try(local.karpenter.system_expire_after, "Never")
+  karpenter_system_termination_grace_period = try(local.karpenter.system_termination_grace_period, "5m")
+  karpenter_compute_expire_after            = try(local.karpenter.compute_expire_after, "720h")
   compute_node_pool_matrix = flatten([
     for team in local.compute_teams : [
       for mode in local.compute_node_pool_modes : {
@@ -224,12 +281,11 @@ locals {
         "zipline.ai/mode"      = "system"
         "zipline.ai/node-pool" = local.system_node_pool
       }
-      taints       = local.system_node_tolerations
-      requirements = local.karpenter_node_pool_requirements
-      expireAfter  = "720h"
-      limits = {
-        cpu = "1000"
-      }
+      taints                 = local.system_node_tolerations
+      requirements           = local.karpenter_node_pool_requirements
+      expireAfter            = local.karpenter_system_expire_after
+      terminationGracePeriod = local.karpenter_system_termination_grace_period
+      limits                 = local.karpenter_pool_limits
       disruption = {
         # Only reclaim genuinely-empty nodes. WhenEmptyOrUnderutilized would
         # drain still-in-use nodes, disrupting running Spark executors / Flink
@@ -252,10 +308,8 @@ locals {
       }
       taints       = pool.tolerations
       requirements = local.karpenter_node_pool_requirements
-      expireAfter  = "720h"
-      limits = {
-        cpu = "1000"
-      }
+      expireAfter  = local.karpenter_compute_expire_after
+      limits       = local.karpenter_pool_limits
       disruption = {
         # Only reclaim genuinely-empty nodes. WhenEmptyOrUnderutilized would
         # drain still-in-use nodes, disrupting running Spark executors / Flink
@@ -266,7 +320,47 @@ locals {
       }
     }
   }
-  karpenter_default_node_pools = merge(local.karpenter_system_node_pool, local.karpenter_compute_node_pools)
+  # Role-based pools (drivers vs executors) matching the gateway's cluster-side
+  # placement (CRUCIBLE_DRIVER/EXECUTOR_NODE_SELECTOR). The per-mode pools above
+  # are vestigial now that placement is role-based; kept until cleaned up.
+  karpenter_driver_node_pool = {
+    "default-driver" = {
+      enabled = true
+      name    = "default-driver"
+      labels = {
+        "zipline.ai/team"      = "default"
+        "zipline.ai/mode"      = "driver"
+        "zipline.ai/node-pool" = "default-driver"
+      }
+      taints       = [{ key = "zipline.ai/node-pool", operator = "Equal", value = "default-driver", effect = "NoSchedule" }]
+      requirements = local.karpenter_driver_requirements
+      expireAfter  = local.karpenter_compute_expire_after
+      limits       = local.karpenter_driver_limits
+      disruption   = { consolidationPolicy = "WhenEmpty", consolidateAfter = "1m" }
+    }
+  }
+  karpenter_executor_node_pool = {
+    "default-executor" = {
+      enabled = true
+      name    = "default-executor"
+      labels = {
+        "zipline.ai/team"      = "default"
+        "zipline.ai/mode"      = "executor"
+        "zipline.ai/node-pool" = "default-executor"
+      }
+      taints       = [{ key = "zipline.ai/node-pool", operator = "Equal", value = "default-executor", effect = "NoSchedule" }]
+      requirements = local.karpenter_executor_requirements
+      expireAfter  = local.karpenter_compute_expire_after
+      limits       = local.karpenter_executor_limits
+      disruption   = { consolidationPolicy = "WhenEmpty", consolidateAfter = "1m" }
+    }
+  }
+  karpenter_default_node_pools = merge(
+    local.karpenter_system_node_pool,
+    local.karpenter_compute_node_pools,
+    local.karpenter_driver_node_pool,
+    local.karpenter_executor_node_pool,
+  )
   karpenter_node_pool_inputs = {
     for key, pool in merge(local.karpenter_default_node_pools, try(local.karpenter.node_pools, {})) :
     key => merge(try(local.karpenter_default_node_pools[key], {}), pool)
