@@ -321,7 +321,6 @@ resource "aws_eks_node_group" "default" {
   labels = {
     role                   = "zipline-workload"
     "zipline.ai/team"      = "default"
-    "zipline.ai/mode"      = "default"
     "zipline.ai/node-pool" = "default"
   }
 

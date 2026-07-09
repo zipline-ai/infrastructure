@@ -84,37 +84,35 @@ locals {
     )
   }
   compute_node_pool_workloads = [
-    { mode = "backfill", engine = "spark", role = "driver", size = "driver" },
-    { mode = "backfill", engine = "spark", role = "executor", size = "executor" },
-    { mode = "deploy", engine = "flink", role = "jobmanager", size = "driver" },
-    { mode = "deploy", engine = "flink", role = "taskmanager", size = "executor" },
+    { engine = "spark", role = "driver", size = "driver" },
+    { engine = "spark", role = "executor", size = "executor" },
+    { engine = "flink", role = "jobmanager", size = "driver" },
+    { engine = "flink", role = "taskmanager", size = "executor" },
   ]
   compute_node_pool_pairs = [
     for workload in local.compute_node_pool_workloads : {
       team      = "default"
-      mode      = workload.mode
       engine    = workload.engine
       role      = workload.role
       size      = workload.size
-      node_pool = "default-${workload.mode}-${workload.engine}-${workload.role}"
+      node_pool = "default-${workload.engine}-${workload.role}"
     }
   ]
   compute_node_pool_slugs = {
     for pool in local.compute_node_pool_pairs :
-    "${pool.team}:${pool.mode}:${pool.engine}:${pool.role}" => (
+    "${pool.team}:${pool.engine}:${pool.role}" => (
       length(pool.node_pool) <= 63 ? pool.node_pool :
       "${trimsuffix(substr(pool.node_pool, 0, 54), "-")}-${substr(sha1(pool.node_pool), 0, 8)}"
     )
   }
   default_compute_team_slug = try(local.compute_team_slugs[local.default_compute_team], "default")
   system_node_pool          = "system"
-  image_prepull_node_pool   = local.compute_node_pool_slugs["default:backfill:spark:executor"]
+  image_prepull_node_pool   = local.compute_node_pool_slugs["default:spark:executor"]
   system_node_selector = local.karpenter.enabled ? {
     "zipline.ai/node-pool" = local.system_node_pool
   } : {}
   image_prepull_node_selector = local.karpenter.enabled ? {
     "zipline.ai/team"   = "default"
-    "zipline.ai/mode"   = "backfill"
     "zipline.ai/engine" = "spark"
     "zipline.ai/role"   = "executor"
   } : {}
@@ -212,11 +210,11 @@ locals {
   #   aws.karpenter.system_expire_after / compute_expire_after
   #   aws.karpenter.system_termination_grace_period
   # ───────────────────────────────────────────────────────────────────────
-  karpenter_driver_arch         = try(local.karpenter.driver_arch, ["arm64"])
-  karpenter_driver_categories   = try(local.karpenter.driver_categories, ["m"])
-  karpenter_executor_arch       = try(local.karpenter.executor_arch, ["arm64"])
-  karpenter_executor_categories = try(local.karpenter.executor_categories, ["c", "m", "r"])
-  karpenter_executor_capacity   = try(local.karpenter.executor_capacity_type, ["spot"])
+  karpenter_driver_arch         = tolist(try(local.karpenter.driver_arch, ["arm64"]))
+  karpenter_driver_categories   = tolist(try(local.karpenter.driver_categories, ["m"]))
+  karpenter_executor_arch       = tolist(try(local.karpenter.executor_arch, ["arm64"]))
+  karpenter_executor_categories = tolist(try(local.karpenter.executor_categories, ["c", "m", "r"]))
+  karpenter_executor_capacity   = tolist(try(local.karpenter.executor_capacity_type, ["spot"]))
   karpenter_executor_min_values = try(local.karpenter.executor_min_categories, 2)
   karpenter_min_generation      = try(local.karpenter.min_instance_generation, "6")
   # Provisioning caps (max aggregate a pool may launch); memory cap alongside
@@ -228,20 +226,20 @@ locals {
   # Driver pool: on-demand — drivers are lightweight (1/job) and must NOT run on
   # spot (a spot eviction kills the whole job).
   karpenter_driver_requirements = [
-    { key = "kubernetes.io/os", operator = "In", values = ["linux"] },
+    { key = "kubernetes.io/os", operator = "In", values = tolist(["linux"]) },
     { key = "kubernetes.io/arch", operator = "In", values = local.karpenter_driver_arch },
-    { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand"] },
-    { key = "karpenter.k8s.aws/instance-category", operator = "In", values = local.karpenter_driver_categories },
-    { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = [local.karpenter_min_generation] },
+    { key = "karpenter.sh/capacity-type", operator = "In", values = tolist(["on-demand"]) },
+    { key = "karpenter.k8s.aws/instance-category", operator = "In", values = local.karpenter_driver_categories, minValues = null },
+    { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = tolist([local.karpenter_min_generation]) },
   ]
   # Executor pool: spot by default — the compute; spot decommission migrates
   # shuffle. minValues forces instance-type diversity for spot availability.
   karpenter_executor_requirements = [
-    { key = "kubernetes.io/os", operator = "In", values = ["linux"] },
+    { key = "kubernetes.io/os", operator = "In", values = tolist(["linux"]) },
     { key = "kubernetes.io/arch", operator = "In", values = local.karpenter_executor_arch },
     { key = "karpenter.sh/capacity-type", operator = "In", values = local.karpenter_executor_capacity },
     { key = "karpenter.k8s.aws/instance-category", operator = "In", values = local.karpenter_executor_categories, minValues = local.karpenter_executor_min_values },
-    { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = [local.karpenter_min_generation] },
+    { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = tolist([local.karpenter_min_generation]) },
   ]
   # The system pool hosts stateful control-plane pods (loki + spark-history
   # PVCs, polaris). Default to no forced node rotation and a real drain grace
@@ -252,18 +250,17 @@ locals {
   karpenter_compute_expire_after            = try(local.karpenter.compute_expire_after, "720h")
   compute_node_pool_matrix = [
     for pool in local.compute_node_pool_pairs : {
-      key       = local.compute_node_pool_slugs["${pool.team}:${pool.mode}:${pool.engine}:${pool.role}"]
+      key       = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
       team      = pool.team
-      mode      = pool.mode
       engine    = pool.engine
       role      = pool.role
       size      = pool.size
-      node_pool = local.compute_node_pool_slugs["${pool.team}:${pool.mode}:${pool.engine}:${pool.role}"]
+      node_pool = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
       taints = [
         {
           key      = "zipline.ai/workload"
           operator = "Equal"
-          value    = local.compute_node_pool_slugs["${pool.team}:${pool.mode}:${pool.engine}:${pool.role}"]
+          value    = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
           effect   = "NoSchedule"
         }
       ]
@@ -275,7 +272,6 @@ locals {
       name    = local.system_node_pool
       labels = {
         "zipline.ai/team"      = "system"
-        "zipline.ai/mode"      = "system"
         "zipline.ai/node-pool" = local.system_node_pool
       }
       taints                 = local.system_node_tolerations
@@ -300,7 +296,6 @@ locals {
       name    = pool.node_pool
       labels = {
         "zipline.ai/team"     = pool.team
-        "zipline.ai/mode"     = pool.mode
         "zipline.ai/engine"   = pool.engine
         "zipline.ai/role"     = pool.role
         "zipline.ai/workload" = pool.node_pool
