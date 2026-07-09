@@ -36,9 +36,13 @@ compute:
         pods: "500"
     limitRange:
       enabled: true
+      # Default LIMIT (ceiling) for containers that don't set their own — sized
+      # for a fat Spark executor's node so executors can burst above their
+      # request (request stays the guaranteed floor). Raise if using larger
+      # executor instance sizes. Small pods are unaffected (they request 500m).
       default:
-        cpu: "2"
-        memory: "8Gi"
+        cpu: "16"
+        memory: "64Gi"
       defaultRequest:
         cpu: "500m"
         memory: "1Gi"
@@ -67,6 +71,12 @@ compute:
     executorMemory: "48Gi"
     driverCores: 2
     driverMemory: "4Gi"
+    # Cluster-side placement (gateway injects onto job pods). Empty = unset.
+    driverNodeSelector: {}
+    driverTolerations: []
+    executorNodeSelector: {}
+    executorTolerations: []
+    spotNodeSelector: {}
   flinkDefaults:
     image: "ziplineai/flink:1.20.3"
     serviceAccount: flink
