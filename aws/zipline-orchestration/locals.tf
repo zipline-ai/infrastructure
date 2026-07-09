@@ -84,37 +84,35 @@ locals {
     )
   }
   compute_node_pool_workloads = [
-    { mode = "backfill", engine = "spark", role = "driver", size = "driver" },
-    { mode = "backfill", engine = "spark", role = "executor", size = "executor" },
-    { mode = "deploy", engine = "flink", role = "jobmanager", size = "driver" },
-    { mode = "deploy", engine = "flink", role = "taskmanager", size = "executor" },
+    { engine = "spark", role = "driver", size = "driver" },
+    { engine = "spark", role = "executor", size = "executor" },
+    { engine = "flink", role = "jobmanager", size = "driver" },
+    { engine = "flink", role = "taskmanager", size = "executor" },
   ]
   compute_node_pool_pairs = [
     for workload in local.compute_node_pool_workloads : {
       team      = "default"
-      mode      = workload.mode
       engine    = workload.engine
       role      = workload.role
       size      = workload.size
-      node_pool = "default-${workload.mode}-${workload.engine}-${workload.role}"
+      node_pool = "default-${workload.engine}-${workload.role}"
     }
   ]
   compute_node_pool_slugs = {
     for pool in local.compute_node_pool_pairs :
-    "${pool.team}:${pool.mode}:${pool.engine}:${pool.role}" => (
+    "${pool.team}:${pool.engine}:${pool.role}" => (
       length(pool.node_pool) <= 63 ? pool.node_pool :
       "${trimsuffix(substr(pool.node_pool, 0, 54), "-")}-${substr(sha1(pool.node_pool), 0, 8)}"
     )
   }
   default_compute_team_slug = try(local.compute_team_slugs[local.default_compute_team], "default")
   system_node_pool          = "system"
-  image_prepull_node_pool   = local.compute_node_pool_slugs["default:backfill:spark:executor"]
+  image_prepull_node_pool   = local.compute_node_pool_slugs["default:spark:executor"]
   system_node_selector = local.karpenter.enabled ? {
     "zipline.ai/node-pool" = local.system_node_pool
   } : {}
   image_prepull_node_selector = local.karpenter.enabled ? {
     "zipline.ai/team"   = "default"
-    "zipline.ai/mode"   = "backfill"
     "zipline.ai/engine" = "spark"
     "zipline.ai/role"   = "executor"
   } : {}
@@ -252,18 +250,17 @@ locals {
   karpenter_compute_expire_after            = try(local.karpenter.compute_expire_after, "720h")
   compute_node_pool_matrix = [
     for pool in local.compute_node_pool_pairs : {
-      key       = local.compute_node_pool_slugs["${pool.team}:${pool.mode}:${pool.engine}:${pool.role}"]
+      key       = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
       team      = pool.team
-      mode      = pool.mode
       engine    = pool.engine
       role      = pool.role
       size      = pool.size
-      node_pool = local.compute_node_pool_slugs["${pool.team}:${pool.mode}:${pool.engine}:${pool.role}"]
+      node_pool = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
       taints = [
         {
           key      = "zipline.ai/workload"
           operator = "Equal"
-          value    = local.compute_node_pool_slugs["${pool.team}:${pool.mode}:${pool.engine}:${pool.role}"]
+          value    = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
           effect   = "NoSchedule"
         }
       ]
@@ -275,7 +272,6 @@ locals {
       name    = local.system_node_pool
       labels = {
         "zipline.ai/team"      = "system"
-        "zipline.ai/mode"      = "system"
         "zipline.ai/node-pool" = local.system_node_pool
       }
       taints                 = local.system_node_tolerations
@@ -300,7 +296,6 @@ locals {
       name    = pool.node_pool
       labels = {
         "zipline.ai/team"     = pool.team
-        "zipline.ai/mode"     = pool.mode
         "zipline.ai/engine"   = pool.engine
         "zipline.ai/role"     = pool.role
         "zipline.ai/workload" = pool.node_pool
