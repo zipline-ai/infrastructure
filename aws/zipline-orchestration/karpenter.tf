@@ -27,6 +27,13 @@ locals {
         }
       }
     }
+    # Run two controllers with a PDB so a node drain / rollout never leaves the
+    # cluster with zero Karpenter (which would stall all node provisioning).
+    replicas = 2
+    podDisruptionBudget = {
+      name           = "karpenter"
+      maxUnavailable = 1
+    }
   }
   karpenter_interruption_event_patterns = {
     health = {
