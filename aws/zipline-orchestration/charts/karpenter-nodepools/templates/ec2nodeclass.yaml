@@ -1,0 +1,60 @@
+{{- $class := .Values.ec2NodeClass | default dict -}}
+{{- $name := get $class "name" -}}
+{{- if $name }}
+{{- $amiFamily := coalesce (get $class "amiFamily") (get $class "ami_family") -}}
+{{- $amiAlias := coalesce (get $class "amiAlias") (get $class "ami_alias") -}}
+{{- $amiSelectorTerms := coalesce (get $class "amiSelectorTerms") (get $class "ami_selector_terms") -}}
+{{- $instanceProfile := coalesce (get $class "instanceProfile") (get $class "instance_profile") -}}
+{{- $role := get $class "role" -}}
+{{- $subnetSelectorTerms := coalesce (get $class "subnetSelectorTerms") (get $class "subnet_selector_terms") -}}
+{{- $securityGroupSelectorTerms := coalesce (get $class "securityGroupSelectorTerms") (get $class "security_group_selector_terms") -}}
+{{- $metadataOptions := coalesce (get $class "metadataOptions") (get $class "metadata_options") -}}
+{{- $blockDeviceMappings := coalesce (get $class "blockDeviceMappings") (get $class "block_device_mappings") -}}
+{{- $userData := coalesce (get $class "userData") (get $class "user_data") -}}
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: {{ $name | quote }}
+spec:
+  {{- with $amiFamily }}
+  amiFamily: {{ . | quote }}
+  {{- end }}
+  {{- if $instanceProfile }}
+  instanceProfile: {{ $instanceProfile | quote }}
+  {{- else if $role }}
+  role: {{ $role | quote }}
+  {{- end }}
+  {{- if $amiAlias }}
+  amiSelectorTerms:
+    - alias: {{ $amiAlias | quote }}
+  {{- else }}
+  {{- with $amiSelectorTerms }}
+  amiSelectorTerms:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- end }}
+  {{- with $subnetSelectorTerms }}
+  subnetSelectorTerms:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $securityGroupSelectorTerms }}
+  securityGroupSelectorTerms:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $metadataOptions }}
+  metadataOptions:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $blockDeviceMappings }}
+  blockDeviceMappings:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with get $class "tags" }}
+  tags:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $userData }}
+  userData: |
+{{ . | nindent 4 }}
+  {{- end }}
+{{- end }}

@@ -35,6 +35,7 @@ locals {
     database_multi_az              = true
     database_publicly_accessible   = false
     database_backup_retention_days = 7
+    karpenter                      = {}
   }, var.aws)
 
   install                       = try(var.orchestration.install, {})
@@ -46,6 +47,291 @@ locals {
   compute_namespace_prefix      = try(local.cloud_args.compute_namespace_prefix, "zipline-")
   spark_service_account         = try(var.orchestration.compute.spark_service_account, "spark-operator-spark")
   flink_service_account         = try(var.orchestration.compute.flink_service_account, "flink")
+
+  compute_namespaces        = try(var.orchestration.compute.namespaces, [{ name = try(var.orchestration.compute.default_namespace, "zipline-default"), team = "default" }])
+  compute_teams             = distinct([for namespace in local.compute_namespaces : try(tostring(namespace.team), "default")])
+  default_compute_namespace = try(var.orchestration.compute.default_namespace, try(local.compute_namespaces[0].name, "zipline-default"))
+  default_compute_team = try(
+    [for namespace in local.compute_namespaces : tostring(namespace.team) if try(namespace.name, "") == local.default_compute_namespace][0],
+    try(tostring(local.compute_namespaces[0].team), "default"),
+  )
+  karpenter = merge({
+    enabled            = true
+    namespace          = "kube-system"
+    release_name       = "karpenter"
+    version            = "1.13.0"
+    enable_zonal_shift = false
+    values             = {}
+    # Overrides only. The real EC2NodeClass defaults — AMI, encrypted gp3+KMS
+    # root volume, and IMDSv2 (httpTokens=required) — are computed in
+    # karpenter_ec2_node_class below. This must stay sparse: merge() lets a
+    # later map win even when a key is {} or [], so non-empty defaults here
+    # (e.g. metadata_options={}, block_device_mappings=[]) would clobber the
+    # computed values and silently drop encryption + IMDSv2.
+    ec2_node_class = {}
+    node_pools     = {}
+  }, local.cloud_args.karpenter)
+  compute_team_slug_bases = {
+    for team in local.compute_teams :
+    team => trim(replace(replace(lower(trimspace(team)), "/[^a-z0-9-]/", "-"), "/-+/", "-"), "-")
+  }
+  compute_team_slugs = {
+    for team, slug in local.compute_team_slug_bases :
+    team => (
+      slug == "" ? "default" :
+      length(slug) <= 63 ? slug :
+      "${trimsuffix(substr(slug, 0, 54), "-")}-${substr(sha1(slug), 0, 8)}"
+    )
+  }
+  compute_node_pool_workloads = [
+    { mode = "backfill", engine = "spark", role = "driver", size = "driver" },
+    { mode = "backfill", engine = "spark", role = "executor", size = "executor" },
+    { mode = "deploy", engine = "flink", role = "jobmanager", size = "driver" },
+    { mode = "deploy", engine = "flink", role = "taskmanager", size = "executor" },
+  ]
+  compute_node_pool_pairs = [
+    for workload in local.compute_node_pool_workloads : {
+      team      = "default"
+      mode      = workload.mode
+      engine    = workload.engine
+      role      = workload.role
+      size      = workload.size
+      node_pool = "default-${workload.mode}-${workload.engine}-${workload.role}"
+    }
+  ]
+  compute_node_pool_slugs = {
+    for pool in local.compute_node_pool_pairs :
+    "${pool.team}:${pool.mode}:${pool.engine}:${pool.role}" => (
+      length(pool.node_pool) <= 63 ? pool.node_pool :
+      "${trimsuffix(substr(pool.node_pool, 0, 54), "-")}-${substr(sha1(pool.node_pool), 0, 8)}"
+    )
+  }
+  default_compute_team_slug = try(local.compute_team_slugs[local.default_compute_team], "default")
+  system_node_pool          = "system"
+  image_prepull_node_pool   = local.compute_node_pool_slugs["default:backfill:spark:executor"]
+  system_node_selector = local.karpenter.enabled ? {
+    "zipline.ai/node-pool" = local.system_node_pool
+  } : {}
+  image_prepull_node_selector = local.karpenter.enabled ? {
+    "zipline.ai/team"   = "default"
+    "zipline.ai/mode"   = "backfill"
+    "zipline.ai/engine" = "spark"
+    "zipline.ai/role"   = "executor"
+  } : {}
+  system_node_tolerations = local.karpenter.enabled ? [
+    {
+      key      = "zipline.ai/node-pool"
+      operator = "Equal"
+      value    = local.system_node_pool
+      effect   = "NoSchedule"
+    }
+  ] : []
+  image_prepull_node_tolerations = local.karpenter.enabled ? [
+    {
+      key      = "zipline.ai/workload"
+      operator = "Equal"
+      value    = local.image_prepull_node_pool
+      effect   = "NoSchedule"
+    }
+  ] : []
+  karpenter_ec2_node_class = merge({
+    name       = "zipline"
+    ami_family = "AL2023"
+    # Pinned to a specific AL2023 release for reproducible node provisioning
+    # (vs @latest, which silently rolls). Bump via aws.karpenter.ami_alias; look
+    # up newer releases with the EKS SSM optimized-ami release_version parameter.
+    ami_alias        = try(local.karpenter.ami_alias, "al2023@v20260625")
+    instance_profile = try(aws_iam_instance_profile.karpenter_node[0].name, "")
+    subnet_selector_terms = [
+      { id = local.cloud_args.primary_subnet_id },
+      { id = local.cloud_args.secondary_subnet_id },
+    ]
+    security_group_selector_terms = [
+      { id = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id },
+    ]
+    metadata_options = {
+      httpEndpoint            = "enabled"
+      httpTokens              = "required"
+      httpPutResponseHopLimit = 2
+    }
+    block_device_mappings = [
+      {
+        deviceName = "/dev/xvda"
+        ebs = {
+          volumeSize          = "${local.cloud_args.eks_disk_size}Gi"
+          volumeType          = "gp3"
+          encrypted           = true
+          kmsKeyID            = aws_kms_key.eks_node_root.arn
+          deleteOnTermination = true
+        }
+      }
+    ]
+    tags      = {}
+    user_data = ""
+  }, try(local.karpenter.ec2_node_class, {}))
+  karpenter_node_pool_requirements = [
+    {
+      key      = "kubernetes.io/os"
+      operator = "In"
+      values   = ["linux"]
+    },
+    {
+      key      = "kubernetes.io/arch"
+      operator = "In"
+      values   = ["amd64"]
+    },
+    {
+      key      = "karpenter.sh/capacity-type"
+      operator = "In"
+      values   = ["on-demand"]
+    },
+    {
+      key      = "karpenter.k8s.aws/instance-category"
+      operator = "In"
+      values   = ["c", "m", "r"]
+    },
+    {
+      key      = "karpenter.k8s.aws/instance-generation"
+      operator = "Gt"
+      values   = ["2"]
+    },
+  ]
+  # ───────────────────────────────────────────────────────────────────────
+  # Karpenter tunables — override any of these via aws.karpenter.<key> in the
+  # tfvars. All optional; the defaults shown here apply when unset. The
+  # instance-shape knobs (arch / categories / capacity / generation / minValues)
+  # build the driver & executor pool requirements below.
+  #   aws.karpenter.driver_arch              (default ["arm64"])
+  #   aws.karpenter.driver_categories        (default ["m"])
+  #   aws.karpenter.executor_arch            (default ["arm64"])
+  #   aws.karpenter.executor_categories      (default ["c","m","r"])
+  #   aws.karpenter.executor_capacity_type   (default ["spot"])
+  #   aws.karpenter.executor_min_categories  (default 2)     # spot diversity
+  #   aws.karpenter.min_instance_generation  (default "6")   # 7th-gen+
+  #   aws.karpenter.pool_limits/driver_limits/executor_limits  ({cpu,memory})
+  #   aws.karpenter.system_expire_after / compute_expire_after
+  #   aws.karpenter.system_termination_grace_period
+  # ───────────────────────────────────────────────────────────────────────
+  karpenter_driver_arch         = try(local.karpenter.driver_arch, ["arm64"])
+  karpenter_driver_categories   = try(local.karpenter.driver_categories, ["m"])
+  karpenter_executor_arch       = try(local.karpenter.executor_arch, ["arm64"])
+  karpenter_executor_categories = try(local.karpenter.executor_categories, ["c", "m", "r"])
+  karpenter_executor_capacity   = try(local.karpenter.executor_capacity_type, ["spot"])
+  karpenter_executor_min_values = try(local.karpenter.executor_min_categories, 2)
+  karpenter_min_generation      = try(local.karpenter.min_instance_generation, "6")
+  # Provisioning caps (max aggregate a pool may launch); memory cap alongside
+  # cpu so a runaway pool can't exhaust either. Role-sized: drivers small,
+  # executors fat.
+  karpenter_pool_limits     = merge({ cpu = "1000", memory = "4000Gi" }, try(local.karpenter.pool_limits, {}))
+  karpenter_driver_limits   = merge({ cpu = "100", memory = "400Gi" }, try(local.karpenter.driver_limits, {}))
+  karpenter_executor_limits = merge({ cpu = "1000", memory = "4000Gi" }, try(local.karpenter.executor_limits, {}))
+  # Driver pool: on-demand — drivers are lightweight (1/job) and must NOT run on
+  # spot (a spot eviction kills the whole job).
+  karpenter_driver_requirements = [
+    { key = "kubernetes.io/os", operator = "In", values = ["linux"] },
+    { key = "kubernetes.io/arch", operator = "In", values = local.karpenter_driver_arch },
+    { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand"] },
+    { key = "karpenter.k8s.aws/instance-category", operator = "In", values = local.karpenter_driver_categories },
+    { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = [local.karpenter_min_generation] },
+  ]
+  # Executor pool: spot by default — the compute; spot decommission migrates
+  # shuffle. minValues forces instance-type diversity for spot availability.
+  karpenter_executor_requirements = [
+    { key = "kubernetes.io/os", operator = "In", values = ["linux"] },
+    { key = "kubernetes.io/arch", operator = "In", values = local.karpenter_executor_arch },
+    { key = "karpenter.sh/capacity-type", operator = "In", values = local.karpenter_executor_capacity },
+    { key = "karpenter.k8s.aws/instance-category", operator = "In", values = local.karpenter_executor_categories, minValues = local.karpenter_executor_min_values },
+    { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = [local.karpenter_min_generation] },
+  ]
+  # The system pool hosts stateful control-plane pods (loki + spark-history
+  # PVCs, polaris). Default to no forced node rotation and a real drain grace
+  # period so a rotation doesn't strand a PVC in the wrong AZ or cut loki off
+  # mid-flush. Compute pools keep the 30-day recycle. All configurable.
+  karpenter_system_expire_after             = try(local.karpenter.system_expire_after, "Never")
+  karpenter_system_termination_grace_period = try(local.karpenter.system_termination_grace_period, "5m")
+  karpenter_compute_expire_after            = try(local.karpenter.compute_expire_after, "720h")
+  compute_node_pool_matrix = [
+    for pool in local.compute_node_pool_pairs : {
+      key       = local.compute_node_pool_slugs["${pool.team}:${pool.mode}:${pool.engine}:${pool.role}"]
+      team      = pool.team
+      mode      = pool.mode
+      engine    = pool.engine
+      role      = pool.role
+      size      = pool.size
+      node_pool = local.compute_node_pool_slugs["${pool.team}:${pool.mode}:${pool.engine}:${pool.role}"]
+      taints = [
+        {
+          key      = "zipline.ai/workload"
+          operator = "Equal"
+          value    = local.compute_node_pool_slugs["${pool.team}:${pool.mode}:${pool.engine}:${pool.role}"]
+          effect   = "NoSchedule"
+        }
+      ]
+    }
+  ]
+  karpenter_system_node_pool = {
+    system = {
+      enabled = true
+      name    = local.system_node_pool
+      labels = {
+        "zipline.ai/team"      = "system"
+        "zipline.ai/mode"      = "system"
+        "zipline.ai/node-pool" = local.system_node_pool
+      }
+      taints                 = local.system_node_tolerations
+      requirements           = local.karpenter_node_pool_requirements
+      expireAfter            = local.karpenter_system_expire_after
+      terminationGracePeriod = local.karpenter_system_termination_grace_period
+      limits                 = local.karpenter_pool_limits
+      disruption = {
+        # Only reclaim genuinely-empty nodes. WhenEmptyOrUnderutilized would
+        # drain still-in-use nodes, disrupting running Spark executors / Flink
+        # taskmanagers and stateful control-plane pods (loki, spark-history);
+        # the platform submitter does not set karpenter.sh/do-not-disrupt.
+        consolidationPolicy = "WhenEmpty"
+        consolidateAfter    = "1m"
+      }
+    }
+  }
+  karpenter_compute_node_pools = {
+    for pool in local.compute_node_pool_matrix :
+    pool.key => {
+      enabled = true
+      name    = pool.node_pool
+      labels = {
+        "zipline.ai/team"     = pool.team
+        "zipline.ai/mode"     = pool.mode
+        "zipline.ai/engine"   = pool.engine
+        "zipline.ai/role"     = pool.role
+        "zipline.ai/workload" = pool.node_pool
+      }
+      taints       = pool.taints
+      requirements = pool.size == "driver" ? local.karpenter_driver_requirements : local.karpenter_executor_requirements
+      expireAfter  = local.karpenter_compute_expire_after
+      limits       = pool.size == "driver" ? local.karpenter_driver_limits : local.karpenter_executor_limits
+      disruption = {
+        # Only reclaim genuinely-empty nodes. WhenEmptyOrUnderutilized would
+        # drain still-in-use nodes, disrupting running Spark executors / Flink
+        # taskmanagers and stateful control-plane pods (loki, spark-history);
+        # the platform submitter does not set karpenter.sh/do-not-disrupt.
+        consolidationPolicy = "WhenEmpty"
+        consolidateAfter    = "1m"
+      }
+    }
+  }
+  karpenter_default_node_pools = merge(
+    local.karpenter_system_node_pool,
+    local.karpenter_compute_node_pools,
+  )
+  karpenter_node_pool_inputs = {
+    for key, pool in merge(local.karpenter_default_node_pools, try(local.karpenter.node_pools, {})) :
+    key => merge(try(local.karpenter_default_node_pools[key], {}), pool)
+  }
+  karpenter_node_pools = {
+    for key, pool in local.karpenter_node_pool_inputs :
+    key => pool
+    if local.karpenter.enabled && try(pool.enabled, true)
+  }
 
   auth_saml_enabled = try(var.orchestration.auth.sso_use_saml, false)
   auth_secret_keys = concat(
@@ -302,6 +588,8 @@ locals {
 
   provider_values = {
     polaris = {
+      nodeSelector = local.system_node_selector
+      tolerations  = local.system_node_tolerations
       extraEnv = [
         { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
       ]
@@ -331,20 +619,70 @@ locals {
 
     compute = {
       historyServer = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
         persistence = {
           storageClass = kubernetes_storage_class_v1.gp3.metadata[0].name
         }
       }
       loki = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
         storage = {
           storageClass = kubernetes_storage_class_v1.gp3.metadata[0].name
         }
+      }
+      imagePrepull = {
+        nodeSelector = local.image_prepull_node_selector
+        tolerations  = local.image_prepull_node_tolerations
+      }
+    }
+
+    orchestration = {
+      hub = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
+      }
+      ui = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
+      }
+      fetcher = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
+      }
+      eval = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
       }
     }
 
     "ingress-nginx-ui" = {
       controller = {
-        service = local.ingress_lb_service
+        nodeSelector = merge({
+          "kubernetes.io/os" = "linux"
+        }, local.system_node_selector)
+        tolerations = local.system_node_tolerations
+        service     = local.ingress_lb_service
+        admissionWebhooks = {
+          patch = {
+            nodeSelector = merge({
+              "kubernetes.io/os" = "linux"
+            }, local.system_node_selector)
+            tolerations = local.system_node_tolerations
+          }
+        }
+      }
+    }
+
+    "spark-operator" = {
+      hook = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
+      }
+      controller = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
       }
     }
   }

@@ -66,11 +66,20 @@ spec:
       {{- if and .Values.compute.systemPriorityClass.enabled .Values.compute.systemPriorityClass.name }}
       priorityClassName: {{ .Values.compute.systemPriorityClass.name }}
       {{- end }}
+      {{- with .Values.compute.historyServer.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.compute.historyServer.tolerations }}
+      tolerations:
+        {{- toYaml .Values.compute.historyServer.tolerations | nindent 8 }}
+      {{- else }}
       tolerations:
         - key: "kubernetes.io/arch"
           operator: "Equal"
           value: "arm64"
           effect: "NoSchedule"
+      {{- end }}
       initContainers:
         - name: fix-permissions
           image: {{ .Values.compute.historyServer.image }}
