@@ -413,6 +413,27 @@ locals {
     },
     local.compute.image_prepull_overrides,
   )
+  # Crucible warm pool (driver-sized pause pods) + Spark priority classes.
+  # Disabled by default; enable + target a driver pool via compute.warm_pool.
+  # do-not-disrupt keeps Karpenter from consolidating the pre-warmed nodes away.
+  compute_warm_pool = merge(
+    {
+      enabled           = false
+      replicas          = 2
+      priorityClassName = "zipline-spark-pause"
+      annotations       = { "karpenter.sh/do-not-disrupt" = "true" }
+      resources         = { cpu = "2", memory = "4Gi" }
+    },
+    try(local.compute.warm_pool, {}),
+  )
+  compute_driver_priority_class = merge(
+    { enabled = false, name = "zipline-spark-driver", value = 100 },
+    try(local.compute.driver_priority_class, {}),
+  )
+  compute_system_priority_class = merge(
+    { enabled = false, name = "zipline-compute-system", value = 1000 },
+    try(local.compute.system_priority_class, {}),
+  )
 
   compute_history_server = {
     image                 = local.compute.history_server_image != "" ? local.compute.history_server_image : local.compute.spark_image
@@ -485,11 +506,14 @@ locals {
       rbac = {
         create = local.compute.rbac_create
       }
-      sparkDefaults     = local.compute_spark_defaults
-      flinkDefaults     = local.compute_flink_defaults
-      namespaceDefaults = local.compute.namespace_defaults
-      imagePrepull      = local.compute_image_prepull
-      historyServer     = local.compute_history_server
+      sparkDefaults       = local.compute_spark_defaults
+      flinkDefaults       = local.compute_flink_defaults
+      namespaceDefaults   = local.compute.namespace_defaults
+      imagePrepull        = local.compute_image_prepull
+      historyServer       = local.compute_history_server
+      warmPool            = local.compute_warm_pool
+      driverPriorityClass = local.compute_driver_priority_class
+      systemPriorityClass = local.compute_system_priority_class
     }
 
     ingress = {
