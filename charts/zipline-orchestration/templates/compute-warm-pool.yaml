@@ -52,11 +52,14 @@ spec:
       containers:
         - name: pause
           image: registry.k8s.io/pause:3.9
+          # Size the placeholder to the Spark driver so Karpenter warms a node the
+          # real driver actually fits on. Defaults to sparkDefaults.driver{Cores,
+          # Memory}; override via compute.warmPool.resources.
           resources:
             requests:
-              cpu: {{ .Values.compute.warmPool.resources.cpu | default "2" | quote }}
-              memory: {{ .Values.compute.warmPool.resources.memory | default "4Gi" | quote }}
+              cpu: {{ .Values.compute.warmPool.resources.cpu | default .Values.compute.sparkDefaults.driverCores | quote }}
+              memory: {{ .Values.compute.warmPool.resources.memory | default .Values.compute.sparkDefaults.driverMemory | quote }}
             limits:
-              cpu: {{ .Values.compute.warmPool.resources.cpu | default "2" | quote }}
-              memory: {{ .Values.compute.warmPool.resources.memory | default "4Gi" | quote }}
+              cpu: {{ .Values.compute.warmPool.resources.cpu | default .Values.compute.sparkDefaults.driverCores | quote }}
+              memory: {{ .Values.compute.warmPool.resources.memory | default .Values.compute.sparkDefaults.driverMemory | quote }}
 {{- end }}
