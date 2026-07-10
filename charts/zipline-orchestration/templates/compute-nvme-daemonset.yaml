@@ -19,6 +19,10 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
       serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
       tolerations:
         - operator: Exists
       initContainers:
@@ -43,7 +47,11 @@ spec:
                 dev="$1"
                 real_dev="$(echo "$dev" | sed 's|/host-dev/|/dev/|')"
 
-                if grep -q " /mnt/nvme " /host-proc/mounts 2>/dev/null; then
+                # Check the HOST mount table (/proc/1/mounts), not /proc/mounts —
+                # the latter resolves via /proc/self to the container's mount ns
+                # and never sees the host-ns mount, so the re-run would try to
+                # mount again and fail ("already mounted"), crashing under set -e.
+                if grep -q " /mnt/nvme " /host-proc/1/mounts 2>/dev/null; then
                   echo "$real_dev already mounted at /mnt/nvme"
                   return 0
                 fi
@@ -97,20 +105,33 @@ spec:
               ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
               api="https://kubernetes.default.svc"
 
-              node_json="$(curl -fsS --cacert "$ca" -H "Authorization: Bearer $token" \
-                "$api/api/v1/nodes/$NODE_NAME")"
-              current="$(printf '%s\n' "$node_json" | grep -o '"zipline.ai/nvme":"true"' || true)"
-
-              patch='{"metadata":{"labels":{"zipline.ai/nvme":"true"}},"spec":{"taints":[{"key":"zipline.ai/nvme","value":"true","effect":"NoSchedule"},{"key":"zipline.ai/nvme-setup","value":"true","effect":"NoSchedule","$patch":"delete"}]}}'
+              # Add the nvme label + taint (strategic-merge ADD works fine).
               curl -fsS --cacert "$ca" -H "Authorization: Bearer $token" \
                 -H "Content-Type: application/strategic-merge-patch+json" \
                 -X PATCH "$api/api/v1/nodes/$NODE_NAME" \
-                -d "$patch" >/dev/null
-              if [ -z "$current" ]; then
-                echo "Labeled and tainted node $NODE_NAME"
-              else
-                echo "Refreshed NVMe taint on node $NODE_NAME"
-              fi
+                -d '{"metadata":{"labels":{"zipline.ai/nvme":"true"}},"spec":{"taints":[{"key":"zipline.ai/nvme","value":"true","effect":"NoSchedule"}]}}' >/dev/null 2>&1 || true
+
+              # Remove the zipline.ai/nvme-setup startup taint. A strategic-merge
+              # $patch:delete ERRORS and does not remove node taints here, so use a
+              # JSON Patch remove-by-index (verified via server dry-run). The `test`
+              # op guards against the index shifting between read and patch; retry a
+              # few times for API races.
+              n=0
+              while [ "$n" -lt 10 ]; do
+                n=$((n + 1))
+                idx="$(curl -fsS --cacert "$ca" -H "Authorization: Bearer $token" \
+                  "$api/api/v1/nodes/$NODE_NAME" 2>/dev/null \
+                  | python3 -c 'import json,sys;ts=json.load(sys.stdin)["spec"].get("taints",[]);print(next((i for i,t in enumerate(ts) if t["key"]=="zipline.ai/nvme-setup"),-1))' 2>/dev/null || echo -1)"
+                if [ "$idx" = "-1" ]; then
+                  echo "NVMe ready on $NODE_NAME (startup taint cleared)"
+                  break
+                fi
+                curl -fsS --cacert "$ca" -H "Authorization: Bearer $token" \
+                  -H "Content-Type: application/json-patch+json" \
+                  -X PATCH "$api/api/v1/nodes/$NODE_NAME" \
+                  -d "[{\"op\":\"test\",\"path\":\"/spec/taints/$idx/key\",\"value\":\"zipline.ai/nvme-setup\"},{\"op\":\"remove\",\"path\":\"/spec/taints/$idx\"}]" >/dev/null 2>&1 || true
+                sleep 1
+              done
           volumeMounts:
             - name: host-dev
               mountPath: /host-dev

@@ -452,8 +452,14 @@ locals {
         }
       }
       spark_defaults = {
-        nvmeEnabled    = true
-        nvmeSetupImage = "amazon/aws-cli:2.27.33"
+        nvmeEnabled = true
+        # TODO(nvme-setup-image): temporary pin to the live crane-overlay artifact
+        # so committed config matches the cluster (resolves the helm_release.this
+        # plan diff). amazon/aws-cli lacks mkfs.ext4/mount/nsenter, so the setup DS
+        # can't format+mount the disk. Replace with a stable, dedicated nvme-setup
+        # image (e2fsprogs + util-linux) at a fixed tag rather than this SHA-pinned
+        # hub-aws overlay.
+        nvmeSetupImage = "ziplineai/hub-aws:cc37a11990e3-nvme-setup"
       }
       flink_defaults = {
         serviceAccountAnnotations = {
