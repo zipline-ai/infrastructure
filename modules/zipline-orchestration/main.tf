@@ -1,5 +1,8 @@
 locals {
-  chart_path  = abspath(var.chart_path == "" ? "${path.module}/../../charts/zipline-orchestration" : var.chart_path)
+  # Relative path (NOT abspath): abspath() bakes in a machine-specific absolute
+  # path that flip-flops in the plan per applier. path.module is relative, so
+  # this stored value is identical on every machine (matches infra-aws-prod).
+  chart_path  = var.chart_path == "" ? "${path.module}/../../charts/zipline-orchestration" : var.chart_path
   chart_files = sort(fileset(local.chart_path, "**"))
 
   orchestration_input        = var.orchestration
