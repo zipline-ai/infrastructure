@@ -241,6 +241,9 @@ locals {
     { key = "karpenter.k8s.aws/instance-category", operator = "In", values = local.karpenter_executor_categories, minValues = local.karpenter_executor_min_values },
     { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = tolist([local.karpenter_min_generation]) },
   ]
+  karpenter_spark_executor_nvme_requirements = [
+    { key = "karpenter.k8s.aws/instance-local-nvme", operator = "Exists", values = null, minValues = null },
+  ]
   # The system pool hosts stateful control-plane pods (loki + spark-history
   # PVCs, polaris). Default to no forced node rotation and a real drain grace
   # period so a rotation doesn't strand a PVC in the wrong AZ or cut loki off
@@ -256,6 +259,7 @@ locals {
       role      = pool.role
       size      = pool.size
       node_pool = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
+      nvme      = pool.engine == "spark" && pool.role == "executor"
       taints = [
         {
           key      = "zipline.ai/workload"
@@ -294,16 +298,24 @@ locals {
     pool.key => {
       enabled = true
       name    = pool.node_pool
-      labels = {
+      labels = merge({
         "zipline.ai/team"     = pool.team
         "zipline.ai/engine"   = pool.engine
         "zipline.ai/role"     = pool.role
         "zipline.ai/workload" = pool.node_pool
-      }
-      taints       = pool.taints
-      requirements = pool.size == "driver" ? local.karpenter_driver_requirements : local.karpenter_executor_requirements
-      expireAfter  = local.karpenter_compute_expire_after
-      limits       = pool.size == "driver" ? local.karpenter_driver_limits : local.karpenter_executor_limits
+      }, pool.nvme ? { "zipline.ai/nvme" = "true" } : {})
+      taints = pool.taints
+      startupTaints = pool.nvme ? [{
+        key    = "zipline.ai/nvme-setup"
+        value  = "true"
+        effect = "NoSchedule"
+      }] : []
+      requirements = concat(
+        pool.size == "driver" ? local.karpenter_driver_requirements : local.karpenter_executor_requirements,
+        pool.nvme ? local.karpenter_spark_executor_nvme_requirements : [],
+      )
+      expireAfter = local.karpenter_compute_expire_after
+      limits      = pool.size == "driver" ? local.karpenter_driver_limits : local.karpenter_executor_limits
       disruption = {
         # Only reclaim genuinely-empty nodes. WhenEmptyOrUnderutilized would
         # drain still-in-use nodes, disrupting running Spark executors / Flink

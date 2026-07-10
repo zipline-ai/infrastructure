@@ -101,15 +101,15 @@ spec:
                 "$api/api/v1/nodes/$NODE_NAME")"
               current="$(printf '%s\n' "$node_json" | grep -o '"zipline.ai/nvme":"true"' || true)"
 
+              patch='{"metadata":{"labels":{"zipline.ai/nvme":"true"}},"spec":{"taints":[{"key":"zipline.ai/nvme","value":"true","effect":"NoSchedule"},{"key":"zipline.ai/nvme-setup","value":"true","effect":"NoSchedule","$patch":"delete"}]}}'
+              curl -fsS --cacert "$ca" -H "Authorization: Bearer $token" \
+                -H "Content-Type: application/strategic-merge-patch+json" \
+                -X PATCH "$api/api/v1/nodes/$NODE_NAME" \
+                -d "$patch" >/dev/null
               if [ -z "$current" ]; then
-                patch='{"metadata":{"labels":{"zipline.ai/nvme":"true"}},"spec":{"taints":[{"key":"zipline.ai/nvme","value":"true","effect":"NoSchedule"}]}}'
-                curl -fsS --cacert "$ca" -H "Authorization: Bearer $token" \
-                  -H "Content-Type: application/strategic-merge-patch+json" \
-                  -X PATCH "$api/api/v1/nodes/$NODE_NAME" \
-                  -d "$patch" >/dev/null
                 echo "Labeled and tainted node $NODE_NAME"
               else
-                echo "Node $NODE_NAME already labeled"
+                echo "Refreshed NVMe taint on node $NODE_NAME"
               fi
           volumeMounts:
             - name: host-dev
