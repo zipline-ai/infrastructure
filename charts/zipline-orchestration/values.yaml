@@ -76,10 +76,6 @@ compute:
     image: "ziplineai/flink:1.20.3"
     serviceAccount: flink
     serviceAccountAnnotations: {}
-  driverPriorityClass:
-    enabled: true
-    name: "zipline-spark-driver"
-    value: 100
   systemPriorityClass:
     enabled: true
     name: "zipline-compute-system"
