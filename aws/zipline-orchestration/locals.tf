@@ -631,6 +631,14 @@ locals {
         nodeSelector = local.image_prepull_node_selector
         tolerations  = local.image_prepull_node_tolerations
       }
+      # Warm pool (driver-sized pause pods) pre-provisions a Spark driver node so
+      # real drivers skip a cold Karpenter launch. Reuse the driver pool's own
+      # labels/taints so the pause pods land there and can't drift from the pool.
+      warmPool = {
+        enabled      = local.karpenter.enabled
+        nodeSelector = local.karpenter_compute_node_pools[local.compute_node_pool_slugs["default:spark:driver"]].labels
+        tolerations  = local.karpenter_compute_node_pools[local.compute_node_pool_slugs["default:spark:driver"]].taints
+      }
     }
 
     orchestration = {
