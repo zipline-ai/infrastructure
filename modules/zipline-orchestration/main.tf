@@ -335,7 +335,7 @@ locals {
 
   ingress_defaults = {
     # Empty domain leaves the ingress host unset so the chart's set-hub-base-url
-    # job points hub + ingress at the provisioned NLB DNS (matches infra-aws-prod).
+    # job points hub + ingress at the provisioned NLB DNS.
     domain                       = ""
     class_name                   = "nginx-ui"
     tls_secret_name              = ""
