@@ -31,7 +31,7 @@ resource "aws_iam_role_policy_attachment" "eks_vpc_resource_controller" {
 resource "aws_security_group" "zipline" {
   name        = "zipline-${local.name_prefix}-sg"
   description = "Security group for Zipline"
-  vpc_id      = local.cloud_args.vpc_id
+  vpc_id      = local.resolved_vpc_id
 
   tags = {
     Name = "zipline-${local.name_prefix}-sg"
@@ -47,7 +47,7 @@ resource "aws_vpc_security_group_egress_rule" "zipline_allow_all" {
 resource "aws_security_group" "eks_cluster" {
   name        = "${local.name_prefix}-eks-cluster-sg"
   description = "Security group for EKS cluster"
-  vpc_id      = local.cloud_args.vpc_id
+  vpc_id      = local.resolved_vpc_id
 
   egress {
     from_port   = 0
@@ -77,7 +77,7 @@ resource "aws_eks_cluster" "main" {
   version  = local.cloud_args.eks_version
 
   vpc_config {
-    subnet_ids              = [local.cloud_args.primary_subnet_id, local.cloud_args.secondary_subnet_id]
+    subnet_ids              = [local.resolved_primary_subnet_id, local.resolved_secondary_subnet_id]
     endpoint_private_access = true
     endpoint_public_access  = true
     security_group_ids      = [aws_security_group.eks_cluster.id]
@@ -299,7 +299,7 @@ resource "aws_eks_node_group" "default" {
   cluster_name    = aws_eks_cluster.main.name
   node_group_name = "${local.name_prefix}-default"
   node_role_arn   = aws_iam_role.eks_node_role.arn
-  subnet_ids      = [local.cloud_args.primary_subnet_id, local.cloud_args.secondary_subnet_id]
+  subnet_ids      = [local.resolved_primary_subnet_id, local.resolved_secondary_subnet_id]
   instance_types  = [local.cloud_args.eks_instance_type]
   version         = aws_eks_cluster.main.version
 

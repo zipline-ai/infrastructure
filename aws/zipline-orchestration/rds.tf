@@ -1,6 +1,6 @@
 resource "aws_db_subnet_group" "zipline" {
   name        = "${local.name_prefix}-zipline-subnet-group"
-  subnet_ids  = [local.cloud_args.primary_subnet_id, local.cloud_args.secondary_subnet_id]
+  subnet_ids  = [local.resolved_primary_subnet_id, local.resolved_secondary_subnet_id]
   description = "Subnet group for the Zipline orchestration RDS instance"
 }
 
