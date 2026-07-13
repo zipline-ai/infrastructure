@@ -130,7 +130,11 @@ locals {
   }
   addons = merge(local.addons_defaults, try(local.orchestration.addons, {}))
 
-  deployment = local.orchestration.deployment
+  deployment_defaults = {
+    zipline_version = "latest"
+    deploy_fetcher  = false
+  }
+  deployment = merge(local.deployment_defaults, local.orchestration.deployment)
 
   database_defaults = {
     jdbc_url = ""
@@ -453,7 +457,7 @@ locals {
       customer_name      = local.deployment.customer_name
       artifact_prefix    = local.deployment.artifact_prefix
       version            = local.deployment.zipline_version
-      deploy_fetcher     = try(local.deployment.deploy_fetcher, false)
+      deploy_fetcher     = local.deployment.deploy_fetcher
       chart_content_hash = local.chart_content_hash
     }
 
