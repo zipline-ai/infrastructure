@@ -130,11 +130,7 @@ locals {
   }
   addons = merge(local.addons_defaults, try(local.orchestration.addons, {}))
 
-  deployment_defaults = {
-    zipline_version = "latest"
-    deploy_fetcher  = false
-  }
-  deployment = merge(local.deployment_defaults, local.orchestration.deployment)
+  deployment = local.orchestration.deployment
 
   database_defaults = {
     jdbc_url = ""
@@ -338,6 +334,9 @@ locals {
   legacy_secret_provider_class_name = try(local.secrets.class_name, "")
 
   ingress_defaults = {
+    # Empty domain leaves the ingress host unset so the chart's set-hub-base-url
+    # job points hub + ingress at the provisioned NLB DNS (matches infra-aws-prod).
+    domain                       = ""
     class_name                   = "nginx-ui"
     tls_secret_name              = ""
     cert_manager_cluster_issuer  = ""
@@ -348,7 +347,7 @@ locals {
     cluster_issuer_ingress_class = ""
     annotations                  = {}
   }
-  ingress = merge(local.ingress_defaults, local.orchestration.ingress)
+  ingress = merge(local.ingress_defaults, try(local.orchestration.ingress, {}))
 
   cert_manager_annotations = local.ingress.cert_manager_cluster_issuer == "" ? {} : {
     "cert-manager.io/cluster-issuer" = local.ingress.cert_manager_cluster_issuer
@@ -456,8 +455,8 @@ locals {
     global = {
       customer_name      = local.deployment.customer_name
       artifact_prefix    = local.deployment.artifact_prefix
-      version            = local.deployment.zipline_version
-      deploy_fetcher     = local.deployment.deploy_fetcher
+      version            = try(local.deployment.zipline_version, "latest")
+      deploy_fetcher     = try(local.deployment.deploy_fetcher, false)
       chart_content_hash = local.chart_content_hash
     }
 
