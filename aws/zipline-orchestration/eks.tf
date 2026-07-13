@@ -252,10 +252,25 @@ data "aws_iam_policy_document" "eks_node_root_key_policy" {
   }
 }
 
+# The node-root KMS key policy names AWSServiceRoleForAutoScaling as a principal,
+# and KMS rejects a policy that references a principal that does not yet exist.
+# A brand-new account has never used Auto Scaling, so that service-linked role is
+# absent and the CreateKey call fails with MalformedPolicyDocumentException. Create
+# it before the key. get-role guards the create so this no-ops on accounts that
+# already have the role (existing customers/canary); a real create error still
+# surfaces. sleep covers IAM propagation before KMS reads the principal.
+resource "terraform_data" "autoscaling_slr" {
+  provisioner "local-exec" {
+    command = "aws iam get-role --role-name AWSServiceRoleForAutoScaling >/dev/null 2>&1 || { aws iam create-service-linked-role --aws-service-name autoscaling.amazonaws.com && sleep 10; }"
+  }
+}
+
 resource "aws_kms_key" "eks_node_root" {
   description             = "KMS key for Zipline EKS node root volume encryption"
   deletion_window_in_days = 7
   policy                  = data.aws_iam_policy_document.eks_node_root_key_policy.json
+
+  depends_on = [terraform_data.autoscaling_slr]
 
   tags = {
     Name = "${local.name_prefix}-eks-node-root-key"
