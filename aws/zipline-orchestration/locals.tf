@@ -35,7 +35,10 @@ locals {
     database_multi_az              = true
     database_publicly_accessible   = false
     database_backup_retention_days = 7
-    karpenter                      = {}
+    # Prod-safe default: take a final snapshot on destroy. Test/POC accounts set
+    # aws.database_skip_final_snapshot = true for clean, snapshot-free teardown.
+    database_skip_final_snapshot = false
+    karpenter                    = {}
   }, var.aws)
 
   # When no VPC is supplied, provision one (network.tf) and resolve ids here.

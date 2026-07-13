@@ -43,4 +43,9 @@ resource "aws_db_instance" "zipline" {
   publicly_accessible     = local.cloud_args.database_publicly_accessible
   multi_az                = local.cloud_args.database_multi_az
   backup_retention_period = local.cloud_args.database_backup_retention_days
+
+  # Default false so prod takes a final snapshot on destroy (and thus needs a
+  # snapshot id); test/POC accounts override to true for snapshot-free teardown.
+  skip_final_snapshot       = local.cloud_args.database_skip_final_snapshot
+  final_snapshot_identifier = local.cloud_args.database_skip_final_snapshot ? null : "${local.name_prefix}-zipline-orch-final"
 }
