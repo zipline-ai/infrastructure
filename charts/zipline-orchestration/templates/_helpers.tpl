@@ -100,7 +100,11 @@ Public origin used by the UI for auth and server-side requests.
 {{- else if .Values.ingress.ui.host -}}
 {{- printf "https://%s" .Values.ingress.ui.host -}}
 {{- else -}}
-{{- "" -}}
+{{/* Domain-less install: the UI rejects an empty ORIGIN and crashloops, which
+would prevent the release from becoming ready and thus block the post-install
+set-hub-base-url hook that patches the real load-balancer ORIGIN. Emit a valid
+placeholder so the UI starts; the hook overwrites it with the LB DNS. */}}
+{{- "http://localhost:3000" -}}
 {{- end -}}
 {{- end }}
 
