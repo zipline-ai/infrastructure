@@ -10,6 +10,7 @@
 {{- $securityGroupSelectorTerms := coalesce (get $class "securityGroupSelectorTerms") (get $class "security_group_selector_terms") -}}
 {{- $metadataOptions := coalesce (get $class "metadataOptions") (get $class "metadata_options") -}}
 {{- $blockDeviceMappings := coalesce (get $class "blockDeviceMappings") (get $class "block_device_mappings") -}}
+{{- $instanceStorePolicy := coalesce (get $class "instanceStorePolicy") (get $class "instance_store_policy") -}}
 {{- $userData := coalesce (get $class "userData") (get $class "user_data") -}}
 apiVersion: karpenter.k8s.aws/v1
 kind: EC2NodeClass
@@ -48,6 +49,9 @@ spec:
   {{- with $blockDeviceMappings }}
   blockDeviceMappings:
     {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $instanceStorePolicy }}
+  instanceStorePolicy: {{ . | quote }}
   {{- end }}
   {{- with get $class "tags" }}
   tags:

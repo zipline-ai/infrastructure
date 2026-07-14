@@ -243,6 +243,7 @@ Spark executors, Flink job managers, and Flink task managers.
 | `aws.karpenter.enable_zonal_shift` | `false` | You want Karpenter zonal shift integration. |
 | `aws.karpenter.values` | `{}` | The Karpenter controller Helm release needs extra values. |
 | `aws.karpenter.ec2_node_class` | computed secure defaults | You need to override EC2NodeClass details such as AMI alias, selectors, tags, or user data. |
+| `aws.karpenter.ec2_node_class.instance_store_policy` | `RAID0` | You need to override how Karpenter configures EC2 instance-store disks. |
 | `aws.karpenter.node_pools` | generated pools | You need to override generated NodePools or add new ones. |
 
 Common Karpenter sizing knobs:
@@ -262,6 +263,11 @@ Common Karpenter sizing knobs:
 | `aws.karpenter.system_expire_after` | `Never` | System nodes should be periodically recycled. |
 | `aws.karpenter.compute_expire_after` | `720h` | Compute nodes should recycle more or less often. |
 | `aws.karpenter.system_termination_grace_period` | `5m` | System nodes need a different drain grace period. |
+
+Spark executor pools require EC2 instance types with local NVMe. Karpenter
+combines all instance-store disks into RAID0 and exposes the result as standard
+Kubernetes ephemeral storage, so Spark can use its default `emptyDir` local
+directories without provider-specific mounts or node labels.
 
 ### Storage, Logs, and IAM Grants
 

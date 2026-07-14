@@ -8,7 +8,7 @@ The chart renders:
 - Ingress controllers and ingress resources for the public service endpoints
 - Spark operator, Spark driver RBAC, Spark History Server, Loki, and Promtail
 - Polaris catalog bootstrap and RBAC reconciliation
-- Compute namespaces, quotas, priority classes, image prepull, warm pool, and optional NVMe setup
+- Compute namespaces, quotas, priority classes, image prepull, and warm pool
 
 ## Cloud Boundary
 

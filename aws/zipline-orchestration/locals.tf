@@ -164,8 +164,12 @@ locals {
         }
       }
     ]
-    tags      = {}
-    user_data = ""
+    # Let Karpenter bootstrap AL2023 instance-store disks as node ephemeral
+    # storage. Spark then uses its standard emptyDir local directories without
+    # knowing which hardware backs them.
+    instance_store_policy = "RAID0"
+    tags                  = {}
+    user_data             = ""
   }, try(local.karpenter.ec2_node_class, {}))
   karpenter_node_pool_requirements = [
     {
@@ -241,7 +245,7 @@ locals {
     { key = "karpenter.k8s.aws/instance-category", operator = "In", values = local.karpenter_executor_categories, minValues = local.karpenter_executor_min_values },
     { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = tolist([local.karpenter_min_generation]) },
   ]
-  karpenter_spark_executor_nvme_requirements = [
+  karpenter_spark_executor_instance_store_requirements = [
     { key = "karpenter.k8s.aws/instance-local-nvme", operator = "Exists", values = null, minValues = null },
   ]
   # The system pool hosts stateful control-plane pods (loki + spark-history
@@ -253,13 +257,13 @@ locals {
   karpenter_compute_expire_after            = try(local.karpenter.compute_expire_after, "720h")
   compute_node_pool_matrix = [
     for pool in local.compute_node_pool_pairs : {
-      key       = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
-      team      = pool.team
-      engine    = pool.engine
-      role      = pool.role
-      size      = pool.size
-      node_pool = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
-      nvme      = pool.engine == "spark" && pool.role == "executor"
+      key            = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
+      team           = pool.team
+      engine         = pool.engine
+      role           = pool.role
+      size           = pool.size
+      node_pool      = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
+      instance_store = pool.engine == "spark" && pool.role == "executor"
       taints = [
         {
           key      = "zipline.ai/workload"
@@ -298,21 +302,16 @@ locals {
     pool.key => {
       enabled = true
       name    = pool.node_pool
-      labels = merge({
+      labels = {
         "zipline.ai/team"     = pool.team
         "zipline.ai/engine"   = pool.engine
         "zipline.ai/role"     = pool.role
         "zipline.ai/workload" = pool.node_pool
-      }, pool.nvme ? { "zipline.ai/nvme" = "true" } : {})
+      }
       taints = pool.taints
-      startupTaints = pool.nvme ? [{
-        key    = "zipline.ai/nvme-setup"
-        value  = "true"
-        effect = "NoSchedule"
-      }] : []
       requirements = concat(
         pool.size == "driver" ? local.karpenter_driver_requirements : local.karpenter_executor_requirements,
-        pool.nvme ? local.karpenter_spark_executor_nvme_requirements : [],
+        pool.instance_store ? local.karpenter_spark_executor_instance_store_requirements : [],
       )
       expireAfter = local.karpenter_compute_expire_after
       limits      = pool.size == "driver" ? local.karpenter_driver_limits : local.karpenter_executor_limits
@@ -450,16 +449,6 @@ locals {
         annotations = {
           "eks.amazonaws.com/role-arn" = aws_iam_role.spark_compute_execution.arn
         }
-      }
-      spark_defaults = {
-        nvmeEnabled = true
-        # TODO(nvme-setup-image): temporary pin to the live crane-overlay artifact
-        # so committed config matches the cluster (resolves the helm_release.this
-        # plan diff). amazon/aws-cli lacks mkfs.ext4/mount/nsenter, so the setup DS
-        # can't format+mount the disk. Replace with a stable, dedicated nvme-setup
-        # image (e2fsprogs + util-linux) at a fixed tag rather than this SHA-pinned
-        # hub-aws overlay.
-        nvmeSetupImage = "ziplineai/hub-aws:cc37a11990e3-nvme-setup"
       }
       flink_defaults = {
         serviceAccountAnnotations = {
