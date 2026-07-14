@@ -12,12 +12,26 @@ variable "aws" {
       for key in [
         "warehouse_bucket",
         "region",
-        "vpc_id",
-        "primary_subnet_id",
-        "secondary_subnet_id",
       ] : trimspace(tostring(try(var.aws[key], ""))) != ""
     ])
-    error_message = "aws must include non-empty warehouse_bucket, region, vpc_id, primary_subnet_id, and secondary_subnet_id."
+    error_message = "aws must include non-empty warehouse_bucket and region."
+  }
+
+  # vpc_id/primary_subnet_id/secondary_subnet_id are provisioned on the fly when
+  # omitted (see network.tf); supply all three together to bring your own network.
+  validation {
+    condition = (
+      length(compact([
+        trimspace(tostring(try(var.aws.vpc_id, ""))),
+        trimspace(tostring(try(var.aws.primary_subnet_id, ""))),
+        trimspace(tostring(try(var.aws.secondary_subnet_id, ""))),
+      ])) == 0
+      ) || (
+      trimspace(tostring(try(var.aws.vpc_id, ""))) != "" &&
+      trimspace(tostring(try(var.aws.primary_subnet_id, ""))) != "" &&
+      trimspace(tostring(try(var.aws.secondary_subnet_id, ""))) != ""
+    )
+    error_message = "Set aws.vpc_id, aws.primary_subnet_id, and aws.secondary_subnet_id together to use an existing network, or omit all three to have Terraform create one."
   }
 
 }

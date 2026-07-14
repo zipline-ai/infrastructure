@@ -162,7 +162,7 @@ resource "helm_release" "aws_load_balancer_controller" {
 
   set {
     name  = "vpcId"
-    value = local.cloud_args.vpc_id
+    value = local.resolved_vpc_id
   }
 
   depends_on = [

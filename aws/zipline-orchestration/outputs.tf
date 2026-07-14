@@ -1,3 +1,18 @@
+output "vpc_id" {
+  description = "VPC used by the cluster (created when aws.vpc_id is omitted)."
+  value       = local.resolved_vpc_id
+}
+
+output "subnet_ids" {
+  description = "Primary and secondary subnets used by the cluster."
+  value       = [local.resolved_primary_subnet_id, local.resolved_secondary_subnet_id]
+}
+
+output "network_created" {
+  description = "Whether Terraform provisioned the VPC/subnets for this install."
+  value       = local.create_network
+}
+
 output "eks_cluster_name" {
   description = "EKS cluster name."
   value       = aws_eks_cluster.main.name

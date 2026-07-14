@@ -41,6 +41,14 @@ locals {
     karpenter                    = {}
   }, var.aws)
 
+  # When no VPC is supplied, provision one (network.tf) and resolve ids here.
+  # Kept out of cloud_args: the aws provider reads cloud_args.region, so folding
+  # these resource refs into cloud_args would cycle provider -> network -> provider.
+  create_network               = trimspace(tostring(try(var.aws.vpc_id, ""))) == ""
+  resolved_vpc_id              = local.create_network ? aws_vpc.main[0].id : trimspace(tostring(try(var.aws.vpc_id, "")))
+  resolved_primary_subnet_id   = local.create_network ? aws_subnet.zipline["primary"].id : trimspace(tostring(try(var.aws.primary_subnet_id, "")))
+  resolved_secondary_subnet_id = local.create_network ? aws_subnet.zipline["secondary"].id : trimspace(tostring(try(var.aws.secondary_subnet_id, "")))
+
   install                       = try(var.orchestration.install, {})
   deployment                    = var.orchestration.deployment
   name_prefix                   = local.deployment.customer_name
@@ -144,8 +152,8 @@ locals {
     ami_alias        = try(local.karpenter.ami_alias, "al2023@v20260625")
     instance_profile = try(aws_iam_instance_profile.karpenter_node[0].name, "")
     subnet_selector_terms = [
-      { id = local.cloud_args.primary_subnet_id },
-      { id = local.cloud_args.secondary_subnet_id },
+      { id = local.resolved_primary_subnet_id },
+      { id = local.resolved_secondary_subnet_id },
     ]
     security_group_selector_terms = [
       { id = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id },
@@ -598,7 +606,7 @@ locals {
     annotations = {
       "service.beta.kubernetes.io/aws-load-balancer-type"    = "nlb"
       "service.beta.kubernetes.io/aws-load-balancer-scheme"  = "internet-facing"
-      "service.beta.kubernetes.io/aws-load-balancer-subnets" = join(",", [local.cloud_args.primary_subnet_id, local.cloud_args.secondary_subnet_id])
+      "service.beta.kubernetes.io/aws-load-balancer-subnets" = join(",", [local.resolved_primary_subnet_id, local.resolved_secondary_subnet_id])
     }
   }
 
