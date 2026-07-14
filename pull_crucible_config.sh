@@ -81,15 +81,19 @@ case "${cloud}" in
     if [ "${config_prefix}" = "${wrapper_key}" ]; then
       config_prefix=""
     fi
+    backend_key="${config_prefix:+${config_prefix}/}backend.hcl"
     root_dest="${CRUCIBLE_CONFIG_ROOT:-${repo_root}/aws/zipline-orchestration}"
 
     mkdir -p "${root_dest}"
 
+    tmp_backend="$(mktemp "${root_dest}/backend.hcl.XXXXXX")"
     tmp_tfvars="$(mktemp "${root_dest}/crucible.auto.tfvars.json.XXXXXX")"
-    trap 'rm -f "${tmp_tfvars:-}"' EXIT
+    trap 'rm -f "${tmp_backend:-}" "${tmp_tfvars:-}"' EXIT
 
+    aws s3 cp "s3://${bucket}/${backend_key}" "${tmp_backend}"
     aws s3 cp "s3://${bucket}/${wrapper_key}" "${tmp_tfvars}"
     require_grouped_tfvars aws "${tmp_tfvars}"
+    mv "${tmp_backend}" "${root_dest}/backend.hcl"
     mv "${tmp_tfvars}" "${root_dest}/crucible.auto.tfvars.json"
     trap - EXIT
 
@@ -98,9 +102,10 @@ case "${cloud}" in
 
     cat <<EOF
 Pulled AWS Crucible orchestration config from:
-  s3://${bucket}/${wrapper_key}
+  s3://${bucket}/${config_prefix}
 
-Local file is intentionally ignored by git:
+Local files are intentionally ignored by git:
+  ${root_dest}/backend.hcl
   ${root_dest}/crucible.auto.tfvars.json
 EOF
     ;;

@@ -49,11 +49,8 @@ aws = {
 Run with a backend configured for the target environment:
 
 ```shell
-tofu init -reconfigure \
-  -backend-config=bucket=example-opentofu-state \
-  -backend-config=key=zipline-orchestration-state \
-  -backend-config=region=us-west-2 \
-  -backend-config=encrypt=true
+../../pull_crucible_config.sh aws
+tofu init -reconfigure -backend-config=backend.hcl
 ```
 
 ## Required Inputs
