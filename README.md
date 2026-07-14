@@ -33,7 +33,7 @@ Initialize to  and select the project you want to use
 
 Enter the AWS orchestration wrapper directory and initialize the infrastructure
 * ``` cd aws/zipline-orchestration ```
-* ``` tofu init ```
+* ``` ../../pull_crucible_config.sh aws ```
+* ``` tofu init -reconfigure -backend-config=backend.hcl ```
 * ``` tofu apply ```
 Fill in your company name as the customer_name variable and select the region you want to deploy to.
-

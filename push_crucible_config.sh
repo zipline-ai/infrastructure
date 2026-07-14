@@ -80,11 +80,15 @@ case "${cloud}" in
     if [ "${config_prefix}" = "${wrapper_key}" ]; then
       config_prefix=""
     fi
+    backend_key="${config_prefix:+${config_prefix}/}backend.hcl"
     wrapper_root="${CRUCIBLE_CONFIG_ROOT:-${repo_root}/aws/zipline-orchestration}"
+    backend_file="${wrapper_root}/backend.hcl"
     wrapper_file="${wrapper_root}/crucible.auto.tfvars.json"
 
+    require_file "${backend_file}"
     require_grouped_tfvars aws "${wrapper_file}"
 
+    aws s3 cp "${backend_file}" "s3://${bucket}/${backend_key}"
     aws s3 cp "${wrapper_file}" "s3://${bucket}/${wrapper_key}"
     upload_optional_s3_object "${bucket}" "${config_prefix}" "${wrapper_root}/dns-provider.tf" "dns-provider.tf"
     upload_optional_s3_object "${bucket}" "${config_prefix}" "${wrapper_root}/dns.auto.tfvars.json" "dns.auto.tfvars.json"
