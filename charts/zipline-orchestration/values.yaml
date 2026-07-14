@@ -67,8 +67,8 @@ compute:
     chrononJarPath: "/opt/chronon/chronon-spark.jar"
     nvmeEnabled: false
     nvmeSetupImage: ""
-    executorCores: 14
-    executorMemory: "48Gi"
+    executorCores: 6
+    executorMemory: "30Gi"
     driverCores: 2
     driverMemory: "4Gi"
     spotNodeSelector: {}
