@@ -1,0 +1,43 @@
+{{- if and (not .Values.ingress.hub.host) (not .Values.ingress.hub.externalUrl) }}
+{{- $ingressControllerServiceName := include "zipline-orchestration.ingressNginxControllerServiceName" (dict "root" . "alias" "ingress-nginx-ui") }}
+# RBAC for the set-hub-base-url hook (domain-less installs only): it reads the
+# ingress-nginx load-balancer Service to discover the LB DNS, then patches the
+# hub/UI Deployments (set env) and their Ingresses (set host). The hook runs as
+# the orchestration service account, which otherwise lacks these permissions.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: set-hub-base-url
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["services"]
+    resourceNames: [{{ $ingressControllerServiceName | quote }}]
+    verbs: ["get"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["zipline-orchestration-hub", "zipline-orchestration-ui"]
+    verbs: ["get", "patch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    resourceNames: ["orchestration-hub-ingress", "orchestration-ui-ingress"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: set-hub-base-url
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "zipline-orchestration.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: set-hub-base-url
+{{- end }}
