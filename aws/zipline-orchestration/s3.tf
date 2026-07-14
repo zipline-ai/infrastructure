@@ -14,6 +14,16 @@ resource "aws_s3_bucket" "warehouse" {
   }
 }
 
+# Materialize the Spark event-log prefix so the Spark History Server can start on
+# a fresh warehouse bucket. Without this object the default log dir
+# (s3a://<warehouse>/spark-events) does not exist and the history server exits
+# with FileNotFound before any Spark job has written events.
+resource "aws_s3_object" "spark_events_prefix" {
+  bucket       = aws_s3_bucket.warehouse.id
+  key          = "spark-events/"
+  content_type = "application/x-directory"
+}
+
 resource "aws_s3_bucket" "logs" {
   bucket = local.logs_bucket
 
