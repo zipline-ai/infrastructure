@@ -1,4 +1,6 @@
 {{- if .Values.compute.warmPool.enabled }}
+{{- $warmPoolCPU := required "compute.warmPool.resources.cpu is required when the warm pool is enabled" .Values.compute.warmPool.resources.cpu }}
+{{- $warmPoolMemory := required "compute.warmPool.resources.memory is required when the warm pool is enabled" .Values.compute.warmPool.resources.memory }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -52,14 +54,12 @@ spec:
       containers:
         - name: pause
           image: registry.k8s.io/pause:3.9
-          # Size the placeholder to the Spark driver so Karpenter warms a node the
-          # real driver actually fits on. Defaults to sparkDefaults.driver{Cores,
-          # Memory}; override via compute.warmPool.resources.
+          # Warm-pool capacity is configured independently from application sizing.
           resources:
             requests:
-              cpu: {{ .Values.compute.warmPool.resources.cpu | default .Values.compute.sparkDefaults.driverCores | quote }}
-              memory: {{ .Values.compute.warmPool.resources.memory | default .Values.compute.sparkDefaults.driverMemory | quote }}
+              cpu: {{ $warmPoolCPU | quote }}
+              memory: {{ $warmPoolMemory | quote }}
             limits:
-              cpu: {{ .Values.compute.warmPool.resources.cpu | default .Values.compute.sparkDefaults.driverCores | quote }}
-              memory: {{ .Values.compute.warmPool.resources.memory | default .Values.compute.sparkDefaults.driverMemory | quote }}
+              cpu: {{ $warmPoolCPU | quote }}
+              memory: {{ $warmPoolMemory | quote }}
 {{- end }}
