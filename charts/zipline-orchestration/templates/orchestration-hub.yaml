@@ -93,14 +93,6 @@ spec:
             - name: CRUCIBLE_SPOT_NODE_SELECTOR
               value: {{ toJson . | quote }}
             {{- end }}
-            - name: CRUCIBLE_EXECUTOR_CORES
-              value: "{{ .Values.compute.sparkDefaults.executorCores }}"
-            - name: CRUCIBLE_EXECUTOR_MEMORY
-              value: {{ .Values.compute.sparkDefaults.executorMemory | quote }}
-            - name: CRUCIBLE_DRIVER_CORES
-              value: "{{ .Values.compute.sparkDefaults.driverCores }}"
-            - name: CRUCIBLE_DRIVER_MEMORY
-              value: {{ .Values.compute.sparkDefaults.driverMemory | quote }}
             - name: CRUCIBLE_FLINK_IMAGE
               value: "{{ .Values.compute.flinkDefaults.image }}"
             - name: CRUCIBLE_FLINK_SERVICE_ACCOUNT

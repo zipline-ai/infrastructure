@@ -419,20 +419,26 @@ locals {
     },
     local.compute.image_prepull_overrides,
   )
-  # Crucible warm pool (driver-sized pause pods) + compute priority classes.
+  # Crucible warm pool pause pods + compute priority classes.
   # Disabled by default; enable + target a driver pool via compute.warm_pool.
   # do-not-disrupt keeps Karpenter from consolidating the pre-warmed nodes away.
-  # resources left empty: the chart sizes the pause pods to the Spark driver
-  # (sparkDefaults.driver{Cores,Memory}) so the warmed node fits a real driver.
   compute_warm_pool = merge(
     {
       enabled           = false
       replicas          = 2
       priorityClassName = "zipline-spark-pause"
       annotations       = { "karpenter.sh/do-not-disrupt" = "true" }
-      resources         = {}
     },
     try(local.compute.warm_pool, {}),
+    {
+      resources = merge(
+        {
+          cpu    = "2"
+          memory = "4Gi"
+        },
+        try(local.compute.warm_pool.resources, {}),
+      )
+    },
   )
   compute_system_priority_class = merge(
     { enabled = false, name = "zipline-compute-system", value = 1000 },
