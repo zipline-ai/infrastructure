@@ -101,8 +101,6 @@ spec:
               value: "{{ .Values.compute.sparkDefaults.driverCores }}"
             - name: CRUCIBLE_DRIVER_MEMORY
               value: {{ .Values.compute.sparkDefaults.driverMemory | quote }}
-            - name: CRUCIBLE_NVME_ENABLED
-              value: "{{ .Values.compute.sparkDefaults.nvmeEnabled }}"
             - name: CRUCIBLE_FLINK_IMAGE
               value: "{{ .Values.compute.flinkDefaults.image }}"
             - name: CRUCIBLE_FLINK_SERVICE_ACCOUNT
