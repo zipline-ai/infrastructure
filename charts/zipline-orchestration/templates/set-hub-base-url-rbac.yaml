@@ -2,8 +2,9 @@
 {{- $ingressControllerServiceName := include "zipline-orchestration.ingressNginxControllerServiceName" (dict "root" . "alias" "ingress-nginx-ui") }}
 # RBAC for the set-hub-base-url hook (domain-less installs only): it reads the
 # ingress-nginx load-balancer Service to discover the LB DNS, then patches the
-# hub/UI Deployments (set env) and their Ingresses (set host). The hook runs as
-# the orchestration service account, which otherwise lacks these permissions.
+# hub/UI Deployments (set env) and the hub/UI/spark-history Ingresses (set host).
+# The hook runs as the orchestration service account, which otherwise lacks
+# these permissions.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -22,7 +23,7 @@ rules:
     verbs: ["get", "patch"]
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses"]
-    resourceNames: ["orchestration-hub-ingress", "orchestration-ui-ingress"]
+    resourceNames: ["orchestration-hub-ingress", "orchestration-ui-ingress", "orchestration-spark-history-ingress"]
     verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
