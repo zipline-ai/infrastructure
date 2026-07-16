@@ -11,10 +11,26 @@ resource "azurerm_key_vault" "main" {
   purge_protection_enabled   = false
 }
 
+data "azuread_user" "tf_admins" {
+  for_each            = toset(local.cloud_args.admin_principal_names)
+  user_principal_name = each.value
+}
+
+resource "azuread_group" "tf_admins" {
+  display_name     = "${local.name_prefix}-tf-admins"
+  security_enabled = true
+
+  members = [
+    for user in data.azuread_user.tf_admins : user.object_id
+  ]
+}
+
+
 resource "azurerm_role_assignment" "terraform_keyvault_secrets_officer" {
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets Officer"
-  principal_id         = data.azurerm_client_config.current.object_id
+  principal_id         = azuread_group.tf_admins.object_id
+  principal_type       = "Group"
 }
 
 resource "azurerm_role_assignment" "workload_keyvault_secrets_user" {
