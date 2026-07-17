@@ -29,16 +29,13 @@ scrape_configs:
       - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
         action: keep
         regex: "true"
-      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
-        action: keepequal
-        target_label: __meta_kubernetes_pod_container_port_number
       - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
         action: replace
         target_label: __metrics_path__
         regex: (.+)
       - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
         action: replace
-        regex: ([^:]+)(?::\\d+)?;(\\d+)
+        regex: ([^:]+)(?::\d+)?;(\d+)
         replacement: $1:$2
         target_label: __address__
       - action: labelmap
@@ -46,6 +43,9 @@ scrape_configs:
       - source_labels: [__meta_kubernetes_namespace]
         action: replace
         target_label: kubernetes_namespace
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
       - source_labels: [__meta_kubernetes_pod_name]
         action: replace
         target_label: kubernetes_pod_name
@@ -79,7 +79,7 @@ resource "aws_prometheus_scraper" "main" {
 
   destination {
     amp {
-      workspace_arn = aws_prometheus_workspace.main.arn
+      workspace_arn = local.amp_workspace_arn
     }
   }
 

@@ -440,11 +440,16 @@ locals {
       name = local.cloud_args.database_name
     }
     prometheus = {
-      query_endpoint = aws_prometheus_workspace.main.prometheus_endpoint
+      query_endpoint = local.amp_query_endpoint
     }
     hub = {
       image          = local.hub_image
       verticle_class = local.hub_verticle_class
+      pod_annotations = merge(
+        local.hub_prometheus_pod_annotations,
+        try(var.orchestration.hub.podAnnotations, {}),
+        try(var.orchestration.hub.pod_annotations, {}),
+      )
     }
     eval = {
       image = local.eval_image
@@ -510,6 +515,7 @@ locals {
       extra_external_secrets = local.extra_external_secrets
     }
     runtime_env = [
+      { name = "AWS_REGION", value = local.cloud_args.region },
       { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
     ]
     hub_env = concat(
@@ -568,6 +574,15 @@ locals {
   msk_group_arn_prefix = local.cloud_args.msk_cluster_arn != "" ? replace(local.cloud_args.msk_cluster_arn, ":cluster/", ":group/") : ""
   eks_log_group        = local.cloud_args.eks_log_group != "" ? local.cloud_args.eks_log_group : "/aws/eks/${local.cluster_name}/containers"
   amp_workspace_arn    = local.cloud_args.amp_workspace_arn != "" ? local.cloud_args.amp_workspace_arn : aws_prometheus_workspace.main.arn
+  amp_workspace_id     = split("/", local.amp_workspace_arn)[1]
+  amp_query_endpoint   = local.cloud_args.amp_workspace_arn != "" ? "https://aps-workspaces.${local.cloud_args.region}.${data.aws_partition.current.dns_suffix}/workspaces/${local.amp_workspace_id}" : trimsuffix(aws_prometheus_workspace.main.prometheus_endpoint, "/")
+  hub_metrics_reader   = try(var.orchestration.hub.chronon_metrics_reader, try(var.orchestration.hub.metricsReader, "prometheus"))
+  hub_metrics_port     = try(var.orchestration.hub.metrics_port, try(var.orchestration.hub.metricsPort, 8905))
+  hub_prometheus_pod_annotations = local.hub_metrics_reader == "prometheus" ? {
+    "prometheus.io/scrape" = "true"
+    "prometheus.io/port"   = tostring(local.hub_metrics_port)
+    "prometheus.io/path"   = "/metrics"
+  } : {}
   orchestration_s3_read_buckets = distinct(compact(concat(
     [local.cloud_args.shared_warehouse_bucket],
     local.cloud_args.additional_data_buckets,
