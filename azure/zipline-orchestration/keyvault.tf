@@ -33,6 +33,14 @@ resource "azurerm_role_assignment" "terraform_keyvault_secrets_officer" {
   principal_type       = "Group"
 }
 
+resource "azurerm_role_assignment" "terraform_keyvault_secrets_officer_default" {
+  count                = length(local.cloud_args.admin_principal_names) == 0 ? 1 : 0
+  scope                = azurerm_key_vault.main.id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
+  principal_type       = "User"
+}
+
 resource "azurerm_role_assignment" "workload_keyvault_secrets_user" {
   scope                = azurerm_key_vault.main.id
   role_definition_name = "Key Vault Secrets User"
