@@ -5,10 +5,11 @@ resource "random_password" "zipline_auth" {
 }
 
 resource "aws_secretsmanager_secret" "zipline_auth" {
-  count       = local.create_auth_secret ? 1 : 0
-  name        = "${local.name_prefix}-zipline-auth"
-  description = "Authentication secrets for Zipline"
-  kms_key_id  = local.cloud_args.encryption_kms_key_arn != "" ? local.cloud_args.encryption_kms_key_arn : null
+  count                   = local.create_auth_secret ? 1 : 0
+  name                    = "${local.name_prefix}-zipline-auth"
+  description             = "Authentication secrets for Zipline"
+  kms_key_id              = local.cloud_args.encryption_kms_key_arn != "" ? local.cloud_args.encryption_kms_key_arn : null
+  recovery_window_in_days = local.cloud_args.secret_force_delete ? 0 : 30
 }
 
 resource "aws_secretsmanager_secret_version" "zipline_auth" {

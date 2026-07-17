@@ -1,5 +1,6 @@
 resource "aws_s3_bucket" "artifact" {
-  bucket = local.artifact_bucket
+  bucket        = local.artifact_bucket
+  force_destroy = local.cloud_args.bucket_force_destroy
 
   tags = {
     Name = local.artifact_bucket
@@ -7,7 +8,8 @@ resource "aws_s3_bucket" "artifact" {
 }
 
 resource "aws_s3_bucket" "warehouse" {
-  bucket = local.cloud_args.warehouse_bucket
+  bucket        = local.cloud_args.warehouse_bucket
+  force_destroy = local.cloud_args.bucket_force_destroy
 
   tags = {
     Name = local.cloud_args.warehouse_bucket
@@ -25,7 +27,8 @@ resource "aws_s3_object" "spark_events_prefix" {
 }
 
 resource "aws_s3_bucket" "logs" {
-  bucket = local.logs_bucket
+  bucket        = local.logs_bucket
+  force_destroy = local.cloud_args.bucket_force_destroy
 
   tags = {
     Name = local.logs_bucket
