@@ -14,6 +14,7 @@ locals {
     default_node_pool                       = {}
     node_pools                              = {}
     keyvault_name                           = ""
+    admin_principal_names                   = []
     workload_identity_name                  = ""
     workload_identity_client_id             = ""
     storage_account_resource_group          = ""
