@@ -40,6 +40,13 @@ resource "terraform_data" "controller_resource_cleanup" {
 
       echo "Stopping Karpenter provisioning and draining its nodes..."
       kubectl delete nodepools.karpenter.sh --all --ignore-not-found --wait=false || true
+      # Karpenter refuses to evict pods annotated karpenter.sh/do-not-disrupt during
+      # node termination — the warm-pool deployment sets it to pin nodes warm, and
+      # spark drivers set it too — so the node never drains and the NodeClaim /
+      # EC2NodeClass deletes below hang forever. Strip the annotation from every pod
+      # so the nodes can drain. NodePools are already deleted above, so any pod the
+      # owning controller reschedules just goes Pending and blocks nothing.
+      kubectl annotate pods --all-namespaces --all karpenter.sh/do-not-disrupt- >/dev/null 2>&1 || true
       kubectl delete nodeclaims.karpenter.sh --all --ignore-not-found --wait=false || true
       # Delete the EC2NodeClass here too. Its karpenter.k8s.aws/termination finalizer
       # is cleared by Karpenter's nodeclass controller, which needs IAM/EC2 egress.
