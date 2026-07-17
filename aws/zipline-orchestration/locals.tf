@@ -38,7 +38,16 @@ locals {
     # Prod-safe default: take a final snapshot on destroy. Test/POC accounts set
     # aws.database_skip_final_snapshot = true for clean, snapshot-free teardown.
     database_skip_final_snapshot = false
-    karpenter                    = {}
+    # Prod-safe default: refuse to destroy non-empty artifact/warehouse/logs
+    # buckets. Test/POC accounts set aws.bucket_force_destroy = true so tofu
+    # empties and deletes them on teardown instead of failing with BucketNotEmpty.
+    bucket_force_destroy = false
+    # Prod-safe default: Secrets Manager secrets keep the 30-day recovery window on
+    # destroy, so their names stay reserved. Test/POC accounts set
+    # aws.secret_force_delete = true so teardown force-deletes them (recovery window
+    # 0) and the names are immediately free for the next apply.
+    secret_force_delete = false
+    karpenter           = {}
   }, var.aws)
 
   # When no VPC is supplied, provision one (network.tf) and resolve ids here.

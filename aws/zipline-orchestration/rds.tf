@@ -15,9 +15,10 @@ resource "random_password" "db_password" {
 }
 
 resource "aws_secretsmanager_secret" "db_credentials" {
-  name        = "${local.name_prefix}-zipline-db-password"
-  description = "Database credentials for the Zipline orchestration RDS instance"
-  kms_key_id  = local.cloud_args.encryption_kms_key_arn != "" ? local.cloud_args.encryption_kms_key_arn : null
+  name                    = "${local.name_prefix}-zipline-db-password"
+  description             = "Database credentials for the Zipline orchestration RDS instance"
+  kms_key_id              = local.cloud_args.encryption_kms_key_arn != "" ? local.cloud_args.encryption_kms_key_arn : null
+  recovery_window_in_days = local.cloud_args.secret_force_delete ? 0 : 30
 }
 
 resource "aws_secretsmanager_secret_version" "db_credentials" {
