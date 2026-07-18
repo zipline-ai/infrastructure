@@ -442,6 +442,7 @@ locals {
     prometheus = {
       query_endpoint = local.amp_query_endpoint
     }
+    metrics_provider = "aws"
     hub = {
       image          = local.hub_image
       verticle_class = local.hub_verticle_class

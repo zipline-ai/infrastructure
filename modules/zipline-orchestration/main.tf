@@ -36,6 +36,7 @@ locals {
       local.orchestration_prometheus,
       local.provider_prometheus,
     )
+    metrics_provider = try(local.provider_context.metrics_provider, try(local.orchestration_input.metrics_provider, ""))
     compute = merge(local.orchestration_compute, local.provider_compute, {
       service_account = merge(
         try(local.orchestration_compute.service_account, {}),
@@ -602,7 +603,7 @@ locals {
       ui = {
         origin = local.ui.origin
         env = concat(
-          local.prometheus.query_endpoint == "" ? [] : [{ name = "METRICS_PROVIDER", value = "prometheus" }],
+          local.orchestration.metrics_provider == "" ? [] : [{ name = "METRICS_PROVIDER", value = local.orchestration.metrics_provider }],
           try(local.orchestration.provider_ui_env, []),
           try(local.orchestration.ui_env, []),
         )
