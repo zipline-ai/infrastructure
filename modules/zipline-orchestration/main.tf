@@ -602,6 +602,7 @@ locals {
       ui = {
         origin = local.ui.origin
         env = concat(
+          local.prometheus.query_endpoint == "" ? [] : [{ name = "METRICS_PROVIDER", value = "prometheus" }],
           try(local.orchestration.provider_ui_env, []),
           try(local.orchestration.ui_env, []),
         )
