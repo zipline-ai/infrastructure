@@ -11,6 +11,9 @@ locals {
     webhook = {
       create = false
     }
+    defaultConfiguration = {
+      "flink-conf.yaml" = "kubernetes.operator.jm-deployment.shutdown-ttl: 5 m\n"
+    }
   }, var.flink_operator_values)
 }
 
