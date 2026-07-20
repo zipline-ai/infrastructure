@@ -90,12 +90,12 @@ output "table_partitions_table_name" {
 
 output "amp_workspace_arn" {
   description = "AWS Managed Prometheus workspace ARN."
-  value       = aws_prometheus_workspace.main.arn
+  value       = local.amp_workspace_arn
 }
 
 output "amp_query_endpoint" {
   description = "AWS Managed Prometheus query endpoint."
-  value       = aws_prometheus_workspace.main.prometheus_endpoint
+  value       = local.amp_query_endpoint
 }
 
 output "ingress_load_balancer_hostname" {

@@ -309,7 +309,7 @@ for the environment.
 | `aws.kv_write_capacity` | `10` | Provisioned write capacity for the table-partitions table needs tuning. |
 | `aws.glue_schema_registry_name` | `zipline-<customer_name>` | You want to use an existing Glue registry or a specific registry name. |
 | `aws.msk_cluster_arn` | `""` | Flink needs IAM permissions for an MSK cluster. |
-| `aws.amp_workspace_arn` | created workspace ARN | AWS Managed Prometheus integrations should reference an existing workspace ARN. |
+| `aws.amp_workspace_arn` | created workspace ARN | Scraping, UI queries, and IAM permissions should use an existing AWS Managed Prometheus workspace. |
 | `aws.eks_log_group` | `/aws/eks/<cluster_name>/containers` | UI log links should point at a different EKS log group. |
 
 ### Secrets
