@@ -60,6 +60,12 @@ PVC. Configure `starrocks.persistence.storageClass` and
 `starrocks.persistence.size` when the cluster's default StorageClass is not
 appropriate.
 
+The Polaris runtime catalog role is granted `CATALOG_MANAGE_CONTENT`. This is
+catalog-wide in Polaris: Data Explorer can discover namespaces and metadata
+across the catalog, including namespaces created after bootstrap. Cloud
+Terraform wrappers should pass this grant explicitly when they construct
+provider values.
+
 ## Validation
 
 Render the chart with explicit overrides before wiring a cloud module:
