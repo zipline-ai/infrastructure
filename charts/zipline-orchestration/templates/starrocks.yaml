@@ -81,10 +81,8 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-      {{- toYaml . | nindent 8 }}
-      {{- end }}
+      # StarRocks is a public Docker Hub image. Do not inherit the optional
+      # Zipline image-pull Secret: Docker Hub rejects it for this repository.
       {{- with $starrocks.nodeSelector }}
       nodeSelector:
       {{- toYaml . | nindent 8 }}
@@ -193,10 +191,6 @@ spec:
     spec:
       restartPolicy: OnFailure
       serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-      {{- toYaml . | nindent 8 }}
-      {{- end }}
       initContainers:
         - name: wait-for-starrocks
           image: {{ $starrocks.mysqlImage | quote }}
