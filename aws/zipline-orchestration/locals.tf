@@ -641,11 +641,6 @@ locals {
           }
         }
         rbac = {
-          # Grant the runtime catalog role catalog-wide content management.
-          # Polaris expands this to namespace metadata/list privileges for
-          # every current and future namespace, so Data Explorer is not
-          # restricted to the bootstrap `default` namespace.
-          catalogGrants = ["CATALOG_MANAGE_CONTENT"]
           catalog = {
             defaultBaseLocation = local.polaris_base_location
             storage = {
