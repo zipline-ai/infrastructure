@@ -48,11 +48,12 @@ At minimum, each Terraform module should provide:
 
 The chart always deploys StarRocks for the Data Explorer at
 `starrocks-service:9030` and passes that endpoint to the web UI. Its
-`polaris_<realm>` external catalog is recreated after every install or upgrade
-using the runtime credential created by Polaris. The catalog uses the Iceberg
+`zipline_catalog` external catalog is recreated after every install or upgrade
+using the runtime credential created by Polaris. It connects to the
+`polaris_<realm>` Polaris warehouse. The catalog uses the Iceberg
 REST API, OAuth, and Polaris vended credentials, so it has no AWS-, Azure-, or
 GCP-specific storage configuration. Query tables with fully qualified names,
-for example `SELECT * FROM polaris_acme.default.some_table LIMIT 100`.
+for example `SELECT * FROM zipline_catalog.default.some_table LIMIT 100`.
 
 StarRocks stores only its own metadata and local cache in the `starrocks-data`
 PVC. Configure `starrocks.persistence.storageClass` and

@@ -7,7 +7,9 @@
 {{- if eq $realm "" }}
 {{- fail "global.customer_name or polaris.realm is required for the StarRocks Polaris catalog" }}
 {{- end }}
-{{- $catalogName := printf "polaris_%s" $realm }}
+{{- /* StarRocks catalog names are independent from Polaris warehouse names. */ -}}
+{{- $catalogName := "zipline_catalog" }}
+{{- $polarisCatalogName := printf "polaris_%s" $realm }}
 {{- $principalRole := default "chronon-engine" $runtimeClient.principalRole }}
 ---
 apiVersion: v1
@@ -224,7 +226,7 @@ spec:
                 "iceberg.catalog.security" = "oauth2",
                 "iceberg.catalog.oauth2.credential" = "${escaped_credential}",
                 "iceberg.catalog.oauth2.scope" = "PRINCIPAL_ROLE:{{ $principalRole }}",
-                "iceberg.catalog.warehouse" = "{{ $catalogName }}",
+                "iceberg.catalog.warehouse" = "{{ $polarisCatalogName }}",
                 "iceberg.catalog.vended-credentials-enabled" = "true",
                 "iceberg.catalog.header.X-Iceberg-Access-Delegation" = "vended-credentials"
               );
