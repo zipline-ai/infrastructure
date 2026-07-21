@@ -108,6 +108,87 @@ locals {
   }
   install = merge(local.install_defaults, try(local.orchestration.install, {}))
 
+  starrocks_input = try(local.orchestration.values.starrocks, {})
+  starrocks_defaults = {
+    chartVersion = "1.11.6"
+    clusterName  = "starrocks"
+    feImage = {
+      repository = "starrocks/fe-ubuntu"
+      tag        = "4.1-latest"
+    }
+    beImage = {
+      repository = "starrocks/be-ubuntu"
+      tag        = "4.1-latest"
+    }
+    mysqlImage = "mysql:8.0"
+    ports = {
+      mysql = 9030
+    }
+    persistence = {
+      storageClass = ""
+      feSize       = "10Gi"
+      feLogSize    = "5Gi"
+      beSize       = "100Gi"
+      beLogSize    = "5Gi"
+    }
+    feResources = {
+      requests = { cpu = "2", memory = "4Gi" }
+      limits   = { cpu = "4", memory = "8Gi" }
+    }
+    beResources = {
+      requests = { cpu = "4", memory = "16Gi" }
+      limits   = { cpu = "8", memory = "32Gi" }
+    }
+    nodeSelector = {}
+    tolerations  = []
+  }
+  starrocks = merge(local.starrocks_defaults, local.starrocks_input, {
+    feImage     = merge(local.starrocks_defaults.feImage, try(local.starrocks_input.feImage, {}))
+    beImage     = merge(local.starrocks_defaults.beImage, try(local.starrocks_input.beImage, {}))
+    ports       = merge(local.starrocks_defaults.ports, try(local.starrocks_input.ports, {}))
+    persistence = merge(local.starrocks_defaults.persistence, try(local.starrocks_input.persistence, {}))
+    feResources = merge(local.starrocks_defaults.feResources, try(local.starrocks_input.feResources, {}))
+    beResources = merge(local.starrocks_defaults.beResources, try(local.starrocks_input.beResources, {}))
+  })
+
+  starrocks_component_affinity = {
+    podAntiAffinity = {
+      requiredDuringSchedulingIgnoredDuringExecution = [
+        {
+          labelSelector = {
+            matchExpressions = [
+              {
+                key      = "app.kubernetes.io/component"
+                operator = "In"
+                values   = ["fe"]
+              },
+            ]
+          }
+          topologyKey = "kubernetes.io/hostname"
+        },
+      ]
+    }
+  }
+
+  starrocks_be_affinity = {
+    podAntiAffinity = {
+      requiredDuringSchedulingIgnoredDuringExecution = [
+        {
+          labelSelector = {
+            matchExpressions = [
+              {
+                key      = "app.kubernetes.io/component"
+                operator = "In"
+                values   = ["be"]
+              },
+            ]
+          }
+          topologyKey = "kubernetes.io/hostname"
+        },
+      ]
+    }
+  }
+
   image_pull_secret_defaults = {
     name               = "docker-hub-creds"
     create             = false
@@ -706,6 +787,78 @@ module "addons" {
   install_opentelemetry_operator    = local.addons.install_opentelemetry_operator
 }
 
+# The upstream chart installs both the StarRocksCluster CRD/operator and the
+# StarRocksCluster custom resource. Keeping it outside the application chart
+# makes the operator lifecycle explicit and lets all cloud wrappers share it.
+resource "helm_release" "starrocks" {
+  name       = local.starrocks.clusterName
+  repository = "https://starrocks.github.io/starrocks-kubernetes-operator"
+  chart      = "kube-starrocks"
+  version    = local.starrocks.chartVersion
+  namespace  = local.install.namespace
+
+  wait            = local.install.helm_wait
+  timeout         = local.install.helm_timeout
+  atomic          = local.install.atomic
+  cleanup_on_fail = local.install.cleanup_on_fail
+
+  values = [yamlencode({
+    operator = {
+      starrocksOperator = {
+        namespaceOverride = local.install.namespace
+        watchNamespace    = local.install.namespace
+        nodeSelector      = local.starrocks.nodeSelector
+        tolerations       = local.starrocks.tolerations
+      }
+    }
+    starrocks = {
+      nameOverride = local.starrocks.clusterName
+      starrocksCluster = {
+        name      = local.starrocks.clusterName
+        namespace = local.install.namespace
+        enabledBe = true
+        enabledCn = false
+        componentValues = {
+          nodeSelector = local.starrocks.nodeSelector
+          tolerations  = local.starrocks.tolerations
+        }
+      }
+      starrocksFESpec = {
+        replicas  = 3
+        image     = local.starrocks.feImage
+        resources = local.starrocks.feResources
+        affinity  = local.starrocks_component_affinity
+        storageSpec = {
+          name                = "fe"
+          storageClassName    = local.starrocks.persistence.storageClass
+          storageSize         = local.starrocks.persistence.feSize
+          logStorageClassName = local.starrocks.persistence.storageClass
+          logStorageSize      = local.starrocks.persistence.feLogSize
+        }
+      }
+      starrocksBeSpec = {
+        replicas  = 3
+        image     = local.starrocks.beImage
+        resources = local.starrocks.beResources
+        affinity  = local.starrocks_be_affinity
+        storageSpec = {
+          name                = "be"
+          storageClassName    = local.starrocks.persistence.storageClass
+          storageSize         = local.starrocks.persistence.beSize
+          logStorageClassName = local.starrocks.persistence.storageClass
+          logStorageSize      = local.starrocks.persistence.beLogSize
+        }
+      }
+    }
+  })]
+
+  depends_on = [
+    terraform_data.configuration_validation,
+    kubernetes_namespace_v1.this,
+    kubernetes_secret_v1.docker_hub_creds,
+  ]
+}
+
 resource "helm_release" "this" {
   name             = local.install.release_name
   chart            = local.chart_path
@@ -730,6 +883,7 @@ resource "helm_release" "this" {
     kubernetes_namespace_v1.this,
     kubernetes_secret_v1.docker_hub_creds,
     module.addons,
+    helm_release.starrocks,
   ]
 }
 

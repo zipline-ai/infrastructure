@@ -11,164 +11,12 @@
 {{- $catalogName := "zipline_catalog" }}
 {{- $polarisCatalogName := printf "polaris_%s" $realm }}
 {{- $principalRole := default "chronon-engine" $runtimeClient.principalRole }}
+{{- /* The official operator exposes the FE query service as <cluster>-fe-service. */ -}}
+{{- $feService := printf "%s-fe-service" $starrocks.clusterName }}
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: starrocks-config
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app: starrocks
-    {{- include "zipline-orchestration.labels" . | nindent 4 }}
-data:
-  fe.conf: |
-    LOG_DIR = ${STARROCKS_HOME}/log
-    DATE = "$(date +%Y%m%d-%H%M%S)"
-    JAVA_OPTS="-Dlog4j2.formatMsgNoLookups=true -Xmx4096m -XX:+UseG1GC -Xlog:gc*:${LOG_DIR}/fe.gc.log.$DATE:time"
-    http_port = {{ $starrocks.ports.feHttp }}
-    rpc_port = 9020
-    query_port = {{ $starrocks.ports.mysql }}
-    edit_log_port = 9010
-    mysql_service_nio_enabled = true
-    sys_log_level = INFO
-  be.conf: |
-    LOG_DIR = ${STARROCKS_HOME}/log
-    sys_log_level = INFO
-    be_port = 9060
-    webserver_port = {{ $starrocks.ports.beHttp }}
-    heartbeat_service_port = 9050
-    brpc_port = 8060
-    storage_root_path = ${STARROCKS_HOME}/storage
-    mem_limit = 70%
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: starrocks-data
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app: starrocks
-    {{- include "zipline-orchestration.labels" . | nindent 4 }}
-spec:
-  accessModes:
-    - ReadWriteOnce
-  {{- if $starrocks.persistence.storageClass }}
-  storageClassName: {{ $starrocks.persistence.storageClass | quote }}
-  {{- end }}
-  resources:
-    requests:
-      storage: {{ $starrocks.persistence.size }}
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: starrocks
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app: starrocks
-    {{- include "zipline-orchestration.labels" . | nindent 4 }}
-spec:
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app: starrocks
-  template:
-    metadata:
-      labels:
-        app: starrocks
-        {{- with .Values.podLabels }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
-    spec:
-      serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
-      # StarRocks is a public Docker Hub image. Do not inherit the optional
-      # Zipline image-pull Secret: Docker Hub rejects it for this repository.
-      {{- with $starrocks.nodeSelector }}
-      nodeSelector:
-      {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with $starrocks.tolerations }}
-      tolerations:
-      {{- toYaml . | nindent 8 }}
-      {{- end }}
-      containers:
-        - name: starrocks
-          image: {{ $starrocks.image | quote }}
-          imagePullPolicy: IfNotPresent
-          env:
-            - name: STARROCKS_HOME
-              value: /opt/starrocks
-          ports:
-            - name: mysql
-              containerPort: {{ $starrocks.ports.mysql }}
-            - name: fe-http
-              containerPort: {{ $starrocks.ports.feHttp }}
-            - name: be-http
-              containerPort: {{ $starrocks.ports.beHttp }}
-          volumeMounts:
-            - name: data
-              mountPath: /opt/starrocks/fe/meta
-              subPath: fe-meta
-            - name: data
-              mountPath: /opt/starrocks/be/storage
-              subPath: be-storage
-            - name: config
-              mountPath: /opt/starrocks/fe/conf/fe.conf
-              subPath: fe.conf
-            - name: config
-              mountPath: /opt/starrocks/be/conf/be.conf
-              subPath: be.conf
-          resources:
-            {{- toYaml $starrocks.resources | nindent 12 }}
-          startupProbe:
-            tcpSocket:
-              port: mysql
-            initialDelaySeconds: 5
-            periodSeconds: 5
-            failureThreshold: 60
-          readinessProbe:
-            tcpSocket:
-              port: mysql
-            periodSeconds: 5
-          livenessProbe:
-            tcpSocket:
-              port: mysql
-            periodSeconds: 20
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: starrocks-data
-        - name: config
-          configMap:
-            name: starrocks-config
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: starrocks-service
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app: starrocks
-    {{- include "zipline-orchestration.labels" . | nindent 4 }}
-spec:
-  type: ClusterIP
-  selector:
-    app: starrocks
-  ports:
-    - name: mysql
-      port: {{ $starrocks.ports.mysql }}
-      targetPort: mysql
-    - name: fe-http
-      port: {{ $starrocks.ports.feHttp }}
-      targetPort: fe-http
-    - name: be-http
-      port: {{ $starrocks.ports.beHttp }}
-      targetPort: be-http
----
-# Polaris creates the runtime credential in a post-install/post-upgrade hook.
-# Run after it so StarRocks always receives the current credential.
+# The StarRocksCluster and its FE/BE services are installed by the official
+# starrocks-kubernetes-operator Helm release in the Terraform module. Keep the
+# Polaris catalog bootstrap in this chart, after that release becomes ready.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -200,7 +48,7 @@ spec:
           args:
             - |
               for attempt in $(seq 1 120); do
-                if mysql -h starrocks-service -P {{ $starrocks.ports.mysql }} -u root -e 'SELECT 1' >/dev/null 2>&1; then
+                if mysql -h {{ $feService }} -P {{ $starrocks.ports.mysql }} -u root -e 'SELECT 1' >/dev/null 2>&1; then
                   exit 0
                 fi
                 sleep 3
@@ -215,7 +63,7 @@ spec:
             - |
               credential="$(cat /catalog-credential/{{ $credentialSecretKey }})"
               escaped_credential="$(printf '%s' "$credential" | sed 's/\\/\\\\/g; s/"/\\"/g')"
-              cat <<SQL | mysql -h starrocks-service -P {{ $starrocks.ports.mysql }} -u root
+              cat <<SQL | mysql -h {{ $feService }} -P {{ $starrocks.ports.mysql }} -u root
               DROP CATALOG IF EXISTS {{ $polarisCatalogName }};
               DROP CATALOG IF EXISTS {{ $catalogName }};
               CREATE EXTERNAL CATALOG {{ $catalogName }}
@@ -232,7 +80,7 @@ spec:
                 "iceberg.catalog.header.X-Iceberg-Access-Delegation" = "vended-credentials"
               );
               SQL
-              mysql -h starrocks-service -P {{ $starrocks.ports.mysql }} -u root -e 'SHOW CATALOGS;'
+              mysql -h {{ $feService }} -P {{ $starrocks.ports.mysql }} -u root -e 'SHOW CATALOGS;'
           volumeMounts:
             - name: catalog-credential
               mountPath: /catalog-credential

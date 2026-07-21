@@ -260,24 +260,39 @@ polaris:
 # Polaris vends the storage credentials, keeping this configuration independent
 # of the cloud object-store provider.
 starrocks:
-  # Pin the latest stable release rather than a moving `latest` tag so the
-  # deployed engine is reproducible and upgrades remain intentional.
-  image: "starrocks/allin1-ubuntu:4.1.3"
+  # Installed through the official StarRocks Kubernetes Operator Helm chart.
+  # The chart version pins the operator and default StarRocks 4.1 image.
+  chartVersion: "1.11.6"
+  clusterName: "starrocks"
+  feImage:
+    repository: "starrocks/fe-ubuntu"
+    tag: "4.1-latest"
+  beImage:
+    repository: "starrocks/be-ubuntu"
+    tag: "4.1-latest"
   mysqlImage: "mysql:8.0"
   ports:
     mysql: 9030
-    feHttp: 8030
-    beHttp: 8040
   persistence:
     storageClass: ""
-    size: 20Gi
-  resources:
+    feSize: 10Gi
+    feLogSize: 5Gi
+    beSize: 100Gi
+    beLogSize: 5Gi
+  feResources:
     requests:
-      cpu: "1"
-      memory: "2Gi"
-    limits:
       cpu: "2"
       memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+  beResources:
+    requests:
+      cpu: "4"
+      memory: "16Gi"
+    limits:
+      cpu: "8"
+      memory: "32Gi"
   nodeSelector: {}
   tolerations: []
 
