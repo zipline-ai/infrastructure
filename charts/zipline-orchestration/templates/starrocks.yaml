@@ -216,6 +216,7 @@ spec:
               credential="$(cat /catalog-credential/{{ $credentialSecretKey }})"
               escaped_credential="$(printf '%s' "$credential" | sed 's/\\/\\\\/g; s/"/\\"/g')"
               cat <<SQL | mysql -h starrocks-service -P {{ $starrocks.ports.mysql }} -u root
+              DROP CATALOG IF EXISTS {{ $polarisCatalogName }};
               DROP CATALOG IF EXISTS {{ $catalogName }};
               CREATE EXTERNAL CATALOG {{ $catalogName }}
               PROPERTIES (
