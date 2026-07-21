@@ -616,6 +616,17 @@ locals {
   }
 
   provider_values = {
+    # StarRocks persists only FE metadata and its local cache. Pin its PVC to
+    # the CSI-backed class that this wrapper provisions instead of relying on
+    # the EKS cluster's legacy/default StorageClass.
+    starrocks = {
+      persistence = {
+        storageClass = kubernetes_storage_class_v1.gp3.metadata[0].name
+      }
+      nodeSelector = local.system_node_selector
+      tolerations  = local.system_node_tolerations
+    }
+
     polaris = {
       nodeSelector = local.system_node_selector
       tolerations  = local.system_node_tolerations

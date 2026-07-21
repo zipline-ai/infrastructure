@@ -255,6 +255,30 @@ polaris:
       cpu: "2"
       memory: "4Gi"
 
+# StarRocks is the query engine behind the Data Explorer. It is always
+# deployed and is initialized against the Polaris Iceberg REST catalog below.
+# Polaris vends the storage credentials, keeping this configuration independent
+# of the cloud object-store provider.
+starrocks:
+  image: "starrocks/allin1-ubuntu:3.5.12"
+  mysqlImage: "mysql:8.0"
+  ports:
+    mysql: 9030
+    feHttp: 8030
+    beHttp: 8040
+  persistence:
+    storageClass: ""
+    size: 20Gi
+  resources:
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  nodeSelector: {}
+  tolerations: []
+
 # Service account configuration. Cloud identity should be supplied as
 # annotations and pod labels by the cloud-specific Terraform values.
 serviceAccount:

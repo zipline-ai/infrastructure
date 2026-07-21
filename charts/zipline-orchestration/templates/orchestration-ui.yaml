@@ -73,6 +73,10 @@ spec:
               value: "{{ .Values.prometheus.queryEndpoint }}"
             - name: PROMETHEUS_NAMESPACE
               value: "{{ .Values.prometheus.namespace }}"
+            - name: STARROCKS_HOST
+              value: "starrocks-service:{{ .Values.starrocks.ports.mysql }}"
+            - name: DATA_EXPLORER
+              value: "true"
             - name: AUTH_ENABLED
               value: "{{ .Values.auth.enabled }}"
             {{- if .Values.auth.enabled }}
