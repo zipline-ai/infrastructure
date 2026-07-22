@@ -8,6 +8,8 @@ The chart renders:
 - Ingress controllers and ingress resources for the public service endpoints
 - Spark operator, Spark driver RBAC, Spark History Server, Loki, and Promtail
 - Polaris catalog bootstrap and RBAC reconciliation
+- StarRocks Data Explorer, initialized against the in-cluster Polaris Iceberg
+  REST catalog
 - Compute namespaces, quotas, priority classes, image prepull, and warm pool
 
 ## Cloud Boundary
@@ -41,6 +43,28 @@ At minimum, each Terraform module should provide:
 - `secrets.externalSecrets.secretStore` and `secrets.externalSecrets.targets` when the chart should create runtime Kubernetes Secrets
 
 `compute.objectStore.bucket` is the bucket or container name only. Do not pass an object-store URI there; pass full provider-native paths only to values that expect paths, such as Spark event logs or Polaris base locations.
+
+## Data Explorer
+
+The chart always deploys StarRocks for the Data Explorer at
+`starrocks-service:9030` and passes that endpoint to the web UI. Its
+`zipline_catalog` external catalog is recreated after every install or upgrade
+using the runtime credential created by Polaris. It connects to the
+`polaris_<realm>` Polaris warehouse. The catalog uses the Iceberg
+REST API, OAuth, and Polaris vended credentials, so it has no AWS-, Azure-, or
+GCP-specific storage configuration. Query tables with fully qualified names,
+for example `SELECT * FROM zipline_catalog.default.some_table LIMIT 100`.
+
+StarRocks stores only its own metadata and local cache in the `starrocks-data`
+PVC. Configure `starrocks.persistence.storageClass` and
+`starrocks.persistence.size` when the cluster's default StorageClass is not
+appropriate.
+
+The Polaris runtime catalog role is granted `CATALOG_MANAGE_CONTENT`. This is
+catalog-wide in Polaris: Data Explorer can discover namespaces and metadata
+across the catalog, including namespaces created after bootstrap. Cloud
+Terraform wrappers should pass this grant explicitly when they construct
+provider values.
 
 ## Validation
 
