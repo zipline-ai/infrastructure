@@ -114,11 +114,11 @@ locals {
     clusterName  = "starrocks"
     feImage = {
       repository = "starrocks/fe-ubuntu"
-      tag        = "4.1-latest"
+      tag        = "4.1.3"
     }
     beImage = {
       repository = "starrocks/be-ubuntu"
-      tag        = "4.1-latest"
+      tag        = "4.1.3"
     }
     mysqlImage = "mysql:8.0"
     ports = {
