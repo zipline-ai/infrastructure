@@ -55,10 +55,11 @@ REST API, OAuth, and Polaris vended credentials, so it has no AWS-, Azure-, or
 GCP-specific storage configuration. Query tables with fully qualified names,
 for example `SELECT * FROM zipline_catalog.default.some_table LIMIT 100`.
 
-StarRocks stores only its own metadata and local cache in the `starrocks-data`
-PVC. Configure `starrocks.persistence.storageClass` and
-`starrocks.persistence.size` when the cluster's default StorageClass is not
-appropriate.
+StarRocks runs in shared-data mode: durable data is stored in the cloud object
+store and CN Pods retain only a local cache. The CN pool is controlled by an HPA
+with one to three replicas and 80% CPU/memory utilization targets. Configure
+`starrocks.persistence.storageClass` and the FE/CN cache sizes when the
+cluster's default StorageClass is not appropriate.
 
 The Polaris runtime catalog role is granted `CATALOG_MANAGE_CONTENT`. This is
 catalog-wide in Polaris: Data Explorer can discover namespaces and metadata

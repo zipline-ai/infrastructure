@@ -267,8 +267,8 @@ starrocks:
   feImage:
     repository: "starrocks/fe-ubuntu"
     tag: "4.1.3"
-  beImage:
-    repository: "starrocks/be-ubuntu"
+  cnImage:
+    repository: "starrocks/cn-ubuntu"
     tag: "4.1.3"
   mysqlImage: "mysql:8.0"
   ports:
@@ -277,8 +277,8 @@ starrocks:
     storageClass: ""
     feSize: 10Gi
     feLogSize: 5Gi
-    beSize: 100Gi
-    beLogSize: 5Gi
+    cnSize: 100Gi
+    cnLogSize: 5Gi
   feResources:
     requests:
       cpu: "2"
@@ -286,13 +286,35 @@ starrocks:
     limits:
       cpu: "4"
       memory: "8Gi"
-  beResources:
+  cnResources:
     requests:
       cpu: "4"
       memory: "16Gi"
     limits:
       cpu: "8"
       memory: "32Gi"
+  # Cloud wrappers provide this configuration because the storage provider and
+  # workload identity differ by cloud. It must enable `run_mode=shared_data`.
+  feConfig: {}
+  serviceAccount: ""
+  podLabels: {}
+  cnAutoscaling:
+    minReplicas: 1
+    maxReplicas: 3
+    hpaPolicy:
+      metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 80
+        - type: Resource
+          resource:
+            name: memory
+            target:
+              type: Utilization
+              averageUtilization: 80
   nodeSelector: {}
   tolerations: []
 
