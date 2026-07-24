@@ -27,6 +27,11 @@ resource "azurerm_kubernetes_cluster" "main" {
     type = "SystemAssigned"
   }
 
+  monitor_metrics {
+    annotations_allowed = local.cloud_args.monitor_metrics_annotations_allowed
+    labels_allowed      = local.cloud_args.monitor_metrics_labels_allowed
+  }
+
   default_node_pool {
     name                 = local.default_node_pool.name
     vm_size              = local.default_node_pool.vm_size

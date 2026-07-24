@@ -8,6 +8,7 @@ Azure-specific work stays at this layer:
 - Azure workload identity annotations and pod labels.
 - Azure Key Vault objects projected through the generic chart `secrets` values.
 - Static IP and resource-group settings for ingress-nginx controller Services.
+- Azure Monitor managed Prometheus workspace and AKS metrics collection.
 - Artifact, warehouse, and logs storage containers in the configured Azure
   storage account.
 - ABFS event log and Polaris catalog paths supplied as runtime values.
@@ -25,6 +26,13 @@ sources.
 The shared module owns common service value generation such as image propagation,
 compute defaults, and Polaris bootstrap defaults. Use `orchestration.extra_values`
 only for intentional one-off Helm overrides, such as a private registry mirror.
+
+Prometheus metrics are wired the same way as the AWS wrapper at the chart
+boundary. The Azure wrapper creates an Azure Monitor workspace, enables the AKS
+managed Prometheus add-on, associates the workspace default collection endpoint
+and rule with the AKS cluster, grants the Zipline workload identity Monitoring
+Reader on the workspace, annotates Hub pods for scraping, and passes the
+workspace PromQL query endpoint to the UI with `METRICS_PROVIDER=azure`.
 
 Networking intentionally matches AWS at the chart boundary: cloud load balancers
 pass traffic to ingress-nginx, and Kubernetes Ingress TLS secrets own TLS
@@ -116,7 +124,7 @@ Supported shared fields:
 | `orchestration.addons.install_cert_manager` | Install cert-manager. |
 | `orchestration.addons.install_flink_operator` | Install Flink operator. |
 | `orchestration.addons.install_opentelemetry_operator` | Install OpenTelemetry operator. |
-| `orchestration.prometheus.query_endpoint` | Prometheus query endpoint. |
+| `orchestration.prometheus.query_endpoint` | Prometheus query endpoint. Normally supplied by the Azure wrapper from the managed Azure Monitor workspace. |
 | `orchestration.secrets.secret_store` | External Secrets Operator SecretStore settings. |
 | `orchestration.secrets.database_remote_refs.username` | ESO remoteRef for DB username. |
 | `orchestration.secrets.database_remote_refs.password` | ESO remoteRef for DB password. |
@@ -160,6 +168,10 @@ Supported Azure-specific fields:
 | `azure.storage_path_prefix` | Optional path prefix inside the warehouse container. |
 | `azure.ingress_load_balancer_ip` | Static ingress load balancer IP. |
 | `azure.load_balancer_resource_group` | Resource group for the ingress load balancer IP. |
+| `azure.monitor_workspace_name` | Azure Monitor workspace name. Defaults to `<customer_name>-prometheus`. |
+| `azure.monitor_workspace_public_network_access` | Whether the Azure Monitor workspace query endpoint is publicly reachable. Defaults to `true`. |
+| `azure.monitor_metrics_annotations_allowed` | Optional AKS managed Prometheus annotation allow-list. |
+| `azure.monitor_metrics_labels_allowed` | Optional AKS managed Prometheus label allow-list. |
 
 The Azure wrapper creates the customer-owned artifact, warehouse, and logs
 containers. Container names are supplied through
