@@ -1,7 +1,7 @@
 locals {
   default_node_pool = merge({
     name                 = "nodepool1"
-    vm_size              = "Standard_D4s_v3"
+    vm_size              = "Standard_D8s_v5"
     node_count           = 3
     min_count            = 1
     max_count            = 10
