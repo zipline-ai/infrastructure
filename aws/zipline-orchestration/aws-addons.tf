@@ -244,6 +244,23 @@ EOT
   ]
 }
 
+resource "helm_release" "metrics_server" {
+  name       = "metrics-server"
+  repository = "https://kubernetes-sigs.github.io/metrics-server/"
+  chart      = "metrics-server"
+  namespace  = "kube-system"
+  version    = "3.13.1"
+
+  values = [yamlencode({
+    args = [
+      "--kubelet-preferred-address-types=InternalIP,Hostname,InternalDNS,ExternalDNS,ExternalIP",
+      "--kubelet-insecure-tls",
+    ]
+  })]
+
+  depends_on = [aws_eks_node_group.default]
+}
+
 data "aws_iam_policy_document" "ebs_csi_assume_role" {
   statement {
     effect = "Allow"
