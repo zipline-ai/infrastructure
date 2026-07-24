@@ -635,7 +635,7 @@ locals {
       feConfig = {
         run_mode                            = "shared_data"
         cloud_native_storage_type           = "S3"
-        aws_s3_path                         = "${local.cloud_args.warehouse_bucket}/starrocks"
+        aws_s3_path                         = "${local.cloud_args.warehouse_bucket}/dataexplorer"
         aws_s3_region                       = local.cloud_args.region
         aws_s3_use_aws_sdk_default_behavior = true
         aws_s3_use_instance_profile         = true
