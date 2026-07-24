@@ -211,7 +211,7 @@ locals {
       feConfig = {
         run_mode                                = "shared_data"
         cloud_native_storage_type               = "ADLS2"
-        azure_adls2_path                        = "${local.cloud_args.warehouse_container_name}/starrocks/${local.deployment.customer_name}"
+        azure_adls2_path                        = "${local.cloud_args.warehouse_container_name}/dataexplorer"
         azure_adls2_endpoint                    = "https://${local.cloud_args.storage_account_name}.dfs.core.windows.net"
         azure_adls2_oauth2_use_managed_identity = true
         azure_adls2_oauth2_client_id            = local.workload_identity_client_id
