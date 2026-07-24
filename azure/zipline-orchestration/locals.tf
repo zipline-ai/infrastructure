@@ -103,6 +103,9 @@ locals {
       query_endpoint = azurerm_monitor_workspace.prometheus.query_endpoint
     }
     metrics_provider = "azure"
+    addons = {
+      install_metrics_server = try(var.orchestration.addons.install_metrics_server, false)
+    }
     compute = {
       object_store = {
         bucket = local.cloud_args.warehouse_container_name

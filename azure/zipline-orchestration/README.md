@@ -322,6 +322,7 @@ The shared module installs common Kubernetes addons by default.
 | `orchestration.addons.install_cert_manager` | `true` | cert-manager is installed elsewhere or not needed. |
 | `orchestration.addons.install_flink_operator` | `true` | Flink operator is installed elsewhere or not needed. |
 | `orchestration.addons.install_opentelemetry_operator` | `false` | OpenTelemetry operator should be installed. |
+| `orchestration.addons.install_metrics_server` | `false` | Metrics Server is not already installed in the cluster and should be managed by this wrapper. |
 | `orchestration.addons.external_secrets_operator_values` | `{}` | The External Secrets Operator Helm release needs custom values. |
 | `orchestration.addons.cert_manager_values` | `{}` | The cert-manager Helm release needs custom values. |
 
