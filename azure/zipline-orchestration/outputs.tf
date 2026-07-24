@@ -57,3 +57,13 @@ output "workload_identity_client_id" {
   description = "Azure workload identity client ID used by orchestration pods."
   value       = local.workload_identity_client_id
 }
+
+output "monitor_workspace_id" {
+  description = "Azure Monitor workspace used for managed Prometheus metrics."
+  value       = azurerm_monitor_workspace.prometheus.id
+}
+
+output "prometheus_query_endpoint" {
+  description = "PromQL query endpoint passed to the Zipline UI."
+  value       = azurerm_monitor_workspace.prometheus.query_endpoint
+}

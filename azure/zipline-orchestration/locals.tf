@@ -40,6 +40,10 @@ locals {
     storage_path_prefix                     = ""
     ingress_load_balancer_ip                = ""
     load_balancer_resource_group            = ""
+    monitor_workspace_name                  = ""
+    monitor_workspace_public_network_access = true
+    monitor_metrics_annotations_allowed     = null
+    monitor_metrics_labels_allowed          = null
   }, var.azure)
 
   deployment                       = var.orchestration.deployment
@@ -58,6 +62,7 @@ locals {
   tenant_id                        = local.cloud_args.tenant_id != "" ? local.cloud_args.tenant_id : data.azurerm_client_config.current.tenant_id
   workload_identity_client_id      = local.cloud_args.workload_identity_client_id != "" ? local.cloud_args.workload_identity_client_id : azurerm_user_assigned_identity.workload.client_id
   load_balancer_resource_group     = local.cloud_args.load_balancer_resource_group != "" ? local.cloud_args.load_balancer_resource_group : azurerm_kubernetes_cluster.main.node_resource_group
+  monitor_workspace_name           = local.cloud_args.monitor_workspace_name != "" ? local.cloud_args.monitor_workspace_name : "${local.name_prefix}-prometheus"
 
   auth_saml_enabled = try(var.orchestration.auth.sso_use_saml, false)
   auth_secret_keys = concat(
@@ -85,9 +90,21 @@ locals {
     hub = {
       image          = local.hub_image
       verticle_class = local.hub_verticle_class
+      pod_annotations = merge(
+        local.hub_prometheus_pod_annotations,
+        try(var.orchestration.hub.podAnnotations, {}),
+        try(var.orchestration.hub.pod_annotations, {}),
+      )
     }
     eval = {
       image = local.eval_image
+    }
+    prometheus = {
+      query_endpoint = azurerm_monitor_workspace.prometheus.query_endpoint
+    }
+    metrics_provider = "azure"
+    addons = {
+      install_metrics_server = try(var.orchestration.addons.install_metrics_server, false)
     }
     compute = {
       object_store = {
@@ -157,10 +174,17 @@ locals {
   hub_image                   = "ziplineai/hub-azure"
   eval_image                  = "ziplineai/eval-azure"
   hub_verticle_class          = "ai.chronon.hub.AzureOrchestrationVerticle,ai.chronon.hub.AzureWorkflowExecutionVerticle"
-  auth_enabled                = try(var.orchestration.auth.enabled, false)
-  artifact_prefix_location    = trimprefix(trimprefix(trimspace(local.deployment.artifact_prefix), "abfss://"), "wasbs://")
-  artifact_container_name     = split("@", local.artifact_prefix_location)[0]
-  logs_container_name         = local.cloud_args.logs_container_name != "" ? local.cloud_args.logs_container_name : "zipline-logs-${local.deployment.customer_name}"
+  hub_metrics_reader          = try(var.orchestration.hub.chronon_metrics_reader, try(var.orchestration.hub.metricsReader, "prometheus"))
+  hub_metrics_port            = try(var.orchestration.hub.metrics_port, try(var.orchestration.hub.metricsPort, 8905))
+  hub_prometheus_pod_annotations = local.hub_metrics_reader == "prometheus" ? {
+    "prometheus.io/scrape" = "true"
+    "prometheus.io/port"   = tostring(local.hub_metrics_port)
+    "prometheus.io/path"   = "/metrics"
+  } : {}
+  auth_enabled             = try(var.orchestration.auth.enabled, false)
+  artifact_prefix_location = trimprefix(trimprefix(trimspace(local.deployment.artifact_prefix), "abfss://"), "wasbs://")
+  artifact_container_name  = split("@", local.artifact_prefix_location)[0]
+  logs_container_name      = local.cloud_args.logs_container_name != "" ? local.cloud_args.logs_container_name : "zipline-logs-${local.deployment.customer_name}"
 
   storage_container_names = toset(distinct(compact([
     local.artifact_container_name,

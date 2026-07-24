@@ -1,7 +1,7 @@
 locals {
   default_node_pool = merge({
     name                 = "nodepool1"
-    vm_size              = "Standard_D4s_v3"
+    vm_size              = "Standard_D8s_v5"
     node_count           = 3
     min_count            = 1
     max_count            = 10
@@ -27,6 +27,11 @@ resource "azurerm_kubernetes_cluster" "main" {
     type = "SystemAssigned"
   }
 
+  monitor_metrics {
+    annotations_allowed = local.cloud_args.monitor_metrics_annotations_allowed
+    labels_allowed      = local.cloud_args.monitor_metrics_labels_allowed
+  }
+
   default_node_pool {
     name                 = local.default_node_pool.name
     vm_size              = local.default_node_pool.vm_size
@@ -39,6 +44,7 @@ resource "azurerm_kubernetes_cluster" "main" {
     os_disk_type         = local.default_node_pool.os_disk_type
     os_sku               = local.default_node_pool.os_sku
     orchestrator_version = local.cloud_args.kubernetes_version
+    temporary_name_for_rotation = "${local.default_node_pool.name}tmp"
   }
 
   network_profile {
