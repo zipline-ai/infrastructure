@@ -625,15 +625,25 @@ locals {
   }
 
   provider_values = {
-    # StarRocks persists only FE metadata and its local cache. Pin its PVC to
-    # the CSI-backed class that this wrapper provisions instead of relying on
-    # the EKS cluster's legacy/default StorageClass.
+    # Shared-data StarRocks stores durable data in S3; FE and CN PVCs hold only
+    # FE metadata and CN cache. Its Pods use the orchestration IRSA role, which
+    # already has read/write access to the warehouse bucket.
     starrocks = {
       persistence = {
         storageClass = kubernetes_storage_class_v1.gp3.metadata[0].name
       }
-      nodeSelector = local.system_node_selector
-      tolerations  = local.system_node_tolerations
+      feConfig = {
+        run_mode                            = "shared_data"
+        cloud_native_storage_type           = "S3"
+        aws_s3_path                         = "${local.cloud_args.warehouse_bucket}/starrocks/${local.deployment.customer_name}"
+        aws_s3_region                       = local.cloud_args.region
+        aws_s3_use_aws_sdk_default_behavior = true
+        aws_s3_use_instance_profile         = true
+        enable_load_volume_from_conf        = true
+      }
+      serviceAccount = local.orchestration_service_account
+      nodeSelector   = local.system_node_selector
+      tolerations    = local.system_node_tolerations
     }
 
     polaris = {

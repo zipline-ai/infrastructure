@@ -207,6 +207,23 @@ locals {
       "azure.workload.identity/use" = "true"
     }
 
+    starrocks = {
+      feConfig = {
+        run_mode                                = "shared_data"
+        cloud_native_storage_type               = "ADLS2"
+        azure_adls2_path                        = "${local.cloud_args.warehouse_container_name}/starrocks/${local.deployment.customer_name}"
+        azure_adls2_endpoint                    = "https://${local.cloud_args.storage_account_name}.dfs.core.windows.net"
+        azure_adls2_oauth2_use_managed_identity = true
+        azure_adls2_oauth2_client_id            = local.workload_identity_client_id
+        azure_adls2_oauth2_tenant_id            = local.tenant_id
+        enable_load_volume_from_conf            = true
+      }
+      serviceAccount = local.orchestration_service_account
+      podLabels = {
+        "azure.workload.identity/use" = "true"
+      }
+    }
+
     polaris = {
       extraEnv = [
         { name = "AZURE_REGION", value = local.cloud_args.location },
