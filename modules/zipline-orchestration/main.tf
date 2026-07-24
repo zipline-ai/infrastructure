@@ -116,8 +116,8 @@ locals {
       repository = "starrocks/fe-ubuntu"
       tag        = "4.1.3"
     }
-    beImage = {
-      repository = "starrocks/be-ubuntu"
+    cnImage = {
+      repository = "starrocks/cn-ubuntu"
       tag        = "4.1.3"
     }
     mysqlImage = "mysql:8.0"
@@ -128,27 +128,71 @@ locals {
       storageClass = ""
       feSize       = "10Gi"
       feLogSize    = "5Gi"
-      beSize       = "100Gi"
-      beLogSize    = "5Gi"
+      cnSize       = "100Gi"
+      cnLogSize    = "5Gi"
     }
     feResources = {
       requests = { cpu = "2", memory = "4Gi" }
       limits   = { cpu = "4", memory = "8Gi" }
     }
-    beResources = {
+    cnResources = {
       requests = { cpu = "4", memory = "16Gi" }
       limits   = { cpu = "8", memory = "32Gi" }
     }
-    nodeSelector = {}
-    tolerations  = []
+    cnAutoscaling = {
+      minReplicas = 1
+      maxReplicas = 3
+      hpaPolicy = {
+        metrics = [
+          {
+            type = "Resource"
+            resource = {
+              name = "cpu"
+              target = {
+                type               = "Utilization"
+                averageUtilization = 80
+              }
+            }
+          },
+          {
+            type = "Resource"
+            resource = {
+              name = "memory"
+              target = {
+                type               = "Utilization"
+                averageUtilization = 80
+              }
+            }
+          },
+        ]
+        behavior = {
+          scaleUp = {
+            stabilizationWindowSeconds = 60
+            policies                   = [{ type = "Pods", value = 1, periodSeconds = 60 }]
+          }
+          scaleDown = {
+            stabilizationWindowSeconds = 300
+            policies                   = [{ type = "Pods", value = 1, periodSeconds = 60 }]
+          }
+        }
+      }
+    }
+    feConfig       = {}
+    serviceAccount = ""
+    podLabels      = {}
+    nodeSelector   = {}
+    tolerations    = []
   }
   starrocks = merge(local.starrocks_defaults, local.starrocks_input, {
-    feImage     = merge(local.starrocks_defaults.feImage, try(local.starrocks_input.feImage, {}))
-    beImage     = merge(local.starrocks_defaults.beImage, try(local.starrocks_input.beImage, {}))
-    ports       = merge(local.starrocks_defaults.ports, try(local.starrocks_input.ports, {}))
-    persistence = merge(local.starrocks_defaults.persistence, try(local.starrocks_input.persistence, {}))
-    feResources = merge(local.starrocks_defaults.feResources, try(local.starrocks_input.feResources, {}))
-    beResources = merge(local.starrocks_defaults.beResources, try(local.starrocks_input.beResources, {}))
+    feImage       = merge(local.starrocks_defaults.feImage, try(local.starrocks_input.feImage, {}))
+    cnImage       = merge(local.starrocks_defaults.cnImage, try(local.starrocks_input.cnImage, {}))
+    ports         = merge(local.starrocks_defaults.ports, try(local.starrocks_input.ports, {}))
+    persistence   = merge(local.starrocks_defaults.persistence, try(local.starrocks_input.persistence, {}))
+    feResources   = merge(local.starrocks_defaults.feResources, try(local.starrocks_input.feResources, {}))
+    cnResources   = merge(local.starrocks_defaults.cnResources, try(local.starrocks_input.cnResources, {}))
+    cnAutoscaling = merge(local.starrocks_defaults.cnAutoscaling, try(local.starrocks_input.cnAutoscaling, {}))
+    feConfig      = merge(local.starrocks_defaults.feConfig, try(local.starrocks_input.feConfig, {}))
+    podLabels     = merge(local.starrocks_defaults.podLabels, try(local.starrocks_input.podLabels, {}))
   })
 
   starrocks_component_affinity = {
@@ -170,7 +214,7 @@ locals {
     }
   }
 
-  starrocks_be_affinity = {
+  starrocks_cn_affinity = {
     podAntiAffinity = {
       requiredDuringSchedulingIgnoredDuringExecution = [
         {
@@ -179,7 +223,7 @@ locals {
               {
                 key      = "app.kubernetes.io/component"
                 operator = "In"
-                values   = ["be"]
+                values   = ["cn"]
               },
             ]
           }
@@ -207,6 +251,7 @@ locals {
     install_cert_manager              = true
     install_flink_operator            = true
     install_opentelemetry_operator    = false
+    install_metrics_server            = true
     external_secrets_operator_values  = {}
     cert_manager_values               = {}
   }
@@ -725,6 +770,11 @@ resource "terraform_data" "configuration_validation" {
     }
 
     precondition {
+      condition     = length(local.starrocks.feConfig) > 0
+      error_message = "orchestration.values.starrocks.feConfig must configure cloud-native storage for the shared-data StarRocks cluster."
+    }
+
+    precondition {
       condition     = !local.secrets.external_secrets_enabled || local.database_remote_refs_configured
       error_message = "orchestration.secrets.database_remote_refs.username.key and password.key must be set when External Secrets are enabled."
     }
@@ -785,6 +835,7 @@ module "addons" {
   cert_manager_values               = local.addons.cert_manager_values
   install_flink_operator            = local.addons.install_flink_operator
   install_opentelemetry_operator    = local.addons.install_opentelemetry_operator
+  install_metrics_server            = local.addons.install_metrics_server
 }
 
 # The upstream chart installs both the StarRocksCluster CRD/operator and the
@@ -816,18 +867,21 @@ resource "helm_release" "starrocks" {
       starrocksCluster = {
         name      = local.starrocks.clusterName
         namespace = local.install.namespace
-        enabledBe = true
-        enabledCn = false
+        enabledBe = false
+        enabledCn = true
         componentValues = {
-          nodeSelector = local.starrocks.nodeSelector
-          tolerations  = local.starrocks.tolerations
+          nodeSelector   = local.starrocks.nodeSelector
+          tolerations    = local.starrocks.tolerations
+          serviceAccount = local.starrocks.serviceAccount
+          podLabels      = local.starrocks.podLabels
         }
       }
       starrocksFESpec = {
-        replicas  = 3
-        image     = local.starrocks.feImage
-        resources = local.starrocks.feResources
-        affinity  = local.starrocks_component_affinity
+        replicas   = 3
+        image      = local.starrocks.feImage
+        resources  = local.starrocks.feResources
+        affinity   = local.starrocks_component_affinity
+        configyaml = local.starrocks.feConfig
         storageSpec = {
           name                = "fe"
           storageClassName    = local.starrocks.persistence.storageClass
@@ -836,17 +890,17 @@ resource "helm_release" "starrocks" {
           logStorageSize      = local.starrocks.persistence.feLogSize
         }
       }
-      starrocksBeSpec = {
-        replicas  = 3
-        image     = local.starrocks.beImage
-        resources = local.starrocks.beResources
-        affinity  = local.starrocks_be_affinity
+      starrocksCnSpec = {
+        image             = local.starrocks.cnImage
+        resources         = local.starrocks.cnResources
+        affinity          = local.starrocks_cn_affinity
+        autoScalingPolicy = local.starrocks.cnAutoscaling
         storageSpec = {
-          name                = "be"
+          name                = "cn"
           storageClassName    = local.starrocks.persistence.storageClass
-          storageSize         = local.starrocks.persistence.beSize
+          storageSize         = local.starrocks.persistence.cnSize
           logStorageClassName = local.starrocks.persistence.storageClass
-          logStorageSize      = local.starrocks.persistence.beLogSize
+          logStorageSize      = local.starrocks.persistence.cnLogSize
         }
       }
     }
