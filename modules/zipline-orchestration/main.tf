@@ -251,6 +251,7 @@ locals {
     install_cert_manager              = true
     install_flink_operator            = true
     install_opentelemetry_operator    = false
+    install_metrics_server            = true
     external_secrets_operator_values  = {}
     cert_manager_values               = {}
   }
@@ -834,6 +835,7 @@ module "addons" {
   cert_manager_values               = local.addons.cert_manager_values
   install_flink_operator            = local.addons.install_flink_operator
   install_opentelemetry_operator    = local.addons.install_opentelemetry_operator
+  install_metrics_server            = local.addons.install_metrics_server
 }
 
 # The upstream chart installs both the StarRocksCluster CRD/operator and the

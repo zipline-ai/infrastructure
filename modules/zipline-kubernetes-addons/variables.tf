@@ -69,3 +69,26 @@ variable "flink_operator_values" {
   type        = any
   default     = {}
 }
+
+variable "install_metrics_server" {
+  description = "Install Metrics Server for Kubernetes resource metrics and HPA."
+  type        = bool
+  default     = true
+}
+
+variable "metrics_server_version" {
+  description = "Metrics Server chart version."
+  type        = string
+  default     = "3.13.1"
+}
+
+variable "metrics_server_values" {
+  description = "Additional Metrics Server chart values."
+  type        = any
+  default = {
+    args = [
+      "--kubelet-preferred-address-types=InternalIP,Hostname,InternalDNS,ExternalDNS,ExternalIP",
+      "--kubelet-insecure-tls",
+    ]
+  }
+}
