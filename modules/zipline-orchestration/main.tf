@@ -841,12 +841,18 @@ module "addons" {
 # The upstream chart installs both the StarRocksCluster CRD/operator and the
 # StarRocksCluster custom resource. Keeping it outside the application chart
 # makes the operator lifecycle explicit and lets all cloud wrappers share it.
+#
+# The chart is vendored as a local .tgz (see charts/kube-starrocks-<ver>.tgz)
+# rather than pulled from the remote repo. Pulling remotely raced the upstream
+# index: once a newer patch was published, the helm provider planned the latest
+# version but applied the pinned one ("Provider produced inconsistent final
+# plan"), failing every apply. A vendored chart makes plan == apply. Bump by
+# committing a new tgz and updating starrocks.chartVersion (matching existing
+# vendored charts under charts/).
 resource "helm_release" "starrocks" {
-  name       = local.starrocks.clusterName
-  repository = "https://starrocks.github.io/starrocks-kubernetes-operator"
-  chart      = "kube-starrocks"
-  version    = local.starrocks.chartVersion
-  namespace  = local.install.namespace
+  name      = local.starrocks.clusterName
+  chart     = "${path.module}/../../charts/kube-starrocks-${local.starrocks.chartVersion}.tgz"
+  namespace = local.install.namespace
 
   wait            = local.install.helm_wait
   timeout         = local.install.helm_timeout
