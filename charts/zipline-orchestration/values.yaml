@@ -262,7 +262,7 @@ polaris:
 starrocks:
   # Installed through the official StarRocks Kubernetes Operator Helm chart.
   # The chart version pins the operator and default StarRocks 4.1 image.
-  chartVersion: "1.11.6"
+  chartVersion: "1.11.7"
   clusterName: "starrocks"
   feImage:
     repository: "starrocks/fe-ubuntu"
