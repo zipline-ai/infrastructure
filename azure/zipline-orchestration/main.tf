@@ -39,6 +39,7 @@ module "zipline_orchestration" {
     azurerm_monitor_data_collection_rule_association.prometheus_endpoint,
     azurerm_monitor_data_collection_rule_association.prometheus_rule,
     azurerm_role_assignment.workload_monitoring_reader,
+    kubernetes_config_map_v1.ama_metrics_settings,
     azurerm_role_assignment.workload_keyvault_secrets_user,
     azurerm_role_assignment.workload_storage,
     azurerm_role_assignment.aks_acr_pull,

@@ -23,3 +23,19 @@ resource "azurerm_role_assignment" "workload_monitoring_reader" {
   role_definition_name = "Monitoring Reader"
   principal_id         = azurerm_user_assigned_identity.workload.principal_id
 }
+
+resource "kubernetes_config_map_v1" "ama_metrics_settings" {
+  metadata {
+    name      = "ama-metrics-settings-configmap"
+    namespace = "kube-system"
+  }
+
+  data = {
+    "schema-version"  = "v2"
+    "config-version"  = "ver1"
+    "cluster-metrics" = <<-EOT
+      pod-annotation-based-scraping: |-
+        podannotationnamespaceregex = "${local.orchestration_namespace}"
+    EOT
+  }
+}

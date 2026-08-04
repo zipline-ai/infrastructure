@@ -297,8 +297,9 @@ Use these when AKS needs pull permissions for a private Azure Container Registry
 The wrapper enables AKS managed Prometheus, creates an Azure Monitor workspace,
 associates the workspace default collection endpoint and rule with the AKS
 cluster, grants the Zipline workload identity Monitoring Reader on the
-workspace, annotates Hub pods for scraping, and passes the workspace PromQL query
-endpoint to the UI with `METRICS_PROVIDER=azure`.
+workspace, configures the AMA metrics add-on to scrape annotated pods in the
+Zipline namespace, annotates Hub pods for scraping, and passes the workspace
+PromQL query endpoint to the UI with `METRICS_PROVIDER=azure`.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -310,7 +311,10 @@ endpoint to the UI with `METRICS_PROVIDER=azure`.
 
 Hub metrics default to Chronon's Prometheus reader on port `8905`. The wrapper
 adds the standard `prometheus.io/scrape`, `prometheus.io/port`, and
-`prometheus.io/path` annotations when that reader is enabled.
+`prometheus.io/path` annotations when that reader is enabled. Azure Managed
+Prometheus only honors those annotations after
+`ama-metrics-settings-configmap` enables pod-annotation scraping for the
+namespace.
 
 ### Addons
 
