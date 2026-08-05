@@ -493,7 +493,7 @@ locals {
   compute_defaults = {
     default_namespace      = "zipline-default"
     namespaces             = [{ name = "zipline-default", team = "default" }]
-    spark_image            = "ziplineai/spark:4.2.0-rc1"
+    spark_image            = "ziplineai/spark:4.1.3-rc1"
     flink_image            = "ziplineai/flink:1.20.3"
     spark_service_account  = "spark-operator-spark"
     flink_service_account  = "flink"
