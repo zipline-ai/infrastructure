@@ -65,6 +65,26 @@ resource "terraform_data" "controller_resource_cleanup" {
       # drain promptly.
       kubectl delete pdb coredns -n kube-system --ignore-not-found || true
 
+      # StarRocks: the operator's FE/CN StatefulSets drain slower than helm_timeout,
+      # so tofu's helm_release.starrocks uninstall times out ("context deadline
+      # exceeded") and the CN nodes' ENIs keep the internet gateway pinned
+      # (DependencyViolation). Delete the StarRocks custom resources + StatefulSets
+      # up front so the operator scales the CN cluster down, the nodes drain, and the
+      # later helm uninstall is a no-op. The CRD name varies by operator version, so
+      # discover it rather than hardcode.
+      echo "Tearing down StarRocks (CRs + StatefulSets) so its nodes drain..."
+      for sr in $(kubectl get crd -o name 2>/dev/null | grep -i starrocks | sed 's#.*/##'); do
+        for ns in $(kubectl get "$sr" -A --no-headers 2>/dev/null | awk '{print $1}' | sort -u); do
+          [ -z "$ns" ] && continue
+          kubectl delete "$sr" --all -n "$ns" --ignore-not-found --wait=false 2>/dev/null || true
+        done
+      done
+      kubectl get statefulset -A --no-headers 2>/dev/null | awk 'tolower($0) ~ /starrocks/ {print $1" "$2}' \
+        | while read -r ns name; do
+            [ -z "$ns" ] && continue
+            kubectl delete statefulset "$name" -n "$ns" --ignore-not-found --wait=false 2>/dev/null || true
+          done
+
       echo "Deleting LoadBalancer Services so the LB controller removes their NLBs..."
       kubectl get svc -A -o jsonpath='{range .items[?(@.spec.type=="LoadBalancer")]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null \
         | while read -r ns name; do
