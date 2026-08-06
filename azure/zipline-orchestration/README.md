@@ -295,11 +295,13 @@ Use these when AKS needs pull permissions for a private Azure Container Registry
 ### Observability
 
 The wrapper enables AKS managed Prometheus, creates an Azure Monitor workspace,
-associates the workspace default collection endpoint and rule with the AKS
-cluster, grants the Zipline workload identity Monitoring Reader on the
-workspace, configures the AMA metrics add-on to scrape annotated pods in the
-Zipline namespace, annotates Hub pods for scraping, and passes the workspace
-PromQL query endpoint to the UI with `METRICS_PROVIDER=azure`.
+creates an AKS-specific `MSPROM-*` data collection endpoint and rule, associates
+that endpoint and rule with the AKS cluster, grants the AKS managed identity
+Monitoring Metrics Publisher on the rule, grants the Zipline workload identity
+Monitoring Reader on the workspace, configures the AMA metrics add-on to scrape
+annotated pods in the Zipline namespace, annotates Hub pods for scraping, and
+passes the workspace PromQL query endpoint to the UI with
+`METRICS_PROVIDER=azure`.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -374,6 +376,7 @@ The most commonly used outputs are:
 | `postgres_fqdn` | Inspect the PostgreSQL server hostname. |
 | `workload_identity_client_id` | Inspect the workload identity used by orchestration and compute pods. |
 | `monitor_workspace_id` | Inspect or integrate the Azure Monitor workspace. |
+| `prometheus_data_collection_rule_id` | Inspect the AKS managed Prometheus DCR associated with the cluster. |
 | `prometheus_query_endpoint` | Confirm the PromQL query endpoint passed to the Zipline UI. |
 
 ## Notes

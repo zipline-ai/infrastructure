@@ -63,6 +63,11 @@ output "monitor_workspace_id" {
   value       = azurerm_monitor_workspace.prometheus.id
 }
 
+output "prometheus_data_collection_rule_id" {
+  description = "Azure Monitor data collection rule associated with AKS managed Prometheus."
+  value       = azurerm_monitor_data_collection_rule.prometheus.id
+}
+
 output "prometheus_query_endpoint" {
   description = "PromQL query endpoint passed to the Zipline UI."
   value       = azurerm_monitor_workspace.prometheus.query_endpoint
