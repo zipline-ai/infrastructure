@@ -81,3 +81,48 @@ resource "kubernetes_config_map_v1" "ama_metrics_settings" {
     EOT
   }
 }
+
+resource "kubernetes_config_map_v1" "ama_metrics_prometheus_config" {
+  metadata {
+    name      = "ama-metrics-prometheus-config"
+    namespace = "kube-system"
+  }
+
+  data = {
+    "prometheus-config" = <<-EOT
+      global:
+        scrape_interval: 30s
+      scrape_configs:
+        - job_name: zipline-pod-exporter
+          kubernetes_sd_configs:
+            - role: pod
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_namespace]
+              action: keep
+              regex: ${local.orchestration_namespace}
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+              action: keep
+              regex: "true"
+            - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+              regex: (.+)
+            - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+              action: replace
+              regex: ([^:]+)(?::[0-9]+)?;([0-9]+)
+              replacement: $1:$2
+              target_label: __address__
+            - action: labelmap
+              regex: __meta_kubernetes_pod_label_(.+)
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: kubernetes_namespace
+            - source_labels: [__meta_kubernetes_namespace]
+              action: replace
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_name]
+              action: replace
+              target_label: kubernetes_pod_name
+    EOT
+  }
+}

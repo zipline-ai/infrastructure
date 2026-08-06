@@ -299,9 +299,9 @@ creates an AKS-specific `MSPROM-*` data collection endpoint and rule, associates
 that endpoint and rule with the AKS cluster, grants the AKS managed identity
 Monitoring Metrics Publisher on the rule, grants the Zipline workload identity
 Monitoring Reader on the workspace, configures the AMA metrics add-on to scrape
-annotated pods in the Zipline namespace, annotates Hub pods for scraping, and
-passes the workspace PromQL query endpoint to the UI with
-`METRICS_PROVIDER=azure`.
+annotated pods in the Zipline namespace, adds a Zipline-specific custom
+Prometheus scrape job, annotates Hub pods for scraping, and passes the workspace
+PromQL query endpoint to the UI with `METRICS_PROVIDER=azure`.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -316,7 +316,9 @@ adds the standard `prometheus.io/scrape`, `prometheus.io/port`, and
 `prometheus.io/path` annotations when that reader is enabled. Azure Managed
 Prometheus only honors those annotations after
 `ama-metrics-settings-configmap` enables pod-annotation scraping for the
-namespace.
+namespace. The wrapper also creates `ama-metrics-prometheus-config` so Zipline
+metrics get the same `namespace` and `kubernetes_namespace` labels that the AWS
+scraper attaches.
 
 ### Addons
 
