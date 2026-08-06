@@ -110,7 +110,7 @@ locals {
 
   starrocks_input = try(local.orchestration.values.starrocks, {})
   starrocks_defaults = {
-    chartVersion = "1.11.6"
+    chartVersion = "1.11.7"
     clusterName  = "starrocks"
     feImage = {
       repository = "starrocks/fe-ubuntu"
@@ -841,6 +841,13 @@ module "addons" {
 # The upstream chart installs both the StarRocksCluster CRD/operator and the
 # StarRocksCluster custom resource. Keeping it outside the application chart
 # makes the operator lifecycle explicit and lets all cloud wrappers share it.
+#
+# chartVersion MUST be the repo's current latest. The helm provider (2.x) plans a
+# fresh helm_release's computed .version as the repo's latest chart, but applies
+# the pinned version — so when the pin lags behind a newly published chart the
+# apply fails with "Provider produced inconsistent final plan". Keeping the pin at
+# latest makes plan == apply. Bump chartVersion when StarRocks publishes a new
+# kube-starrocks release.
 resource "helm_release" "starrocks" {
   name       = local.starrocks.clusterName
   repository = "https://starrocks.github.io/starrocks-kubernetes-operator"
