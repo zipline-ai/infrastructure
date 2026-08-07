@@ -1,0 +1,16 @@
+{{- if .Values.prometheus.gcpPodMonitoring.enabled }}
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: {{ include "zipline-orchestration.fullname" . }}-hub
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: orchestration-hub
+  endpoints:
+    - port: metrics
+      interval: {{ .Values.prometheus.gcpPodMonitoring.interval | quote }}
+{{- end }}

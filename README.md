@@ -15,15 +15,25 @@ To work with this repo you'll need a few tools installed on your laptop.
 
 ## Zipline on GCP Steps
 
-Initialize to gcloud and select the project you want to use
-* ``` gcloud auth application-default login ```
-* ``` gcloud init ```
+Authenticate with Google Cloud and select the existing project to use:
 
-Enter the zipline-gcp directory and initialize the infrastructure
-* ``` cd zipline-gcp ```
-* ``` tofu init ```
-* ``` tofu apply ```
-Fill in your company name as the customer_name variable and select the region you want to deploy to.
+```shell
+gcloud auth application-default login
+gcloud config set project PROJECT_ID
+```
+
+Enter the GCP orchestration wrapper directory and initialize the infrastructure:
+
+```shell
+cd gcp/zipline-orchestration
+../../pull_crucible_config.sh gcp
+tofu init -reconfigure -backend-config=backend.hcl
+tofu apply
+```
+
+See [gcp/zipline-orchestration/README.md](gcp/zipline-orchestration/README.md)
+for the required project, network, GKE, storage, database, and workload identity
+configuration. The wrapper does not create the GCP project or manage DNS records.
 
 
 ## Zipline on AWS Steps

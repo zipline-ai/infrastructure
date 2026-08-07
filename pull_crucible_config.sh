@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<EOF
-Usage: $0 <aws|azure>
+Usage: $0 <aws|azure|gcp>
 
 Downloads Crucible orchestration config for the selected cloud into the
 git-ignored local files used by that cloud's Terraform wrapper.
@@ -60,6 +60,20 @@ download_optional_azure_blob() {
       --auth-mode login \
       --overwrite true \
       --output none
+  else
+    rm -f "${dest}"
+  fi
+}
+
+download_optional_gcs_object() {
+  local bucket="$1"
+  local prefix="$2"
+  local name="$3"
+  local dest="$4"
+  local object="gs://${bucket}/${prefix:+${prefix}/}${name}"
+
+  if gcloud storage ls "${object}" >/dev/null 2>&1; then
+    gcloud storage cp "${object}" "${dest}"
   else
     rm -f "${dest}"
   fi
@@ -152,6 +166,36 @@ Pulled Azure Crucible orchestration config from:
   storage account: ${storage_account}
   container:       ${container}
   prefix:          ${prefix}
+
+Local files are intentionally ignored by git:
+  ${dest}/backend.hcl
+  ${dest}/crucible.auto.tfvars.json
+EOF
+    ;;
+  gcp)
+    bucket="${GCP_CONFIG_BUCKET:-zipline-crucible-vars}"
+    prefix="${GCP_CONFIG_PREFIX:-crucible-gcp/zipline-orchestration}"
+    dest="${GCP_CONFIG_DIR:-${repo_root}/gcp/zipline-orchestration}"
+
+    mkdir -p "${dest}"
+
+    tmp_backend="$(mktemp "${dest}/backend.hcl.XXXXXX")"
+    tmp_tfvars="$(mktemp "${dest}/crucible.auto.tfvars.json.XXXXXX")"
+    trap 'rm -f "${tmp_backend:-}" "${tmp_tfvars:-}"' EXIT
+
+    gcloud storage cp "gs://${bucket}/${prefix}/backend.hcl" "${tmp_backend}"
+    gcloud storage cp "gs://${bucket}/${prefix}/crucible.auto.tfvars.json" "${tmp_tfvars}"
+    require_grouped_tfvars gcp "${tmp_tfvars}"
+    mv "${tmp_backend}" "${dest}/backend.hcl"
+    mv "${tmp_tfvars}" "${dest}/crucible.auto.tfvars.json"
+    trap - EXIT
+
+    download_optional_gcs_object "${bucket}" "${prefix}" "dns-provider.tf" "${dest}/dns-provider.tf"
+    download_optional_gcs_object "${bucket}" "${prefix}" "dns.auto.tfvars.json" "${dest}/dns.auto.tfvars.json"
+
+    cat <<EOF
+Pulled GCP Crucible orchestration config from:
+  gs://${bucket}/${prefix}
 
 Local files are intentionally ignored by git:
   ${dest}/backend.hcl

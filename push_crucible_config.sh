@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<EOF
-Usage: $0 <aws|azure>
+Usage: $0 <aws|azure|gcp>
 
 Uploads Crucible orchestration config for the selected cloud from the
 git-ignored local files used by that cloud's Terraform wrapper.
@@ -61,6 +61,17 @@ upload_optional_azure_blob() {
       --auth-mode login \
       --overwrite true \
       --output none
+  fi
+}
+
+upload_optional_gcs_object() {
+  local bucket="$1"
+  local prefix="$2"
+  local file="$3"
+  local name="$4"
+
+  if [ -f "${file}" ]; then
+    gcloud storage cp "${file}" "gs://${bucket}/${prefix:+${prefix}/}${name}"
   fi
 }
 
@@ -122,6 +133,19 @@ case "${cloud}" in
 
     upload_optional_azure_blob "${storage_account}" "${container}" "${prefix}/dns-provider.tf" "${src}/dns-provider.tf"
     upload_optional_azure_blob "${storage_account}" "${container}" "${prefix}/dns.auto.tfvars.json" "${src}/dns.auto.tfvars.json"
+    ;;
+  gcp)
+    bucket="${GCP_CONFIG_BUCKET:-zipline-crucible-vars}"
+    prefix="${GCP_CONFIG_PREFIX:-crucible-gcp/zipline-orchestration}"
+    src="${GCP_CONFIG_DIR:-${repo_root}/gcp/zipline-orchestration}"
+
+    require_file "${src}/backend.hcl"
+    require_grouped_tfvars gcp "${src}/crucible.auto.tfvars.json"
+
+    gcloud storage cp "${src}/backend.hcl" "gs://${bucket}/${prefix}/backend.hcl"
+    gcloud storage cp "${src}/crucible.auto.tfvars.json" "gs://${bucket}/${prefix}/crucible.auto.tfvars.json"
+    upload_optional_gcs_object "${bucket}" "${prefix}" "${src}/dns-provider.tf" "dns-provider.tf"
+    upload_optional_gcs_object "${bucket}" "${prefix}" "${src}/dns.auto.tfvars.json" "dns.auto.tfvars.json"
     ;;
   *)
     usage

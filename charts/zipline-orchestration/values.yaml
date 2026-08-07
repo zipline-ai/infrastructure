@@ -500,6 +500,9 @@ imagePullSecrets:
 prometheus:
   queryEndpoint: ""
   namespace: "zipline-system"
+  gcpPodMonitoring:
+    enabled: false
+    interval: 30s
 
 spark-operator:
   enabled: true
