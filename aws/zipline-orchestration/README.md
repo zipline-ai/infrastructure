@@ -149,6 +149,24 @@ Choose one of these secret sources:
 | `orchestration.auth.secrets_arn` | You want to use the shared auth secret ARN field instead of the AWS-specific alias. |
 | `aws.auth_secret_values` | Terraform should create the AWS Secrets Manager secret from supplied values. |
 
+To keep secret values out of tfvars, create the secret in AWS Secrets Manager
+and pass its ARN to the wrapper:
+
+```hcl
+orchestration = {
+  auth = {
+    enabled = true
+  }
+}
+
+aws = {
+  auth_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:zipline-auth-AbCdEf"
+}
+```
+
+Use `orchestration.auth.secrets_arn` instead of `aws.auth_secret_arn` when the
+shared orchestration interface is preferred.
+
 The expected auth secret properties are:
 
 - `auth-secret`
