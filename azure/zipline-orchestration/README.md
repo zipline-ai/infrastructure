@@ -273,7 +273,8 @@ into Key Vault.
 
 | Field | Default | Use when |
 | --- | --- | --- |
-| `azure.keyvault_name` | `<customer_name>-zipline-secrets` | You need a stable or pre-created Key Vault name. |
+| `azure.keyvault_name` | `<customer_name>-zipline-secrets` | The wrapper should create the Key Vault with a specific name. |
+| `azure.existing_keyvault_id` | `""` | A pre-created Key Vault should be used instead of creating one. |
 | `azure.workload_identity_name` | `<customer_name>-workload-identity` | You need a stable workload identity name. |
 | `azure.workload_identity_client_id` | created identity client ID | You use an externally managed user-assigned identity. |
 | `azure.database_credentials_secret_name` | `<customer_name>-postgres-credentials` | The Kubernetes database Secret needs a specific name. |
@@ -282,6 +283,121 @@ into Key Vault.
 | `orchestration.secrets.extra_external_secrets` | none | You need additional `ExternalSecret` resources. |
 | `orchestration.secrets.secret_store` | Azure Key Vault SecretStore | You need to customize the generated SecretStore. |
 | `orchestration.secrets.external_secrets_enabled` | `true` | External Secrets Operator is managed differently or disabled. |
+
+#### Use an Existing Key Vault
+
+Populate the auth secrets in an existing Key Vault, then pass only its resource
+ID in tfvars. This supports a single apply without putting the auth secret values
+in Terraform configuration or state:
+
+```hcl
+azure = {
+  existing_keyvault_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/shared-secrets/providers/Microsoft.KeyVault/vaults/example-secrets"
+}
+
+orchestration = {
+  auth = {
+    enabled = true
+  }
+}
+```
+
+The existing vault must use Azure RBAC authorization and be in the same tenant
+as the orchestration deployment. The principal running Terraform needs
+permission to create role assignments at the vault scope, such as Owner, User
+Access Administrator, or Role Based Access Control Administrator. It also needs
+permission to set secrets. The wrapper grants Key Vault Secrets Officer to the
+configured Terraform administrators, or to the current Terraform principal when
+no administrators are configured. It grants Key Vault Secrets User to the
+orchestration workload identity.
+
+The existing vault must contain every auth secret listed in the Authentication
+section before the apply starts. The wrapper continues to write the generated
+database username and password into this vault.
+
+Override the default Key Vault secret names when an existing vault uses a
+different naming convention:
+
+```hcl
+orchestration = {
+  auth = {
+    enabled = true
+  }
+
+  secrets = {
+    auth_remote_refs = {
+      "auth-secret" = {
+        key = "customer-auth-secret"
+      }
+      "google-oauth-client-secret" = {
+        key = "customer-google-oauth-client-secret"
+      }
+      "github-oauth-client-secret" = {
+        key = "customer-github-oauth-client-secret"
+      }
+      "microsoft-entra-oauth-client-secret" = {
+        key = "customer-entra-oauth-client-secret"
+      }
+      "sso-client-secret" = {
+        key = "customer-sso-client-secret"
+      }
+      "sso-saml-cert" = {
+        key = "customer-sso-saml-cert"
+      }
+    }
+  }
+}
+```
+
+Omit the `sso-saml-cert` override when SAML is disabled.
+
+#### Populate a Generated Key Vault
+
+When `azure.existing_keyvault_id` is unset, the wrapper creates the Key Vault.
+Use two applies so the vault exists before adding auth secrets. First leave
+`orchestration.auth.enabled = false` and apply the infrastructure:
+
+```shell
+tofu apply
+KEYVAULT_NAME="$(tofu output -raw keyvault_name)"
+```
+
+Add each auth value without storing it in tfvars. The following function prompts
+without echoing the value and clears its shell variable after each command:
+
+```shell
+set_auth_secret() {
+  local secret_value
+  read -r -s -p "Value for $1: " secret_value
+  echo
+  az keyvault secret set \
+    --vault-name "$KEYVAULT_NAME" \
+    --name "$1" \
+    --value "$secret_value" \
+    --output none
+  unset secret_value
+}
+
+set_auth_secret auth-secret
+set_auth_secret google-oauth-client-secret
+set_auth_secret github-oauth-client-secret
+set_auth_secret microsoft-entra-oauth-client-secret
+set_auth_secret sso-client-secret
+```
+
+When SAML is enabled, add its certificate from a protected local file:
+
+```shell
+az keyvault secret set \
+  --vault-name "$KEYVAULT_NAME" \
+  --name sso-saml-cert \
+  --file ./sso-saml-cert.pem \
+  --output none
+```
+
+Protect and remove the certificate file according to the environment's secret
+handling policy. After all required secrets exist, set
+`orchestration.auth.enabled = true` and apply again.
 
 ### Container Registry
 
@@ -367,6 +483,7 @@ The most commonly used outputs are:
 | `aks_cluster_name` | Configure or inspect the created AKS cluster. |
 | `aks_oidc_issuer_url` | Inspect workload identity federation settings. |
 | `keyvault_name` | Inspect or integrate the Azure Key Vault used for secrets. |
+| `keyvault_id` | Inspect the resource ID of the Azure Key Vault used for secrets. |
 | `postgres_fqdn` | Inspect the PostgreSQL server hostname. |
 | `workload_identity_client_id` | Inspect the workload identity used by orchestration and compute pods. |
 | `monitor_workspace_id` | Inspect or integrate the Azure Monitor workspace. |

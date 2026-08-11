@@ -45,7 +45,12 @@ output "aks_oidc_issuer_url" {
 
 output "keyvault_name" {
   description = "Azure Key Vault used for orchestration secrets."
-  value       = azurerm_key_vault.main.name
+  value       = local.keyvault_name
+}
+
+output "keyvault_id" {
+  description = "Resource ID of the Azure Key Vault used for orchestration secrets."
+  value       = local.keyvault_id
 }
 
 output "postgres_fqdn" {
