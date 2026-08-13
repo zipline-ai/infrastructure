@@ -145,9 +145,32 @@ Choose one of these secret sources:
 
 | Field | Use when |
 | --- | --- |
-| `aws.auth_secret_arn` | Auth secrets already exist in AWS Secrets Manager. |
-| `orchestration.auth.secrets_arn` | You want to use the shared auth secret ARN field instead of the AWS-specific alias. |
+| `aws.auth_secret_arn` | The environment keeps AWS resource references in the `aws` object. |
+| `orchestration.auth.secrets_arn` | Shared configuration tooling keeps all authentication settings together in the `orchestration.auth` object. |
 | `aws.auth_secret_values` | Terraform should create the AWS Secrets Manager secret from supplied values. |
+
+To keep secret values out of tfvars, create the secret in AWS Secrets Manager
+and pass its ARN to the wrapper:
+
+```hcl
+orchestration = {
+  auth = {
+    enabled = true
+  }
+}
+
+aws = {
+  auth_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:zipline-auth-AbCdEf"
+}
+```
+
+Both ARN fields configure the same AWS Secrets Manager integration. Prefer
+`aws.auth_secret_arn` for AWS-specific tfvars. Prefer
+`orchestration.auth.secrets_arn` when a shared configuration generator or
+reusable orchestration configuration keeps authentication settings together
+under `orchestration.auth`. The shared field does not make the AWS Secrets
+Manager ARN portable to another cloud. If both fields are set,
+`aws.auth_secret_arn` takes precedence.
 
 The expected auth secret properties are:
 

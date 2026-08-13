@@ -13,6 +13,7 @@ locals {
     aks_pod_cidr                            = "10.244.0.0/16"
     default_node_pool                       = {}
     node_pools                              = {}
+    existing_keyvault_id                   = ""
     keyvault_name                           = ""
     admin_principal_names                   = []
     workload_identity_name                  = ""
@@ -51,7 +52,10 @@ locals {
   resource_group_name              = local.cloud_args.resource_group_name != "" ? local.cloud_args.resource_group_name : "${local.name_prefix}-crucible-rg"
   cluster_name                     = local.cloud_args.cluster_name != "" ? local.cloud_args.cluster_name : "${local.name_prefix}-aks"
   aks_dns_prefix                   = local.cloud_args.aks_dns_prefix != "" ? local.cloud_args.aks_dns_prefix : local.cluster_name
-  keyvault_name                    = local.cloud_args.keyvault_name != "" ? local.cloud_args.keyvault_name : "${local.name_prefix}-zipline-secrets"
+  use_existing_keyvault            = trimspace(local.cloud_args.existing_keyvault_id) != ""
+  created_keyvault_name            = local.cloud_args.keyvault_name != "" ? local.cloud_args.keyvault_name : "${local.name_prefix}-zipline-secrets"
+  keyvault_name                    = local.use_existing_keyvault ? element(reverse(split("/", trimsuffix(local.cloud_args.existing_keyvault_id, "/"))), 0) : local.created_keyvault_name
+  keyvault_id                      = local.use_existing_keyvault ? trimsuffix(local.cloud_args.existing_keyvault_id, "/") : azurerm_key_vault.main[0].id
   workload_identity_name           = local.cloud_args.workload_identity_name != "" ? local.cloud_args.workload_identity_name : "${local.name_prefix}-workload-identity"
   storage_account_resource_group   = local.cloud_args.storage_account_resource_group != "" ? local.cloud_args.storage_account_resource_group : local.resource_group_name
   database_name                    = local.cloud_args.database_name != "" ? local.cloud_args.database_name : try(var.orchestration.database.name, "execution_info")

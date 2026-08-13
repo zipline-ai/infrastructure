@@ -372,7 +372,7 @@ locals {
   )
 
   auth_enabled               = try(var.orchestration.auth.enabled, false)
-  configured_auth_secret_arn = try(local.cloud_args.auth_secret_arn, try(var.orchestration.auth.secrets_arn, ""))
+  configured_auth_secret_arn = trimspace(local.cloud_args.auth_secret_arn) != "" ? local.cloud_args.auth_secret_arn : try(var.orchestration.auth.secrets_arn, "")
   create_auth_secret         = local.auth_enabled && length(keys(local.cloud_args.auth_secret_values)) > 0
   auth_secret_arn            = local.create_auth_secret ? aws_secretsmanager_secret.zipline_auth[0].arn : local.configured_auth_secret_arn
 

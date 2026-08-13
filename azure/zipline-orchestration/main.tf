@@ -22,6 +22,14 @@ variable "azure" {
     ])
     error_message = "azure must include non-empty location, warehouse_container_name, and storage_account_name."
   }
+
+  validation {
+    condition = (
+      trimspace(tostring(try(var.azure.existing_keyvault_id, ""))) == "" ||
+      can(regex("(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\\.KeyVault/vaults/[^/]+/?$", trimspace(tostring(try(var.azure.existing_keyvault_id, "")))))
+    )
+    error_message = "azure.existing_keyvault_id must be an Azure Key Vault resource ID when set."
+  }
 }
 
 module "zipline_orchestration" {
