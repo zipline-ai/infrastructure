@@ -411,10 +411,13 @@ Use these when AKS needs pull permissions for a private Azure Container Registry
 ### Observability
 
 The wrapper enables AKS managed Prometheus, creates an Azure Monitor workspace,
-associates the workspace default collection endpoint and rule with the AKS
-cluster, grants the Zipline workload identity Monitoring Reader on the
-workspace, annotates Hub pods for scraping, and passes the workspace PromQL query
-endpoint to the UI with `METRICS_PROVIDER=azure`.
+creates an AKS-specific `MSPROM-*` data collection endpoint and rule, associates
+that endpoint and rule with the AKS cluster, grants the AKS managed identity
+Monitoring Metrics Publisher on the rule, grants the Zipline workload identity
+Monitoring Reader on the workspace, configures the AMA metrics add-on to scrape
+annotated pods in the Zipline namespace, adds a Zipline-specific custom
+Prometheus scrape job, annotates Hub pods for scraping, and passes the workspace
+PromQL query endpoint to the UI with `METRICS_PROVIDER=azure`.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -426,7 +429,12 @@ endpoint to the UI with `METRICS_PROVIDER=azure`.
 
 Hub metrics default to Chronon's Prometheus reader on port `8905`. The wrapper
 adds the standard `prometheus.io/scrape`, `prometheus.io/port`, and
-`prometheus.io/path` annotations when that reader is enabled.
+`prometheus.io/path` annotations when that reader is enabled. Azure Managed
+Prometheus only honors those annotations after
+`ama-metrics-settings-configmap` enables pod-annotation scraping for the
+namespace. The wrapper also creates `ama-metrics-prometheus-config` so Zipline
+metrics get the same `namespace` and `kubernetes_namespace` labels that the AWS
+scraper attaches.
 
 ### Addons
 
@@ -487,6 +495,7 @@ The most commonly used outputs are:
 | `postgres_fqdn` | Inspect the PostgreSQL server hostname. |
 | `workload_identity_client_id` | Inspect the workload identity used by orchestration and compute pods. |
 | `monitor_workspace_id` | Inspect or integrate the Azure Monitor workspace. |
+| `prometheus_data_collection_rule_id` | Inspect the AKS managed Prometheus DCR associated with the cluster. |
 | `prometheus_query_endpoint` | Confirm the PromQL query endpoint passed to the Zipline UI. |
 
 ## Notes
