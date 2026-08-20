@@ -562,7 +562,22 @@ locals {
       ],
     )
     ui_env = local.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.eks_log_group }]
-    values = local.provider_values
+    values = merge(
+      local.provider_values,
+      try(var.orchestration.values, {}),
+      {
+        orchestration = merge(
+          try(local.provider_values.orchestration, {}),
+          try(var.orchestration.values.orchestration, {}),
+          {
+            fetcher = merge(
+              try(local.provider_values.orchestration.fetcher, {}),
+              try(var.orchestration.values.orchestration.fetcher, {}),
+            )
+          }
+        )
+      }
+    )
   }
 
   spark_event_log_dir = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "s3a://${local.cloud_args.warehouse_bucket}/spark-events"

@@ -1,0 +1,11 @@
+aws_region                    = "us-west-2"
+name_prefix                   = "public-demo"
+raw_bucket                    = "zipline-public-demo-raw"
+curated_bucket                = "zipline-public-demo-curated"
+warehouse_bucket              = "zipline-public-demo-warehouse"
+ui_logs_enabled           = true
+ui_logs_freshness_profile = "low_cost"
+ui_logs_log_stream_prefixes = [
+  "from-fluent-bit-kube.var.log.containers.zipline-orchestration-hub",
+  "from-fluent-bit-kube.var.log.containers.zipline-orchestration-ingress-nginx-ui-controller",
+]

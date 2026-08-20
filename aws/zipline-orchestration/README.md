@@ -53,6 +53,19 @@ Run with a backend configured for the target environment:
 tofu init -reconfigure -backend-config=backend.hcl
 ```
 
+For the public demo, use the same wrapper with a separate git-ignored config:
+
+```shell
+cp public-demo.auto.tfvars.example public-demo.auto.tfvars
+../../push_public_demo_config.sh
+```
+
+The public demo should keep datasource buckets in
+`../public-demo-datasources` and reset only this orchestration layer weekly.
+The reset workflow lives in this infrastructure repo at
+`.github/workflows/public-demo-aws.yml`; it checks out `zipline-ai/platform`
+only to build and install the Zipline CLI.
+
 ## Required Inputs
 
 Set these for every environment.
