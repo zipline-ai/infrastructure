@@ -25,3 +25,7 @@ azure/zipline-orchestration/.crucible-config/
 azure/zipline-orchestration/backend.hcl
 azure/zipline-orchestration/current-helm-values.*
 azure/zipline-orchestration/dns-provider.tf
+
+# AWS public-demo datasource configuration pulled from remote storage.
+aws/public-demo-datasources/backend.hcl
+aws/public-demo-datasources/current-helm-values.*

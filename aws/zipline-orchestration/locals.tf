@@ -528,6 +528,12 @@ locals {
       { name = "AWS_REGION", value = local.cloud_args.region },
       { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
     ]
+    fetcher_env = concat(
+      [
+        { name = "PROVIDER", value = "AWS" },
+      ],
+      local.cloud_args.kv_table_prefix == "" ? [] : [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }],
+    )
     hub_env = concat(
       local.cloud_args.kv_table_prefix == "" ? [] : [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }],
       local.cloud_args.kv_enable_ttl ? [] : [{ name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) }],
@@ -550,7 +556,22 @@ locals {
       ],
     )
     ui_env = local.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.eks_log_group }]
-    values = local.provider_values
+    values = merge(
+      local.provider_values,
+      try(var.orchestration.values, {}),
+      {
+        orchestration = merge(
+          try(local.provider_values.orchestration, {}),
+          try(var.orchestration.values.orchestration, {}),
+          {
+            fetcher = merge(
+              try(local.provider_values.orchestration.fetcher, {}),
+              try(var.orchestration.values.orchestration.fetcher, {}),
+            )
+          }
+        )
+      }
+    )
   }
 
   spark_event_log_dir = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "s3a://${local.cloud_args.warehouse_bucket}/spark-events"
