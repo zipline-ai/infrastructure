@@ -177,7 +177,7 @@ locals {
   polaris_base_location       = "${local.abfs_base_uri}polaris/polaris_${local.deployment.customer_name}/"
   hub_image                   = "ziplineai/hub-azure"
   eval_image                  = "ziplineai/eval-azure"
-  hub_verticle_class          = "ai.chronon.hub.AzureOrchestrationVerticle,ai.chronon.hub.AzureWorkflowExecutionVerticle"
+  hub_verticle_class          = "ai.chronon.hub.AzureOrchestrationVerticle,ai.chronon.hub.AzureWorkflowExecutionVerticle,ai.chronon.hub.cleanup.AzureCleanupVerticle"
   hub_metrics_reader          = try(var.orchestration.hub.chronon_metrics_reader, try(var.orchestration.hub.metricsReader, "prometheus"))
   hub_metrics_port            = try(var.orchestration.hub.metrics_port, try(var.orchestration.hub.metricsPort, 8905))
   hub_prometheus_pod_annotations = local.hub_metrics_reader == "prometheus" ? {
