@@ -250,10 +250,12 @@ locals {
     install_external_secrets_operator = true
     install_cert_manager              = true
     install_flink_operator            = true
+    install_kuberay_operator          = true
     install_opentelemetry_operator    = false
     install_metrics_server            = true
     external_secrets_operator_values  = {}
     cert_manager_values               = {}
+    kuberay_operator_values           = {}
   }
   addons = merge(local.addons_defaults, try(local.orchestration.addons, {}))
 
@@ -834,6 +836,8 @@ module "addons" {
   install_cert_manager              = local.addons.install_cert_manager
   cert_manager_values               = local.addons.cert_manager_values
   install_flink_operator            = local.addons.install_flink_operator
+  install_kuberay_operator          = local.addons.install_kuberay_operator
+  kuberay_operator_values           = local.addons.kuberay_operator_values
   install_opentelemetry_operator    = local.addons.install_opentelemetry_operator
   install_metrics_server            = local.addons.install_metrics_server
 }

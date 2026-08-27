@@ -71,6 +71,19 @@ resource "helm_release" "flink_operator" {
   values = [yamlencode(local.flink_operator_values)]
 }
 
+resource "helm_release" "kuberay_operator" {
+  count = var.install_kuberay_operator ? 1 : 0
+
+  name             = "kuberay-operator"
+  repository       = "https://ray-project.github.io/kuberay-helm/"
+  chart            = "kuberay-operator"
+  namespace        = "kuberay-operator"
+  create_namespace = true
+  version          = var.kuberay_operator_version
+
+  values = [yamlencode(var.kuberay_operator_values)]
+}
+
 resource "helm_release" "metrics_server" {
   count = var.install_metrics_server ? 1 : 0
 
