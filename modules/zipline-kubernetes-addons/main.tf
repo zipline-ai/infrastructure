@@ -80,6 +80,7 @@ resource "helm_release" "kuberay_operator" {
   namespace        = "kuberay-operator"
   create_namespace = true
   version          = var.kuberay_operator_version
+  skip_crds        = var.kuberay_operator_skip_crds
 
   values = [yamlencode(var.kuberay_operator_values)]
 }

@@ -82,6 +82,12 @@ variable "kuberay_operator_version" {
   default     = "1.6.2"
 }
 
+variable "kuberay_operator_skip_crds" {
+  description = "Skip installing KubeRay custom resource definitions. Use when the CRDs are managed separately."
+  type        = bool
+  default     = false
+}
+
 variable "kuberay_operator_values" {
   description = "Additional KubeRay operator chart values."
   type        = any
