@@ -15,6 +15,24 @@ locals {
       "flink-conf.yaml" = "kubernetes.operator.jm-deployment.shutdown-ttl: 5 m\n"
     }
   }, var.flink_operator_values)
+
+  kuberay_operator_values = merge({
+    replicas          = 2
+    priorityClassName = "system-cluster-critical"
+    resources = {
+      limits   = { cpu = "500m", memory = "512Mi" }
+      requests = { cpu = "100m", memory = "256Mi" }
+    }
+    reconcileConcurrency = 5
+    metrics = {
+      enabled = true
+      serviceMonitor = { enabled = false }  # flip when Prom Operator lands
+    }
+    env = [
+      { name = "ENABLE_PROBES_INJECTION",       value = "true" },
+      { name = "ENABLE_INIT_CONTAINER_INJECTION", value = "true" },
+    ]
+  }, var.kuberay_operator_values)
 }
 
 resource "helm_release" "external_secrets_operator" {

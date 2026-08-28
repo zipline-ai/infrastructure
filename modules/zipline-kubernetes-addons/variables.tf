@@ -79,7 +79,7 @@ variable "install_kuberay_operator" {
 variable "kuberay_operator_version" {
   description = "KubeRay operator chart version."
   type        = string
-  default     = "1.6.2"
+  default     = "1.7.0"
 }
 
 variable "kuberay_operator_skip_crds" {
