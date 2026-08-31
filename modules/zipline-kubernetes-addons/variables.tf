@@ -70,6 +70,30 @@ variable "flink_operator_values" {
   default     = {}
 }
 
+variable "install_kuberay_operator" {
+  description = "Install the KubeRay operator and its custom resource definitions."
+  type        = bool
+  default     = true
+}
+
+variable "kuberay_operator_version" {
+  description = "KubeRay operator chart version."
+  type        = string
+  default     = "1.7.0"
+}
+
+variable "kuberay_operator_skip_crds" {
+  description = "Skip installing KubeRay custom resource definitions. Use when the CRDs are managed separately."
+  type        = bool
+  default     = false
+}
+
+variable "kuberay_operator_values" {
+  description = "Additional KubeRay operator chart values."
+  type        = any
+  default     = {}
+}
+
 variable "install_metrics_server" {
   description = "Install Metrics Server for Kubernetes resource metrics and HPA."
   type        = bool
