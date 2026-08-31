@@ -100,7 +100,7 @@ resource "helm_release" "kuberay_operator" {
   version          = var.kuberay_operator_version
   skip_crds        = var.kuberay_operator_skip_crds
 
-  values = [yamlencode(var.kuberay_operator_values)]
+  values = [yamlencode(local.kuberay_operator_values)]
 }
 
 resource "helm_release" "metrics_server" {
