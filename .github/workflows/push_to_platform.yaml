@@ -1,0 +1,63 @@
+name: Push to Platform
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  subtree-pull:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout platform repo
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          repository: zipline-ai/platform
+          ssh-key: ${{ secrets.PLATFORM_REPO_DEPLOY_KEY }}
+          fetch-depth: 0
+          ref: main
+          persist-credentials: false
+
+      - name: Set up Git config
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Set up SSH keys for subtree access
+        env:
+          PLATFORM_SSH_PRIVATE_KEY: ${{ secrets.PLATFORM_REPO_DEPLOY_KEY }}
+          INFRASTRUCTURE_SSH_PRIVATE_KEY: ${{ secrets.INFRASTRUCTURE_REPO_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$PLATFORM_SSH_PRIVATE_KEY" > ~/.ssh/platform_rsa
+          printf '%s\n' "$INFRASTRUCTURE_SSH_PRIVATE_KEY" > ~/.ssh/infrastructure_rsa
+          chmod 600 ~/.ssh/platform_rsa ~/.ssh/infrastructure_rsa
+
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+          cat > ~/.ssh/config <<'EOF'
+          Host github.com-platform
+            HostName github.com
+            User git
+            IdentityFile ~/.ssh/platform_rsa
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+
+          Host github.com-infrastructure
+            HostName github.com
+            User git
+            IdentityFile ~/.ssh/infrastructure_rsa
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+
+          git config --local --unset-all core.sshCommand || true
+          git remote set-url origin git@github.com-platform:zipline-ai/platform.git
+          git remote add infrastructure git@github.com-infrastructure:zipline-ai/infrastructure.git || git remote set-url infrastructure git@github.com-infrastructure:zipline-ai/infrastructure.git
+
+          git fetch infrastructure main
+          git subtree pull --prefix=infrastructure infrastructure main --message="chore: update infrastructure subtree"
+
+      - name: Push changes to platform
+        run: git push origin main
