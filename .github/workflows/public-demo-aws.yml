@@ -1,0 +1,189 @@
+name: Public Demo AWS
+
+# Weekly public demo reset:
+# destroy the previous Zipline platform -> apply a fresh AWS orchestration stack
+# -> install the selected release artifacts -> publish the discovered hub/UI URLs.
+#
+# Persistent datasource resources live in aws/public-demo-datasources and are
+# intentionally not destroyed by this workflow.
+on:
+  schedule:
+    - cron: "0 10 * * 1" # Mondays ~02:00-03:00 PT
+  workflow_dispatch:
+    inputs:
+      zipline_release:
+        description: "Override release for `admin install` (empty = latest published release)"
+        default: ""
+        required: false
+      platform_ref:
+        description: "zipline-ai/platform ref used to build the Zipline CLI"
+        default: "main"
+        required: false
+      destroy_only:
+        description: "Destroy the public demo platform and stop before apply"
+        type: boolean
+        default: false
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: public-demo-aws
+  cancel-in-progress: false
+
+jobs:
+  public-demo-aws:
+    runs-on: ubuntu-latest
+    environment: aws-public-demo
+    timeout-minutes: 240
+    env:
+      AWS_REGION: ${{ vars.AWS_PUBLIC_DEMO_REGION || 'us-west-2' }}
+      INFRA_DIR: aws/zipline-orchestration
+      PUBLIC_DEMO_CONFIG_BUCKET: ${{ vars.PUBLIC_DEMO_CONFIG_BUCKET || 'zipline-public-demo-opentofu-state' }}
+      PUBLIC_DEMO_CONFIG_PREFIX: ${{ vars.PUBLIC_DEMO_CONFIG_PREFIX || 'config/orchestration' }}
+    steps:
+      - name: Checkout infrastructure
+        uses: actions/checkout@v4
+
+      - name: Mint platform repo token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID_GITHUB }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY_GITHUB }}
+          repositories: platform
+          skip-token-revoke: true
+
+      - name: Checkout platform
+        uses: actions/checkout@v4
+        with:
+          repository: zipline-ai/platform
+          ref: ${{ github.event.inputs.platform_ref || 'main' }}
+          path: platform
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up thrift
+        uses: ./platform/.github/actions/setup-thrift
+
+      - name: Set up OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: "1.9.1"
+
+      - name: Set up mill symlinks
+        working-directory: platform
+        run: ./setup_subtree.sh
+
+      - name: Build + install zipline CLI
+        working-directory: platform
+        run: |
+          ./mill python.wheel
+          pip install out/python/wheel.dest/dist/zipline_ai-*.whl
+          pip install packaging
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PUBLIC_DEMO_GITHUB_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: 14400
+
+      - name: Pull public-demo config
+        run: ./pull_public_demo_config.sh
+
+      - name: Initialize OpenTofu
+        working-directory: ${{ env.INFRA_DIR }}
+        run: tofu init -input=false -backend-config=backend.hcl
+
+      - name: Destroy previous public-demo platform
+        continue-on-error: true
+        working-directory: ${{ env.INFRA_DIR }}
+        run: tofu destroy -input=false -auto-approve
+
+      - name: Stop after destroy
+        if: ${{ github.event.inputs.destroy_only == 'true' }}
+        run: echo "destroy_only=true; public demo platform destroyed."
+
+      - name: Apply public-demo platform
+        if: ${{ github.event.inputs.destroy_only != 'true' }}
+        working-directory: ${{ env.INFRA_DIR }}
+        run: tofu apply -input=false -auto-approve
+
+      - name: Discover hub and UI URLs
+        if: ${{ github.event.inputs.destroy_only != 'true' }}
+        id: env
+        working-directory: ${{ env.INFRA_DIR }}
+        run: |
+          set -euo pipefail
+          lb="$(tofu output -raw ingress_load_balancer_target)"
+          cluster="$(tofu output -raw eks_cluster_name)"
+          artifact_bucket="$(tofu output -raw artifact_bucket_name)"
+          echo "lb=$lb" >> "$GITHUB_OUTPUT"
+          echo "cluster=$cluster" >> "$GITHUB_OUTPUT"
+          echo "artifact_bucket=$artifact_bucket" >> "$GITHUB_OUTPUT"
+          echo "ui_url=http://$lb" >> "$GITHUB_OUTPUT"
+          echo "hub_url=http://$lb/services/hub" >> "$GITHUB_OUTPUT"
+          tok=$(grep -oP 'dockerhub_token\s*=\s*"\K[^"]+' public-demo.auto.tfvars || true)
+          echo "::add-mask::$tok"
+          echo "api_token=$tok" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve release version
+        if: ${{ github.event.inputs.destroy_only != 'true' }}
+        id: release
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          OVERRIDE: ${{ github.event.inputs.zipline_release }}
+        run: |
+          set -euo pipefail
+          ver="$OVERRIDE"
+          [ -z "$ver" ] && ver=$(gh release view --repo zipline-ai/platform --json tagName --jq .tagName)
+          ver="${ver#v}"
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "Using release $ver"
+
+      - name: Seed jars
+        if: ${{ github.event.inputs.destroy_only != 'true' }}
+        run: |
+          yes | zipline admin install aws \
+            --api-token "${{ steps.env.outputs.api_token }}" \
+            --release "${{ steps.release.outputs.version }}" \
+            --artifact-prefix s3://${{ steps.env.outputs.artifact_bucket }}
+
+      - name: Doctor infra-health
+        if: ${{ github.event.inputs.destroy_only != 'true' }}
+        run: |
+          aws eks update-kubeconfig --region "$AWS_REGION" --name "${{ steps.env.outputs.cluster }}"
+          zipline admin doctor infra-health --cloud aws -y --report-file doctor-report.tsv
+
+      - name: Publish URLs
+        if: ${{ github.event.inputs.destroy_only != 'true' }}
+        run: |
+          {
+            echo "### Public Demo AWS"
+            echo ""
+            echo "- UI: ${{ steps.env.outputs.ui_url }}"
+            echo "- Hub: ${{ steps.env.outputs.hub_url }}"
+            echo "- EKS cluster: ${{ steps.env.outputs.cluster }}"
+            echo "- Artifact bucket: s3://${{ steps.env.outputs.artifact_bucket }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Slack notify on failure
+        if: failure()
+        run: |
+          url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\":red_circle: Public Demo AWS failed — ${url}\"}" \
+            "${{ secrets.SLACK_TESTS_WEBHOOK_URL }}" || true
