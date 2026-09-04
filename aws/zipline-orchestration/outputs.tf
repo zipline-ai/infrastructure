@@ -112,3 +112,8 @@ output "ingress_load_balancer_target" {
   description = "Provider-neutral DNS target for the public ingress controller."
   value       = module.zipline_orchestration.ingress_load_balancer_target
 }
+
+output "fetcher_redis_endpoint" {
+  description = "Configuration endpoint for the Terraform-managed fetcher Redis cluster."
+  value       = local.deploy_fetcher ? aws_elasticache_replication_group.fetcher[0].configuration_endpoint_address : ""
+}

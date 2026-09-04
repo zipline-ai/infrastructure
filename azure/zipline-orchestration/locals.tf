@@ -45,14 +45,15 @@ locals {
     monitor_workspace_public_network_access = true
     monitor_metrics_annotations_allowed     = null
     monitor_metrics_labels_allowed          = null
-    fetcher_cosmos_endpoint                  = ""
-    fetcher_cosmos_database                  = "chronon"
-    fetcher_cosmos_preferred_regions         = []
-    fetcher_cosmos_secret_name               = "secretcosmos-primary-key"
-    fetcher_cosmos_secret_key                = "COSMOS_KEY"
+    fetcher_cosmos_account_name             = ""
+    fetcher_cosmos_database                 = "chronon"
+    fetcher_cosmos_preferred_regions        = []
+    fetcher_cosmos_secret_name              = "secretcosmos-primary-key"
+    fetcher_cosmos_secret_key               = "COSMOS_KEY"
   }, var.azure)
 
   deployment                       = var.orchestration.deployment
+  deploy_fetcher                   = try(local.deployment.deploy_fetcher, false)
   name_prefix                      = local.deployment.customer_name
   resource_group_name              = local.cloud_args.resource_group_name != "" ? local.cloud_args.resource_group_name : "${local.name_prefix}-crucible-rg"
   cluster_name                     = local.cloud_args.cluster_name != "" ? local.cloud_args.cluster_name : "${local.name_prefix}-aks"
@@ -161,6 +162,33 @@ locals {
           key = key
         }
       }
+      extra_external_secrets = local.deploy_fetcher ? [
+        {
+          name = local.cloud_args.fetcher_cosmos_secret_name
+          spec = {
+            refreshInterval = "1h"
+            secretStoreRef = {
+              name = try(var.orchestration.secrets.secret_store.name, "zipline-secret-store")
+              kind = "SecretStore"
+            }
+            target = {
+              name           = local.cloud_args.fetcher_cosmos_secret_name
+              creationPolicy = "Owner"
+              template = {
+                type = "Opaque"
+              }
+            }
+            data = [
+              {
+                secretKey = local.cloud_args.fetcher_cosmos_secret_key
+                remoteRef = {
+                  key = azurerm_key_vault_secret.fetcher_cosmos_key[0].name
+                }
+              }
+            ]
+          }
+        }
+      ] : []
     }
     service_account_annotations = local.workload_identity_annotations
     runtime_env = [
@@ -172,10 +200,10 @@ locals {
     fetcher_env = [
       { name = "PROVIDER", value = "AZURE" },
       { name = "KV_STORE_TYPE", value = "cosmos" },
-      { name = "COSMOS_ENDPOINT", value = local.cloud_args.fetcher_cosmos_endpoint },
+      { name = "COSMOS_ENDPOINT", value = local.deploy_fetcher ? azurerm_cosmosdb_account.fetcher[0].endpoint : "" },
       { name = "COSMOS_DATABASE", value = local.cloud_args.fetcher_cosmos_database },
       {
-        name = "COSMOS_PREFERRED_REGIONS"
+        name  = "COSMOS_PREFERRED_REGIONS"
         value = join(",", length(local.cloud_args.fetcher_cosmos_preferred_regions) > 0 ? local.cloud_args.fetcher_cosmos_preferred_regions : [local.cloud_args.location])
       },
       {
