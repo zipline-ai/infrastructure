@@ -561,7 +561,7 @@ locals {
   ]
   hub_image                   = "ziplineai/hub-aws"
   eval_image                  = "ziplineai/eval-aws"
-  hub_verticle_class          = "ai.chronon.hub.AWSOrchestrationVerticle,ai.chronon.hub.AWSWorkflowExecutionVerticle"
+  hub_verticle_class          = "ai.chronon.hub.AWSOrchestrationVerticle,ai.chronon.hub.AWSWorkflowExecutionVerticle,ai.chronon.hub.cleanup.AWSCleanupVerticle"
   polaris_base_location       = "s3://${local.cloud_args.warehouse_bucket}/polaris/polaris_${local.deployment.customer_name}/"
   polaris_client_secret_name  = "polaris-client-credentials"
   polaris_client_secret_key   = "OC_CREDENTIAL"
