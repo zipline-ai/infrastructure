@@ -267,13 +267,14 @@ the default database shape is not right for the environment.
 
 ### Fetcher
 
-The Azure wrapper supplies the provider and Cosmos environment variables to the
-fetcher. Set the environment-specific connection and Kubernetes Secret values
-through the `azure` object.
+When the fetcher is enabled, the Azure wrapper creates a serverless Cosmos DB
+account with private network access. It stores the primary key in Key Vault,
+syncs it to Kubernetes with External Secrets, and supplies the generated Cosmos
+environment variables to the fetcher.
 
 | Field | Default | Use when |
 | --- | --- | --- |
-| `azure.fetcher_cosmos_endpoint` | `""` | Fetcher is enabled and should connect to an environment-specific Cosmos account. |
+| `azure.fetcher_cosmos_account_name` | `<customer_name>-zipline-kv` | The globally unique Cosmos account name needs an explicit value. |
 | `azure.fetcher_cosmos_database` | `chronon` | The Cosmos database has a different name. |
 | `azure.fetcher_cosmos_preferred_regions` | `[azure.location]` | Cosmos reads should prefer one or more different regions. |
 | `azure.fetcher_cosmos_secret_name` | `secretcosmos-primary-key` | The Kubernetes Secret containing the Cosmos key has a different name. |
