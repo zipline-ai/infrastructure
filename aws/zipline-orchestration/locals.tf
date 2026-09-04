@@ -555,7 +555,7 @@ locals {
 
   spark_event_log_dir = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "s3a://${local.cloud_args.warehouse_bucket}/spark-events"
   spark_history_opts = [
-    "-Dspark.hadoop.fs.s3a.aws.credentials.provider=com.amazonaws.auth.WebIdentityTokenCredentialsProvider",
+    "-Dspark.hadoop.fs.s3a.aws.credentials.provider=software.amazon.awssdk.auth.credentials.WebIdentityTokenFileCredentialsProvider",
     "-Dspark.hadoop.fs.s3a.connection.maximum=200",
     "-Dspark.hadoop.fs.s3a.threads.max=50",
   ]
