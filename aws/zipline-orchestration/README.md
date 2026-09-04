@@ -328,6 +328,7 @@ for the environment.
 | `aws.kv_table_prefix` | `""` | Hub needs a prefix for Chronon KV tables. |
 | `aws.kv_enable_ttl` | `true` | TTL should be disabled for KV records. |
 | `aws.kv_replica_regions` | `[]` | DynamoDB global table replicas are required. |
+| `aws.kv_batch_table_gc_age_days` | `""` | Override (in days) for the DynamoDB batch-table GC age used by the Hub's `AWSCleanupVerticle`. Empty falls back to the platform default of 30 days. Set to e.g. `"7"` to sweep batch upload tables more aggressively, or a larger value to retain them longer. No effect when `aws.kv_enable_ttl` is `false`. |
 | `aws.kv_read_capacity` | `10` | Provisioned read capacity for the table-partitions table needs tuning. |
 | `aws.kv_write_capacity` | `10` | Provisioned write capacity for the table-partitions table needs tuning. |
 | `aws.glue_schema_registry_name` | `zipline-<customer_name>` | You want to use an existing Glue registry or a specific registry name. |
