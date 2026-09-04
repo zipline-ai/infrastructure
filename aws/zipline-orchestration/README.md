@@ -330,6 +330,8 @@ for the environment.
 | `aws.kv_replica_regions` | `[]` | DynamoDB global table replicas are required. |
 | `aws.kv_read_capacity` | `10` | Provisioned read capacity for the table-partitions table needs tuning. |
 | `aws.kv_write_capacity` | `10` | Provisioned write capacity for the table-partitions table needs tuning. |
+| `aws.fetcher_redis_cluster_nodes` | `""` | Fetcher is enabled and should connect to an environment-specific Redis cluster. |
+| `aws.fetcher_redis_use_ssl` | `true` | The fetcher Redis connection does not use TLS, so this must be set to `false`. |
 | `aws.glue_schema_registry_name` | `zipline-<customer_name>` | You want to use an existing Glue registry or a specific registry name. |
 | `aws.msk_cluster_arn` | `""` | Flink needs IAM permissions for an MSK cluster. |
 | `aws.amp_workspace_arn` | created workspace ARN | Scraping, UI queries, and IAM permissions should use an existing AWS Managed Prometheus workspace. |

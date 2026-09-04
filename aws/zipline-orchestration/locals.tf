@@ -13,6 +13,8 @@ locals {
     kv_replica_regions             = []
     kv_read_capacity               = 10
     kv_write_capacity              = 10
+    fetcher_redis_cluster_nodes    = ""
+    fetcher_redis_use_ssl          = true
     eks_log_group                  = ""
     auth_secret_arn                = ""
     auth_secret_values             = {}
@@ -527,6 +529,16 @@ locals {
     runtime_env = [
       { name = "AWS_REGION", value = local.cloud_args.region },
       { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
+    ]
+    fetcher_env = [
+      { name = "PROVIDER", value = "AWS" },
+      { name = "KV_TABLE_PREFIX", value = "undefined" },
+      { name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) },
+      { name = "CHRONON_METRICS_READER", value = "prometheus" },
+      { name = "KV_STORE_TYPE", value = "redis" },
+      { name = "REDIS_CLUSTER_NODES", value = local.cloud_args.fetcher_redis_cluster_nodes },
+      { name = "REDIS_USE_SSL", value = tostring(local.cloud_args.fetcher_redis_use_ssl) },
+      { name = "AWS_STS_REGIONAL_ENDPOINTS", value = "regional" },
     ]
     hub_env = concat(
       local.cloud_args.kv_table_prefix == "" ? [] : [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }],

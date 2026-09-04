@@ -45,6 +45,11 @@ locals {
     monitor_workspace_public_network_access = true
     monitor_metrics_annotations_allowed     = null
     monitor_metrics_labels_allowed          = null
+    fetcher_cosmos_endpoint                  = ""
+    fetcher_cosmos_database                  = "chronon"
+    fetcher_cosmos_preferred_regions         = []
+    fetcher_cosmos_secret_name               = "secretcosmos-primary-key"
+    fetcher_cosmos_secret_key                = "COSMOS_KEY"
   }, var.azure)
 
   deployment                       = var.orchestration.deployment
@@ -163,6 +168,25 @@ locals {
       { name = "AZURE_TENANT_ID", value = local.tenant_id },
       { name = "AZURE_CLIENT_ID", value = local.workload_identity_client_id },
       { name = "AZURE_STORAGE_ACCOUNT_NAME", value = local.cloud_args.storage_account_name },
+    ]
+    fetcher_env = [
+      { name = "PROVIDER", value = "AZURE" },
+      { name = "KV_STORE_TYPE", value = "cosmos" },
+      { name = "COSMOS_ENDPOINT", value = local.cloud_args.fetcher_cosmos_endpoint },
+      { name = "COSMOS_DATABASE", value = local.cloud_args.fetcher_cosmos_database },
+      {
+        name = "COSMOS_PREFERRED_REGIONS"
+        value = join(",", length(local.cloud_args.fetcher_cosmos_preferred_regions) > 0 ? local.cloud_args.fetcher_cosmos_preferred_regions : [local.cloud_args.location])
+      },
+      {
+        name = "COSMOS_KEY"
+        valueFrom = {
+          secretKeyRef = {
+            name = local.cloud_args.fetcher_cosmos_secret_name
+            key  = local.cloud_args.fetcher_cosmos_secret_key
+          }
+        }
+      },
     ]
     values = local.provider_values
   }
