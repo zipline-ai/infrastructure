@@ -43,6 +43,8 @@ module "zipline_orchestration" {
     azurerm_key_vault_secret.db_password,
     azurerm_key_vault_secret.db_username,
     azurerm_private_endpoint.postgres,
+    azurerm_private_endpoint.cosmos,
+    azurerm_cosmosdb_sql_database.fetcher,
     azurerm_storage_data_lake_gen2_path.spark_events,
     azurerm_monitor_data_collection_rule_association.prometheus_endpoint,
     azurerm_monitor_data_collection_rule_association.prometheus_rule,

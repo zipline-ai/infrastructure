@@ -13,6 +13,8 @@ locals {
     kv_replica_regions             = []
     kv_read_capacity               = 10
     kv_write_capacity              = 10
+    fetcher_redis_node_type        = "cache.t4g.small"
+    fetcher_redis_engine_version   = "7.1"
     eks_log_group                  = ""
     auth_secret_arn                = ""
     auth_secret_values             = {}
@@ -60,6 +62,7 @@ locals {
 
   install                       = try(var.orchestration.install, {})
   deployment                    = var.orchestration.deployment
+  deploy_fetcher                = try(local.deployment.deploy_fetcher, false)
   name_prefix                   = local.deployment.customer_name
   cluster_name                  = local.cloud_args.cluster_name != "" ? local.cloud_args.cluster_name : "${local.name_prefix}-eks"
   orchestration_namespace       = try(local.install.namespace, "zipline-system")
@@ -527,6 +530,16 @@ locals {
     runtime_env = [
       { name = "AWS_REGION", value = local.cloud_args.region },
       { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
+    ]
+    fetcher_env = [
+      { name = "PROVIDER", value = "AWS" },
+      { name = "KV_TABLE_PREFIX", value = "undefined" },
+      { name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) },
+      { name = "CHRONON_METRICS_READER", value = "prometheus" },
+      { name = "KV_STORE_TYPE", value = "redis" },
+      { name = "REDIS_CLUSTER_NODES", value = local.deploy_fetcher ? "${aws_elasticache_replication_group.fetcher[0].configuration_endpoint_address}:6379" : "" },
+      { name = "REDIS_USE_SSL", value = "true" },
+      { name = "AWS_STS_REGIONAL_ENDPOINTS", value = "regional" },
     ]
     hub_env = concat(
       local.cloud_args.kv_table_prefix == "" ? [] : [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }],
