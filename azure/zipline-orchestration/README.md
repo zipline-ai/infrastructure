@@ -265,6 +265,20 @@ the default database shape is not right for the environment.
 | `azure.database_backup_retention_days` | `7` | Backups need a different retention period. |
 | `azure.database_public_network_access_enabled` | `false` | The database must be publicly accessible. |
 
+### Fetcher
+
+The Azure wrapper supplies the provider and Cosmos environment variables to the
+fetcher. Set the environment-specific connection and Kubernetes Secret values
+through the `azure` object.
+
+| Field | Default | Use when |
+| --- | --- | --- |
+| `azure.fetcher_cosmos_endpoint` | `""` | Fetcher is enabled and should connect to an environment-specific Cosmos account. |
+| `azure.fetcher_cosmos_database` | `chronon` | The Cosmos database has a different name. |
+| `azure.fetcher_cosmos_preferred_regions` | `[azure.location]` | Cosmos reads should prefer one or more different regions. |
+| `azure.fetcher_cosmos_secret_name` | `secretcosmos-primary-key` | The Kubernetes Secret containing the Cosmos key has a different name. |
+| `azure.fetcher_cosmos_secret_key` | `COSMOS_KEY` | The key within the Kubernetes Secret has a different name. |
+
 ### Key Vault and Secrets
 
 The wrapper configures External Secrets Operator against Azure Key Vault for
