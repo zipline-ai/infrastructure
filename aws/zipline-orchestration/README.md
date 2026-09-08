@@ -321,12 +321,10 @@ for the environment.
 | `aws.database_publicly_accessible` | `false` | The RDS instance must be publicly accessible. |
 | `aws.database_backup_retention_days` | `7` | Backups need a different retention period. |
 
-### Fetcher, DynamoDB, Glue, MSK, and Observability
+### DynamoDB, Glue, MSK, and Observability
 
-When the fetcher is enabled, the AWS wrapper creates a single-node,
-cluster-mode Redis replication group with encryption at rest and in transit.
-The Redis security group only accepts port 6379 traffic from the EKS cluster,
-and Terraform supplies the generated configuration endpoint to the fetcher.
+The AWS fetcher uses the Terraform-managed DynamoDB tables. The wrapper passes
+the table prefix, TTL setting, and replica regions to the fetcher automatically.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -336,8 +334,6 @@ and Terraform supplies the generated configuration endpoint to the fetcher.
 | `aws.kv_batch_table_gc_age_days` | `""` | Override (in days) for the DynamoDB batch-table GC age used by the Hub's `AWSCleanupVerticle`. Empty falls back to the platform default of 30 days. Set to e.g. `"7"` to sweep batch upload tables more aggressively, or a larger value to retain them longer. No effect when `aws.kv_enable_ttl` is `false`. |
 | `aws.kv_read_capacity` | `10` | Provisioned read capacity for the table-partitions table needs tuning. |
 | `aws.kv_write_capacity` | `10` | Provisioned write capacity for the table-partitions table needs tuning. |
-| `aws.fetcher_redis_node_type` | `cache.t4g.small` | The Terraform-managed fetcher Redis cluster needs a different node size. |
-| `aws.fetcher_redis_engine_version` | `7.1` | The Terraform-managed fetcher Redis cluster needs a different engine version. |
 | `aws.glue_schema_registry_name` | `zipline-<customer_name>` | You want to use an existing Glue registry or a specific registry name. |
 | `aws.msk_cluster_arn` | `""` | Flink needs IAM permissions for an MSK cluster. |
 | `aws.amp_workspace_arn` | created workspace ARN | Scraping, UI queries, and IAM permissions should use an existing AWS Managed Prometheus workspace. |
