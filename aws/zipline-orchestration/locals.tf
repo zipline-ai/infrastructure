@@ -11,6 +11,7 @@ locals {
     kv_table_prefix                = ""
     kv_enable_ttl                  = true
     kv_replica_regions             = []
+    kv_batch_table_gc_age_days     = ""
     kv_read_capacity               = 10
     kv_write_capacity              = 10
     eks_log_group                  = ""
@@ -532,6 +533,7 @@ locals {
       local.cloud_args.kv_table_prefix == "" ? [] : [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }],
       local.cloud_args.kv_enable_ttl ? [] : [{ name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) }],
       length(local.cloud_args.kv_replica_regions) == 0 ? [] : [{ name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) }],
+      local.cloud_args.kv_batch_table_gc_age_days == "" ? [] : [{ name = "KV_BATCH_TABLE_GC_AGE_DAYS", value = local.cloud_args.kv_batch_table_gc_age_days }],
       # Cluster name drives the AWS-console deployment URL emitted by
       # CrucibleSubmitter.getJobUrl. Without it the per-step "open in
       # console" link on each job comes up empty.

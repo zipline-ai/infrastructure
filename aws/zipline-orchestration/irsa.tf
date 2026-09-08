@@ -302,6 +302,8 @@ data "aws_iam_policy_document" "spark_compute_dynamodb_policy" {
       "dynamodb:CreateTableReplica",
       "dynamodb:ListTables",
       "dynamodb:DeleteItem",
+      "dynamodb:DeleteTable",
+      "dynamodb:DeleteTableReplica",
       "dynamodb:DescribeImport",
       "dynamodb:DescribeTable",
       "dynamodb:GetItem",
