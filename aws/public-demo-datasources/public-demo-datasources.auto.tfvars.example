@@ -8,4 +8,5 @@ ui_logs_freshness_profile = "low_cost"
 ui_logs_log_stream_prefixes = [
   "from-fluent-bit-kube.var.log.containers.zipline-orchestration-hub",
   "from-fluent-bit-kube.var.log.containers.zipline-orchestration-ingress-nginx-ui-controller",
+  "from-fluent-bit-kube.var.log.containers.zipline-orchestration-ui",
 ]

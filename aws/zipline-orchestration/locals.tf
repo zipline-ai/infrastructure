@@ -668,6 +668,11 @@ locals {
         aws_s3_use_instance_profile         = true
         enable_load_volume_from_conf        = true
       }
+      awsGlueCatalog = {
+        enabled = true
+        name    = "aws_glue"
+        region  = local.cloud_args.region
+      }
       serviceAccount = local.orchestration_service_account
       nodeSelector   = local.system_node_selector
       tolerations    = local.system_node_tolerations

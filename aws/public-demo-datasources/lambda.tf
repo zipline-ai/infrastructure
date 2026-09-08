@@ -3,6 +3,7 @@ data "archive_file" "ui_log_ingestor" {
   type        = "zip"
   source_dir  = "${path.module}/lambda/ui_log_ingestor"
   output_path = "${path.module}/.terraform/ui_log_ingestor.zip"
+  excludes    = ["__pycache__/*", "*.pyc"]
 }
 
 resource "aws_lambda_function" "ui_log_ingestor" {
@@ -20,13 +21,16 @@ resource "aws_lambda_function" "ui_log_ingestor" {
 
   environment {
     variables = {
-      CURATED_BUCKET      = aws_s3_bucket.curated.id
-      GLUE_DATABASE       = aws_glue_catalog_database.app.name
-      GLUE_TABLE          = var.ui_logs_table_name
-      LOG_GROUP_NAME      = local.ui_logs_log_group_name
-      LOG_STREAM_PREFIXES = join(",", var.ui_logs_log_stream_prefixes)
-      LOOKBACK_MINUTES    = tostring(local.ui_logs_lookback_minutes)
-      OUTPUT_PREFIX       = var.ui_logs_output_prefix
+      CURATED_BUCKET              = aws_s3_bucket.curated.id
+      GLUE_DATABASE               = aws_glue_catalog_database.app.name
+      GLUE_TABLE                  = var.ui_logs_table_name
+      LOG_GROUP_NAME              = local.ui_logs_log_group_name
+      LOG_STREAM_PREFIXES         = join(",", var.ui_logs_log_stream_prefixes)
+      LOOKBACK_MINUTES            = tostring(local.ui_logs_lookback_minutes)
+      OUTPUT_PREFIX               = var.ui_logs_output_prefix
+      USER_IDENTITY_GLUE_TABLE    = var.user_identity_table_name
+      USER_IDENTITY_OUTPUT_PREFIX = var.user_identity_output_prefix
+      USER_IDENTITY_SNAPSHOT_DAYS = tostring(var.user_identity_snapshot_days)
     }
   }
 
@@ -52,7 +56,8 @@ resource "aws_cloudwatch_event_target" "ui_log_ingestor" {
   arn       = aws_lambda_function.ui_log_ingestor[0].arn
 
   input = jsonencode({
-    lookback_minutes = local.ui_logs_lookback_minutes
+    identity_snapshot_days = var.user_identity_snapshot_days
+    lookback_minutes       = local.ui_logs_lookback_minutes
   })
 }
 

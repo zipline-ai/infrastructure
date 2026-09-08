@@ -40,6 +40,18 @@ UI_LOG_COLUMNS = [
     {"Name": "raw_message", "Type": "string"},
 ]
 
+USER_IDENTITY_COLUMNS = [
+    {"Name": "user_id", "Type": "string"},
+    {"Name": "email_hash", "Type": "string"},
+    {"Name": "first_seen_ts", "Type": "bigint"},
+    {"Name": "last_seen_ts", "Type": "bigint"},
+    {"Name": "last_seen_time_iso", "Type": "string"},
+    {"Name": "last_event", "Type": "string"},
+    {"Name": "source_event_id", "Type": "string"},
+    {"Name": "ingestion_id", "Type": "string"},
+    {"Name": "ingested_at", "Type": "string"},
+]
+
 
 NGINX_ACCESS_RE = re.compile(
     r'^(?P<client_ip>\S+)\s+\S+\s+\S+\s+\[[^\]]+\]\s+'
@@ -137,6 +149,33 @@ def _parse_audit_json(decoded, message):
     return None
 
 
+def _extract_user_identity(decoded, message):
+    candidates = []
+    if decoded:
+        candidates.append(decoded)
+    inner = _json_message(message)
+    if inner:
+        candidates.append(inner)
+
+    for candidate in candidates:
+        event_name = candidate.get("event")
+        user_id = candidate.get("userid") or candidate.get("userId") or candidate.get("user_id")
+        email = candidate.get("email")
+        if not event_name or not user_id or not email:
+            continue
+        if event_name not in {"user_created", "authn_login_success", "authn_token_created"}:
+            continue
+        normalized_email = str(email).strip().lower()
+        if not normalized_email:
+            continue
+        return {
+            "user_id": str(user_id),
+            "email_hash": hashlib.sha256(normalized_email.encode("utf-8")).hexdigest()[:8],
+            "last_event": str(event_name),
+        }
+    return None
+
+
 def _parse_http_fields(message):
     match = NGINX_ACCESS_RE.search(message) or REQUEST_RE.search(message)
     if not match:
@@ -159,11 +198,11 @@ def _parse_http_fields(message):
     }
 
 
-def _ensure_partition(database_name, table_name, snapshot_date, location):
+def _ensure_partition(database_name, table_name, snapshot_date, location, columns):
     partition_input = {
         "Values": [snapshot_date],
         "StorageDescriptor": {
-            "Columns": UI_LOG_COLUMNS,
+            "Columns": columns,
             "Location": location,
             "InputFormat": "org.apache.hadoop.mapred.TextInputFormat",
             "OutputFormat": "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat",
@@ -186,6 +225,112 @@ def _ensure_partition(database_name, table_name, snapshot_date, location):
             PartitionValueList=[snapshot_date],
             PartitionInput=partition_input,
         )
+
+
+def _parse_snapshot_date(value):
+    return dt.datetime.strptime(value, "%Y-%m-%d").date()
+
+
+def _identity_snapshot_dates(event, now):
+    explicit_dates = event.get("identity_snapshot_dates")
+    if explicit_dates:
+        return sorted({str(value) for value in explicit_dates})
+
+    end_date = _parse_snapshot_date(event.get("identity_snapshot_end_date", f"{now:%Y-%m-%d}"))
+    snapshot_days = int(
+        event.get(
+            "identity_snapshot_days",
+            os.environ.get("USER_IDENTITY_SNAPSHOT_DAYS", "7"),
+        )
+    )
+    snapshot_days = max(1, snapshot_days)
+    dates = [
+        end_date - dt.timedelta(days=days_ago)
+        for days_ago in range(snapshot_days - 1, -1, -1)
+    ]
+    return [date.isoformat() for date in dates]
+
+
+def _merge_identity_rows(*row_sets):
+    merged = {}
+    for rows in row_sets:
+        for row in rows:
+            user_id = row.get("user_id")
+            if not user_id:
+                continue
+            existing = merged.get(user_id)
+            if not existing:
+                merged[user_id] = dict(row)
+                continue
+
+            existing["first_seen_ts"] = min(
+                int(existing.get("first_seen_ts") or row.get("first_seen_ts") or 0),
+                int(row.get("first_seen_ts") or existing.get("first_seen_ts") or 0),
+            )
+            if int(row.get("last_seen_ts") or 0) >= int(existing.get("last_seen_ts") or 0):
+                merged[user_id] = {
+                    **existing,
+                    **row,
+                    "first_seen_ts": existing["first_seen_ts"],
+                }
+    return list(merged.values())
+
+
+def _load_latest_identity_rows(bucket, prefix):
+    paginator = s3.get_paginator("list_objects_v2")
+    keys = []
+    for page in paginator.paginate(Bucket=bucket, Prefix=f"{prefix}/snapshot_date="):
+        keys.extend(
+            item["Key"]
+            for item in page.get("Contents", [])
+            if item.get("Key", "").endswith(".jsonl")
+        )
+    if not keys:
+        return []
+
+    rows = []
+    for key in sorted(keys, reverse=True):
+        response = s3.get_object(Bucket=bucket, Key=key)
+        body = response["Body"].read().decode("utf-8")
+        for line in body.splitlines():
+            if line.strip():
+                rows.append(json.loads(line))
+        if rows:
+            return _merge_identity_rows(rows)
+    return []
+
+
+def _write_identity_snapshot(
+    database_name,
+    table_name,
+    bucket,
+    prefix,
+    snapshot_date,
+    ingestion_id,
+    ingested_at,
+    user_rows,
+):
+    partition_rows = []
+    for row in user_rows:
+        partition_rows.append(
+            {
+                **row,
+                "ingestion_id": ingestion_id,
+                "ingested_at": ingested_at,
+            }
+        )
+
+    key = f"{prefix}/snapshot_date={snapshot_date}/{ingestion_id}.jsonl"
+    body = "".join(json.dumps(row, separators=(",", ":")) + "\n" for row in partition_rows)
+    s3.put_object(Bucket=bucket, Key=key, Body=body.encode("utf-8"), ContentType="application/jsonl")
+    _ensure_partition(
+        database_name,
+        table_name,
+        snapshot_date,
+        f"s3://{bucket}/{prefix}/snapshot_date={snapshot_date}/",
+        USER_IDENTITY_COLUMNS,
+    )
+    return key
 
 
 def _iter_events(log_group_name, start_ms, end_ms, log_stream_prefixes):
@@ -218,9 +363,12 @@ def handler(event, _context):
     start_ms = int((now - dt.timedelta(minutes=lookback_minutes)).timestamp() * 1000)
     snapshot_date = f"{now:%Y-%m-%d}"
     table_name = os.environ.get("GLUE_TABLE", "ui_access_logs")
+    user_identity_table_name = os.environ.get("USER_IDENTITY_GLUE_TABLE", "user_identity_snapshots")
     database_name = os.environ["GLUE_DATABASE"]
     bucket = os.environ["CURATED_BUCKET"]
     prefix = os.environ.get("OUTPUT_PREFIX", "app/ui_access_logs").strip("/")
+    user_identity_prefix = os.environ.get("USER_IDENTITY_OUTPUT_PREFIX", "app/user_identity_snapshots").strip("/")
+    identity_snapshot_dates = _identity_snapshot_dates(event, now)
     log_stream_prefixes = [
         value.strip()
         for value in os.environ.get("LOG_STREAM_PREFIXES", "").split(",")
@@ -228,8 +376,28 @@ def handler(event, _context):
     ]
 
     rows = []
+    users_by_id = {}
     for log_event in _iter_events(os.environ["LOG_GROUP_NAME"], start_ms, end_ms, log_stream_prefixes):
         log_message, decoded = _extract_log_message(log_event.get("message", ""))
+        identity = _extract_user_identity(decoded, log_message)
+        if identity:
+            event_ts = int(log_event["timestamp"])
+            existing = users_by_id.get(identity["user_id"])
+            first_seen_ts = min(existing["first_seen_ts"], event_ts) if existing else event_ts
+            if not existing or event_ts >= existing["last_seen_ts"]:
+                last_seen_time = dt.datetime.fromtimestamp(event_ts / 1000, tz=dt.timezone.utc)
+                users_by_id[identity["user_id"]] = {
+                    **identity,
+                    "first_seen_ts": first_seen_ts,
+                    "last_seen_ts": event_ts,
+                    "last_seen_time_iso": last_seen_time.isoformat(),
+                    "source_event_id": log_event.get("eventId", ""),
+                    "ingestion_id": ingestion_id,
+                    "ingested_at": now.isoformat(),
+                }
+            else:
+                existing["first_seen_ts"] = first_seen_ts
+
         parsed = _parse_audit_json(decoded, log_message) or _parse_http_fields(log_message)
         if not parsed:
             continue
@@ -264,14 +432,37 @@ def handler(event, _context):
             table_name,
             snapshot_date,
             f"s3://{bucket}/{prefix}/snapshot_date={snapshot_date}/",
+            UI_LOG_COLUMNS,
         )
     else:
         key = ""
 
+    existing_user_rows = _load_latest_identity_rows(bucket, user_identity_prefix)
+    user_rows = _merge_identity_rows(existing_user_rows, users_by_id.values())
+    if user_rows:
+        user_identity_keys = [
+            _write_identity_snapshot(
+                database_name,
+                user_identity_table_name,
+                bucket,
+                user_identity_prefix,
+                identity_snapshot_date,
+                ingestion_id,
+                now.isoformat(),
+                user_rows,
+            )
+            for identity_snapshot_date in identity_snapshot_dates
+        ]
+    else:
+        user_identity_keys = []
+
     return {
         "rows": len(rows),
+        "user_identity_rows": len(user_rows),
         "bucket": bucket,
         "key": key,
+        "user_identity_keys": user_identity_keys,
+        "identity_snapshot_dates": identity_snapshot_dates,
         "lookback_minutes": lookback_minutes,
         "log_group_name": os.environ["LOG_GROUP_NAME"],
     }

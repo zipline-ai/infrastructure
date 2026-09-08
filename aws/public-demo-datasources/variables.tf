@@ -48,6 +48,24 @@ variable "ui_logs_output_prefix" {
   default     = "app/ui_access_logs"
 }
 
+variable "user_identity_table_name" {
+  description = "Glue table containing auth user identity snapshots with hashed email values."
+  type        = string
+  default     = "user_identity_snapshots"
+}
+
+variable "user_identity_output_prefix" {
+  description = "Curated bucket prefix for auth user identity snapshots."
+  type        = string
+  default     = "app/user_identity_snapshots"
+}
+
+variable "user_identity_snapshot_days" {
+  description = "Number of daily auth identity snapshot partitions to materialize per ingestor run. This is intentionally low-cost, but can be raised for demos that need broader backfills."
+  type        = number
+  default     = 21
+}
+
 variable "ui_logs_log_group_name" {
   description = "CloudWatch log group that receives EKS container logs from Fluent Bit."
   type        = string

@@ -36,3 +36,12 @@ output "ui_logs_source_location" {
     log_group_name = local.ui_logs_log_group_name
   } : null
 }
+
+output "user_identity_source_location" {
+  description = "Source handle for the public demo auth user identity snapshot configs."
+  value = var.ui_logs_enabled ? {
+    glue_table     = "${aws_glue_catalog_database.app.name}.${var.user_identity_table_name}"
+    curated_prefix = "s3://${aws_s3_bucket.curated.id}/${var.user_identity_output_prefix}/"
+    log_group_name = local.ui_logs_log_group_name
+  } : null
+}

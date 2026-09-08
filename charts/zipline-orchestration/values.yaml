@@ -293,6 +293,10 @@ starrocks:
   # Cloud wrappers provide this configuration because the storage provider and
   # workload identity differ by cloud. It must enable `run_mode=shared_data`.
   feConfig: {}
+  awsGlueCatalog:
+    enabled: false
+    name: aws_glue
+    region: ""
   serviceAccount: ""
   podLabels: {}
   cnAutoscaling:

@@ -152,3 +152,77 @@ resource "aws_glue_catalog_table" "ui_access_logs" {
     type = "string"
   }
 }
+
+resource "aws_glue_catalog_table" "user_identity_snapshots" {
+  count = var.ui_logs_enabled ? 1 : 0
+
+  name          = var.user_identity_table_name
+  database_name = aws_glue_catalog_database.app.name
+  table_type    = "EXTERNAL_TABLE"
+
+  parameters = {
+    classification = "json"
+    typeOfData     = "file"
+  }
+
+  storage_descriptor {
+    location      = "s3://${aws_s3_bucket.curated.id}/${var.user_identity_output_prefix}/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "${var.user_identity_table_name}-serde"
+      serialization_library = "org.apache.hive.hcatalog.data.JsonSerDe"
+    }
+
+    columns {
+      name = "user_id"
+      type = "string"
+    }
+
+    columns {
+      name = "email_hash"
+      type = "string"
+    }
+
+    columns {
+      name = "first_seen_ts"
+      type = "bigint"
+    }
+
+    columns {
+      name = "last_seen_ts"
+      type = "bigint"
+    }
+
+    columns {
+      name = "last_seen_time_iso"
+      type = "string"
+    }
+
+    columns {
+      name = "last_event"
+      type = "string"
+    }
+
+    columns {
+      name = "source_event_id"
+      type = "string"
+    }
+
+    columns {
+      name = "ingestion_id"
+      type = "string"
+    }
+
+    columns {
+      name = "ingested_at"
+      type = "string"
+    }
+  }
+
+  partition_keys {
+    name = "snapshot_date"
+    type = "string"
+  }
+}
