@@ -59,6 +59,7 @@ aws = {
   eks_desired_size  = 2
   eks_min_size      = 2
   eks_max_size      = 4
+  ingress_traffic_policy = "Local"
 
   # Omit vpc_id/primary_subnet_id/secondary_subnet_id to let the wrapper create a
   # disposable VPC for the weekly-reset platform.

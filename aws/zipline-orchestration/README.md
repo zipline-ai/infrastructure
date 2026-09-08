@@ -266,6 +266,7 @@ Spark executors, Flink job managers, and Flink task managers.
 | `aws.eks_desired_size` | `3` | The default node group desired size should change. |
 | `aws.eks_max_size` | `8` | The default node group maximum should change. |
 | `aws.eks_disk_size` | `100` | EKS node root volumes need a different size in GB. |
+| `aws.ingress_traffic_policy` | `Cluster` | Set `Local` when the ingress NLB should preserve client source IPs. |
 | `aws.personnel_arns` | `[]` | Human or automation IAM principals need EKS cluster-admin access. |
 | `aws.karpenter.enabled` | `true` | Karpenter should be disabled for an environment. |
 | `aws.karpenter.namespace` | `kube-system` | Karpenter should run in a different namespace. |

@@ -7,6 +7,7 @@ locals {
     eks_min_size                   = 3
     eks_max_size                   = 8
     eks_disk_size                  = 100
+    ingress_traffic_policy         = "Cluster"
     personnel_arns                 = []
     kv_table_prefix                = ""
     kv_enable_ttl                  = true
@@ -644,6 +645,7 @@ locals {
   )))
 
   ingress_lb_service = {
+    externalTrafficPolicy = local.cloud_args.ingress_traffic_policy
     annotations = {
       "service.beta.kubernetes.io/aws-load-balancer-type"    = "nlb"
       "service.beta.kubernetes.io/aws-load-balancer-scheme"  = "internet-facing"
