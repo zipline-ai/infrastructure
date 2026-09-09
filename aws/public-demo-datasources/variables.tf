@@ -60,6 +60,30 @@ variable "user_identity_output_prefix" {
   default     = "app/user_identity_snapshots"
 }
 
+variable "user_identity_parquet_output_prefix" {
+  description = "Curated bucket prefix for Parquet auth identity snapshots read directly by Spark."
+  type        = string
+  default     = "app/user_identity_snapshots_parquet"
+}
+
+variable "user_identity_iceberg_table_name" {
+  description = "Glue Iceberg table populated by the auth identity ingestor for Spark consumption."
+  type        = string
+  default     = "user_identity_snapshots_iceberg"
+}
+
+variable "user_identity_iceberg_output_prefix" {
+  description = "Curated bucket prefix for the Lambda-managed auth identity Iceberg table."
+  type        = string
+  default     = "app/user_identity_snapshots_iceberg"
+}
+
+variable "aws_sdk_pandas_layer_arn" {
+  description = "AWS SDK for pandas Lambda layer providing PyArrow for Parquet output."
+  type        = string
+  default     = "arn:aws:lambda:us-west-2:336392948345:layer:AWSSDKPandas-Python312:29"
+}
+
 variable "user_identity_snapshot_days" {
   description = "Number of daily auth identity snapshot partitions to materialize per ingestor run. This is intentionally low-cost, but can be raised for demos that need broader backfills."
   type        = number

@@ -14,23 +14,28 @@ resource "aws_lambda_function" "ui_log_ingestor" {
   role             = aws_iam_role.lambda.arn
   handler          = "ingest.handler"
   runtime          = "python3.12"
-  timeout          = 120
-  memory_size      = 256
+  timeout          = 300
+  memory_size      = 512
+  layers           = [var.aws_sdk_pandas_layer_arn]
   filename         = data.archive_file.ui_log_ingestor[0].output_path
   source_code_hash = data.archive_file.ui_log_ingestor[0].output_base64sha256
 
   environment {
     variables = {
-      CURATED_BUCKET              = aws_s3_bucket.curated.id
-      GLUE_DATABASE               = aws_glue_catalog_database.app.name
-      GLUE_TABLE                  = var.ui_logs_table_name
-      LOG_GROUP_NAME              = local.ui_logs_log_group_name
-      LOG_STREAM_PREFIXES         = join(",", var.ui_logs_log_stream_prefixes)
-      LOOKBACK_MINUTES            = tostring(local.ui_logs_lookback_minutes)
-      OUTPUT_PREFIX               = var.ui_logs_output_prefix
-      USER_IDENTITY_GLUE_TABLE    = var.user_identity_table_name
-      USER_IDENTITY_OUTPUT_PREFIX = var.user_identity_output_prefix
-      USER_IDENTITY_SNAPSHOT_DAYS = tostring(var.user_identity_snapshot_days)
+      CURATED_BUCKET               = aws_s3_bucket.curated.id
+      GLUE_DATABASE                = aws_glue_catalog_database.app.name
+      GLUE_TABLE                   = var.ui_logs_table_name
+      LOG_GROUP_NAME               = local.ui_logs_log_group_name
+      LOG_STREAM_PREFIXES          = join(",", var.ui_logs_log_stream_prefixes)
+      LOOKBACK_MINUTES             = tostring(local.ui_logs_lookback_minutes)
+      OUTPUT_PREFIX                = var.ui_logs_output_prefix
+      ATHENA_WORKGROUP             = aws_athena_workgroup.ingestion.name
+      USER_IDENTITY_GLUE_TABLE     = var.user_identity_table_name
+      USER_IDENTITY_OUTPUT_PREFIX  = var.user_identity_output_prefix
+      USER_IDENTITY_PARQUET_PREFIX = var.user_identity_parquet_output_prefix
+      USER_IDENTITY_ICEBERG_TABLE  = var.user_identity_iceberg_table_name
+      USER_IDENTITY_ICEBERG_PREFIX = var.user_identity_iceberg_output_prefix
+      USER_IDENTITY_SNAPSHOT_DAYS  = tostring(var.user_identity_snapshot_days)
     }
   }
 

@@ -10,6 +10,7 @@ It creates:
 - Glue databases and external tables for demo sources.
 - A Kubernetes UI/server access-log harvester over CloudWatch container logs.
 - A Lambda ingestor invoked by EventBridge schedules.
+- Parquet identity snapshots that Spark can read directly without the Glue Hive client.
 
 The default schedule is deliberately slow to keep early demo cost low. Change
 `ui_logs_freshness_profile` when freshness matters more.
@@ -80,4 +81,3 @@ aws = {
   ]
 }
 ```
-

@@ -7,6 +7,10 @@ import time
 import uuid
 
 import boto3
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+import awswrangler as wr
 
 
 cloudwatch_logs = boto3.client("logs")
@@ -51,6 +55,14 @@ USER_IDENTITY_COLUMNS = [
     {"Name": "ingestion_id", "Type": "string"},
     {"Name": "ingested_at", "Type": "string"},
 ]
+
+
+PARQUET_TYPES = {
+    "string": pa.string(),
+    "bigint": pa.int64(),
+    "int": pa.int32(),
+    "double": pa.float64(),
+}
 
 
 NGINX_ACCESS_RE = re.compile(
@@ -333,6 +345,53 @@ def _write_identity_snapshot(
     return key
 
 
+def _write_parquet_rows(bucket, prefix, snapshot_date, key_name, rows, columns):
+    schema = pa.schema(
+        [pa.field(column["Name"], PARQUET_TYPES[column["Type"]]) for column in columns]
+    )
+    table = pa.Table.from_pylist(rows, schema=schema)
+    output = pa.BufferOutputStream()
+    pq.write_table(table, output, compression="snappy")
+    key = f"{prefix}/snapshot_date={snapshot_date}/{key_name}.parquet"
+    s3.put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=output.getvalue().to_pybytes(),
+        ContentType="application/vnd.apache.parquet",
+    )
+    return key
+
+
+def _write_identity_iceberg(database_name, table_name, bucket, prefix, rows, snapshot_dates):
+    iceberg_rows = []
+    for snapshot_date in snapshot_dates:
+        iceberg_rows.extend({**row, "snapshot_date": snapshot_date} for row in rows)
+
+    wr.athena.to_iceberg(
+        df=pd.DataFrame(iceberg_rows),
+        database=database_name,
+        table=table_name,
+        temp_path=f"s3://{bucket}/tmp/user_identity_snapshots_iceberg/",
+        table_location=f"s3://{bucket}/{prefix}/",
+        partition_cols=["snapshot_date"],
+        mode="overwrite_partitions",
+        keep_files=False,
+        workgroup=os.environ["ATHENA_WORKGROUP"],
+        dtype={
+            "user_id": "string",
+            "email_hash": "string",
+            "first_seen_ts": "bigint",
+            "last_seen_ts": "bigint",
+            "last_seen_time_iso": "string",
+            "last_event": "string",
+            "source_event_id": "string",
+            "ingestion_id": "string",
+            "ingested_at": "string",
+            "snapshot_date": "string",
+        },
+    )
+
+
 def _iter_events(log_group_name, start_ms, end_ms, log_stream_prefixes):
     kwargs = {
         "logGroupName": log_group_name,
@@ -368,6 +427,15 @@ def handler(event, _context):
     bucket = os.environ["CURATED_BUCKET"]
     prefix = os.environ.get("OUTPUT_PREFIX", "app/ui_access_logs").strip("/")
     user_identity_prefix = os.environ.get("USER_IDENTITY_OUTPUT_PREFIX", "app/user_identity_snapshots").strip("/")
+    user_identity_parquet_prefix = os.environ.get(
+        "USER_IDENTITY_PARQUET_PREFIX", "app/user_identity_snapshots_parquet"
+    ).strip("/")
+    user_identity_iceberg_table = os.environ.get(
+        "USER_IDENTITY_ICEBERG_TABLE", "user_identity_snapshots_iceberg"
+    )
+    user_identity_iceberg_prefix = os.environ.get(
+        "USER_IDENTITY_ICEBERG_PREFIX", "app/user_identity_snapshots_iceberg"
+    ).strip("/")
     identity_snapshot_dates = _identity_snapshot_dates(event, now)
     log_stream_prefixes = [
         value.strip()
@@ -456,12 +524,49 @@ def handler(event, _context):
     else:
         user_identity_keys = []
 
+    if user_rows:
+        parquet_rows = [
+            {
+                **row,
+                "ingestion_id": ingestion_id,
+                "ingested_at": now.isoformat(),
+            }
+            for row in user_rows
+        ]
+        user_identity_parquet_keys = [
+            _write_parquet_rows(
+                bucket,
+                user_identity_parquet_prefix,
+                identity_snapshot_date,
+                "snapshot",
+                parquet_rows,
+                USER_IDENTITY_COLUMNS,
+            )
+            for identity_snapshot_date in identity_snapshot_dates
+        ]
+    else:
+        user_identity_parquet_keys = []
+
+    if user_rows:
+        _write_identity_iceberg(
+            database_name,
+            user_identity_iceberg_table,
+            bucket,
+            user_identity_iceberg_prefix,
+            parquet_rows,
+            identity_snapshot_dates,
+        )
+
     return {
         "rows": len(rows),
         "user_identity_rows": len(user_rows),
         "bucket": bucket,
         "key": key,
         "user_identity_keys": user_identity_keys,
+        "user_identity_parquet_keys": user_identity_parquet_keys,
+        "user_identity_iceberg_table": (
+            f"{database_name}.{user_identity_iceberg_table}" if user_rows else ""
+        ),
         "identity_snapshot_dates": identity_snapshot_dates,
         "lookback_minutes": lookback_minutes,
         "log_group_name": os.environ["LOG_GROUP_NAME"],

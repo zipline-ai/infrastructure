@@ -42,6 +42,8 @@ output "user_identity_source_location" {
   value = var.ui_logs_enabled ? {
     glue_table     = "${aws_glue_catalog_database.app.name}.${var.user_identity_table_name}"
     curated_prefix = "s3://${aws_s3_bucket.curated.id}/${var.user_identity_output_prefix}/"
+    parquet_prefix = "s3://${aws_s3_bucket.curated.id}/${var.user_identity_parquet_output_prefix}/"
+    iceberg_table  = "${aws_glue_catalog_database.app.name}.${var.user_identity_iceberg_table_name}"
     log_group_name = local.ui_logs_log_group_name
   } : null
 }

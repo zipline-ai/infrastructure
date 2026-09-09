@@ -32,6 +32,7 @@ data "aws_iam_policy_document" "lambda_datasource" {
     actions = [
       "s3:GetObject",
       "s3:PutObject",
+      "s3:DeleteObject",
     ]
     resources = [
       "${aws_s3_bucket.raw.arn}/*",
@@ -42,6 +43,7 @@ data "aws_iam_policy_document" "lambda_datasource" {
   statement {
     effect = "Allow"
     actions = [
+      "s3:GetBucketLocation",
       "s3:ListBucket",
     ]
     resources = [
@@ -53,14 +55,33 @@ data "aws_iam_policy_document" "lambda_datasource" {
     effect = "Allow"
     actions = [
       "glue:CreatePartition",
+      "glue:CreateTable",
+      "glue:DeleteTable",
+      "glue:GetDatabase",
       "glue:GetPartition",
+      "glue:GetPartitions",
+      "glue:GetTable",
+      "glue:GetTables",
       "glue:UpdatePartition",
+      "glue:UpdateTable",
     ]
     resources = [
       aws_glue_catalog_database.app.arn,
       "arn:aws:glue:${var.aws_region}:*:catalog",
       "arn:aws:glue:${var.aws_region}:*:table/${aws_glue_catalog_database.app.name}/*",
     ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "athena:GetQueryExecution",
+      "athena:GetQueryResults",
+      "athena:GetWorkGroup",
+      "athena:StartQueryExecution",
+      "athena:StopQueryExecution",
+    ]
+    resources = ["*"]
   }
 
   statement {
