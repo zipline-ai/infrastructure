@@ -14,6 +14,7 @@ tfplan*
 # Environment-specific canary configuration pulled from remote storage.
 aws/zipline-orchestration/.crucible-config/
 aws/zipline-orchestration/backend.hcl
+aws/zipline-orchestration/artifact-access.tf
 aws/zipline-orchestration/current-helm-values.*
 aws/zipline-orchestration/dns-provider.tf
 aws/zipline-orchestration/cloudflare.tf

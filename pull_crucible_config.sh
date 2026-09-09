@@ -99,6 +99,7 @@ case "${cloud}" in
 
     download_optional_s3_object "${bucket}" "${config_prefix}" "dns-provider.tf" "${root_dest}/dns-provider.tf"
     download_optional_s3_object "${bucket}" "${config_prefix}" "dns.auto.tfvars.json" "${root_dest}/dns.auto.tfvars.json"
+    download_optional_s3_object "${bucket}" "${config_prefix}" "artifact-access.tf" "${root_dest}/artifact-access.tf"
 
     cat <<EOF
 Pulled AWS Crucible orchestration config from:

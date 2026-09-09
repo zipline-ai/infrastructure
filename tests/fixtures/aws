@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -lt 3 ] || [ "$1" != "s3" ]; then
+  echo "Unsupported mock aws invocation: $*" >&2
+  exit 2
+fi
+
+command="$2"
+source_or_uri="$3"
+
+s3_key() {
+  local uri="$1"
+  local bucket_and_key="${uri#s3://}"
+  printf '%s\n' "${bucket_and_key#*/}"
+}
+
+case "${command}" in
+  ls)
+    test -f "${AWS_MOCK_ROOT}/$(s3_key "${source_or_uri}")"
+    ;;
+  cp)
+    target="$4"
+    if [[ "${source_or_uri}" == s3://* ]]; then
+      cp "${AWS_MOCK_ROOT}/$(s3_key "${source_or_uri}")" "${target}"
+    elif [[ "${target}" == s3://* ]]; then
+      target_file="${AWS_MOCK_ROOT}/$(s3_key "${target}")"
+      mkdir -p "$(dirname "${target_file}")"
+      cp "${source_or_uri}" "${target_file}"
+    else
+      echo "Mock aws cp requires one S3 URI: $*" >&2
+      exit 2
+    fi
+    ;;
+  *)
+    echo "Unsupported mock aws s3 command: ${command}" >&2
+    exit 2
+    ;;
+esac

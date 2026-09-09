@@ -92,6 +92,7 @@ case "${cloud}" in
     aws s3 cp "${wrapper_file}" "s3://${bucket}/${wrapper_key}"
     upload_optional_s3_object "${bucket}" "${config_prefix}" "${wrapper_root}/dns-provider.tf" "dns-provider.tf"
     upload_optional_s3_object "${bucket}" "${config_prefix}" "${wrapper_root}/dns.auto.tfvars.json" "dns.auto.tfvars.json"
+    upload_optional_s3_object "${bucket}" "${config_prefix}" "${wrapper_root}/artifact-access.tf" "artifact-access.tf"
     ;;
   azure)
     storage_account="${AZURE_CONFIG_STORAGE_ACCOUNT:-ziplineai2}"
