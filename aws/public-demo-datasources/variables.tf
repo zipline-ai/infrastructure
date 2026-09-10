@@ -124,3 +124,33 @@ variable "ui_logs_freshness_profile" {
     error_message = "ui_logs_freshness_profile must be one of: low_cost, balanced, fresh."
   }
 }
+
+variable "ui_logs_streaming_enabled" {
+  description = "Publish parsed UI access events to Kinesis for Chronon streaming GroupBys."
+  type        = bool
+  default     = false
+}
+
+variable "ui_logs_stream_name" {
+  description = "Kinesis stream carrying parsed public-demo UI access events."
+  type        = string
+  default     = "public-demo-ui-access-events"
+}
+
+variable "ui_logs_stream_shard_count" {
+  description = "Provisioned Kinesis shard count for the low-volume public demo stream."
+  type        = number
+  default     = 1
+}
+
+variable "glue_schema_registry_name" {
+  description = "Persistent Glue Schema Registry used by public-demo streaming sources."
+  type        = string
+  default     = "zipline-public-demo"
+}
+
+variable "ui_logs_stream_schema_name" {
+  description = "Glue JSON schema used to deserialize public-demo UI access events."
+  type        = string
+  default     = "ui-access-event-v1"
+}

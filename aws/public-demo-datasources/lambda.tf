@@ -49,6 +49,53 @@ resource "aws_lambda_function" "ui_log_ingestor" {
   }
 }
 
+resource "aws_lambda_function" "ui_log_stream_publisher" {
+  count = var.ui_logs_enabled && var.ui_logs_streaming_enabled ? 1 : 0
+
+  function_name    = "${var.name_prefix}-ui-log-stream-publisher"
+  description      = "Publishes parsed Kubernetes UI access logs to Kinesis"
+  role             = aws_iam_role.lambda.arn
+  handler          = "ingest.stream_handler"
+  runtime          = "python3.12"
+  timeout          = 60
+  memory_size      = 512
+  layers           = [var.aws_sdk_pandas_layer_arn]
+  filename         = data.archive_file.ui_log_ingestor[0].output_path
+  source_code_hash = data.archive_file.ui_log_ingestor[0].output_base64sha256
+
+  environment {
+    variables = {
+      KINESIS_STREAM_NAME = aws_kinesis_stream.ui_access_events[0].name
+    }
+  }
+
+  tags = {
+    Environment = var.name_prefix
+    Layer       = "datasources"
+  }
+}
+
+resource "aws_lambda_permission" "allow_cloudwatch_logs_streaming" {
+  count = var.ui_logs_enabled && var.ui_logs_streaming_enabled ? 1 : 0
+
+  statement_id  = "AllowExecutionFromCloudWatchLogs"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.ui_log_stream_publisher[0].function_name
+  principal     = "logs.${var.aws_region}.amazonaws.com"
+  source_arn    = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:${local.ui_logs_log_group_name}:*"
+}
+
+resource "aws_cloudwatch_log_subscription_filter" "ui_access_events" {
+  count = var.ui_logs_enabled && var.ui_logs_streaming_enabled ? 1 : 0
+
+  name            = "${var.name_prefix}-ui-access-events"
+  log_group_name  = local.ui_logs_log_group_name
+  filter_pattern  = "\"api_request_complete\""
+  destination_arn = aws_lambda_function.ui_log_stream_publisher[0].arn
+
+  depends_on = [aws_lambda_permission.allow_cloudwatch_logs_streaming]
+}
+
 resource "aws_cloudwatch_event_rule" "ui_log_ingestor" {
   count = var.ui_logs_enabled ? 1 : 0
 

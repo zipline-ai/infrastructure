@@ -1,9 +1,10 @@
+import base64
 import datetime as dt
+import gzip
 import hashlib
 import json
 import os
 import re
-import time
 import uuid
 
 import boto3
@@ -16,6 +17,7 @@ import awswrangler as wr
 cloudwatch_logs = boto3.client("logs")
 glue = boto3.client("glue")
 s3 = boto3.client("s3")
+kinesis = boto3.client("kinesis")
 
 
 UI_LOG_COLUMNS = [
@@ -451,6 +453,84 @@ def _iter_events(log_group_name, start_ms, end_ms, log_stream_prefixes):
         kwargs["nextToken"] = token
 
 
+def _parse_access_event(log_event, ingestion_id, ingested_at):
+    log_message, decoded = _extract_log_message(log_event.get("message", ""))
+    parsed = _parse_audit_json(decoded, log_message) or _parse_http_fields(log_message)
+    if not parsed:
+        return None
+
+    event_ts = int(log_event["timestamp"])
+    event_time = dt.datetime.fromtimestamp(event_ts / 1000, tz=dt.timezone.utc)
+    stream_fields = _parse_stream(log_event.get("logStreamName", ""))
+    return {
+        "event_id": hashlib.sha256(
+            f"{log_event.get('eventId', '')}:{event_ts}:{log_message}".encode("utf-8")
+        ).hexdigest(),
+        "ingestion_id": ingestion_id,
+        "event_ts": event_ts,
+        "event_time_iso": event_time.isoformat(),
+        "ingested_at": ingested_at.isoformat(),
+        "freshness_lag_seconds": max(0, int(ingested_at.timestamp() - event_ts / 1000)),
+        "log_stream": log_event.get("logStreamName", ""),
+        "namespace": decoded.get("kubernetes", {}).get("namespace_name", stream_fields["namespace"]),
+        "pod": decoded.get("kubernetes", {}).get("pod_name", stream_fields["pod"]),
+        "container": decoded.get("kubernetes", {}).get("container_name", stream_fields["container"]),
+        "raw_message": log_message,
+        **parsed,
+    }
+
+
+def _chunks(values, size):
+    for index in range(0, len(values), size):
+        yield values[index : index + size]
+
+
+def _put_kinesis_records(records):
+    pending = records
+    for _attempt in range(3):
+        response = kinesis.put_records(
+            StreamName=os.environ["KINESIS_STREAM_NAME"],
+            Records=pending,
+        )
+        pending = [
+            record
+            for record, result in zip(pending, response["Records"])
+            if "ErrorCode" in result
+        ]
+        if not pending:
+            return
+    raise RuntimeError(f"Kinesis rejected {len(pending)} of {len(records)} access events")
+
+
+def stream_handler(event, _context):
+    payload = json.loads(gzip.decompress(base64.b64decode(event["awslogs"]["data"])))
+    ingestion_id = str(uuid.uuid4())
+    ingested_at = dt.datetime.now(dt.timezone.utc)
+    log_stream = payload.get("logStream", "")
+    rows = []
+    for log_event in payload.get("logEvents", []):
+        row = _parse_access_event(
+            {**log_event, "logStreamName": log_stream},
+            ingestion_id,
+            ingested_at,
+        )
+        if row:
+            rows.append(row)
+
+    for batch in _chunks(rows, 500):
+        records = []
+        for row in batch:
+            actor = row.get("user_id") or row.get("client_ip") or row["event_id"]
+            records.append(
+                {
+                    "Data": json.dumps(row, separators=(",", ":")).encode("utf-8"),
+                    "PartitionKey": hashlib.sha256(actor.encode("utf-8")).hexdigest(),
+                }
+            )
+        _put_kinesis_records(records)
+    return {"received": len(payload.get("logEvents", [])), "published": len(rows)}
+
+
 def handler(event, _context):
     now = dt.datetime.now(dt.timezone.utc)
     ingestion_id = str(uuid.uuid4())
@@ -508,30 +588,9 @@ def handler(event, _context):
             else:
                 existing["first_seen_ts"] = first_seen_ts
 
-        parsed = _parse_audit_json(decoded, log_message) or _parse_http_fields(log_message)
-        if not parsed:
-            continue
-
-        event_ts = int(log_event["timestamp"])
-        event_time = dt.datetime.fromtimestamp(event_ts / 1000, tz=dt.timezone.utc)
-        stream_fields = _parse_stream(log_event.get("logStreamName", ""))
-        row = {
-            "event_id": hashlib.sha256(
-                f"{log_event.get('eventId', '')}:{event_ts}:{log_message}".encode("utf-8")
-            ).hexdigest(),
-            "ingestion_id": ingestion_id,
-            "event_ts": event_ts,
-            "event_time_iso": event_time.isoformat(),
-            "ingested_at": now.isoformat(),
-            "freshness_lag_seconds": max(0, int(time.time() - event_ts / 1000)),
-            "log_stream": log_event.get("logStreamName", ""),
-            "namespace": decoded.get("kubernetes", {}).get("namespace_name", stream_fields["namespace"]),
-            "pod": decoded.get("kubernetes", {}).get("pod_name", stream_fields["pod"]),
-            "container": decoded.get("kubernetes", {}).get("container_name", stream_fields["container"]),
-            "raw_message": log_message,
-            **parsed,
-        }
-        rows.append(row)
+        row = _parse_access_event(log_event, ingestion_id, now)
+        if row:
+            rows.append(row)
 
     if rows:
         key = f"{prefix}/snapshot_date={snapshot_date}/{ingestion_id}.jsonl"

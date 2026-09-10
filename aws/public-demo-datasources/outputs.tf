@@ -37,6 +37,16 @@ output "ui_logs_source_location" {
   } : null
 }
 
+output "ui_logs_stream" {
+  description = "Streaming source handle for public-demo UI access events."
+  value = var.ui_logs_enabled && var.ui_logs_streaming_enabled ? {
+    stream_name   = aws_kinesis_stream.ui_access_events[0].name
+    stream_arn    = aws_kinesis_stream.ui_access_events[0].arn
+    registry_name = aws_glue_registry.streaming[0].registry_name
+    schema_name   = aws_glue_schema.ui_access_events[0].schema_name
+  } : null
+}
+
 output "user_identity_source_location" {
   description = "Source handle for the public demo auth user identity snapshot configs."
   value = var.ui_logs_enabled ? {

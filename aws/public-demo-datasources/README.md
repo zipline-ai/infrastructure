@@ -11,6 +11,7 @@ It creates:
 - A Lambda-managed Iceberg access-log table used by Zipline jobs.
 - A Kubernetes UI/server access-log harvester over CloudWatch container logs.
 - A Lambda ingestor invoked by EventBridge schedules.
+- A dedicated Kinesis stream and Glue JSON schema for real-time activity features.
 - Parquet identity snapshots that Spark can read directly without the Glue Hive client.
 
 The default schedule is deliberately slow to keep early demo cost low. Change
@@ -39,6 +40,14 @@ readiness predictable for the demo.
 The ingestor also merges each run into
 `public_demo_app.ui_access_logs_iceberg`, partitioned by `ds`. This table is the
 Zipline-facing source and advances automatically with the scheduled Lambda.
+
+When `ui_logs_streaming_enabled` is true, a CloudWatch Logs subscription sends
+structured `api_request_complete` events through
+`public-demo-ui-log-stream-publisher` to
+`public-demo-ui-access-events`. The `email_request_activity` GroupBy consumes
+that stream for online updates. Its offline path continues to read Iceberg, so
+`ui_logs_freshness_profile` remains the lever that creates and measures an
+offline/online freshness gap.
 
 ## Configure
 

@@ -9,6 +9,7 @@ data "aws_iam_policy_document" "lambda_assume_role" {
 
     actions = ["sts:AssumeRole"]
   }
+
 }
 
 resource "aws_iam_role" "lambda" {
@@ -27,6 +28,19 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
 }
 
 data "aws_iam_policy_document" "lambda_datasource" {
+  dynamic "statement" {
+    for_each = var.ui_logs_enabled && var.ui_logs_streaming_enabled ? [1] : []
+    content {
+      effect = "Allow"
+      actions = [
+        "kinesis:DescribeStreamSummary",
+        "kinesis:PutRecord",
+        "kinesis:PutRecords",
+      ]
+      resources = [aws_kinesis_stream.ui_access_events[0].arn]
+    }
+  }
+
   statement {
     effect = "Allow"
     actions = [
