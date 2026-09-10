@@ -9,16 +9,17 @@ data "archive_file" "ui_log_ingestor" {
 resource "aws_lambda_function" "ui_log_ingestor" {
   count = var.ui_logs_enabled ? 1 : 0
 
-  function_name    = local.ui_logs_lambda_name
-  description      = "Harvests Kubernetes UI access logs into S3 for the public demo"
-  role             = aws_iam_role.lambda.arn
-  handler          = "ingest.handler"
-  runtime          = "python3.12"
-  timeout          = 300
-  memory_size      = 512
-  layers           = [var.aws_sdk_pandas_layer_arn]
-  filename         = data.archive_file.ui_log_ingestor[0].output_path
-  source_code_hash = data.archive_file.ui_log_ingestor[0].output_base64sha256
+  function_name                  = local.ui_logs_lambda_name
+  description                    = "Harvests Kubernetes UI access logs into S3 for the public demo"
+  role                           = aws_iam_role.lambda.arn
+  handler                        = "ingest.handler"
+  runtime                        = "python3.12"
+  timeout                        = 300
+  memory_size                    = 512
+  reserved_concurrent_executions = 1
+  layers                         = [var.aws_sdk_pandas_layer_arn]
+  filename                       = data.archive_file.ui_log_ingestor[0].output_path
+  source_code_hash               = data.archive_file.ui_log_ingestor[0].output_base64sha256
 
   environment {
     variables = {
@@ -29,6 +30,9 @@ resource "aws_lambda_function" "ui_log_ingestor" {
       LOG_STREAM_PREFIXES          = join(",", var.ui_logs_log_stream_prefixes)
       LOOKBACK_MINUTES             = tostring(local.ui_logs_lookback_minutes)
       OUTPUT_PREFIX                = var.ui_logs_output_prefix
+      UI_LOGS_ICEBERG_TABLE        = var.ui_logs_iceberg_table_name
+      UI_LOGS_ICEBERG_PREFIX       = var.ui_logs_iceberg_output_prefix
+      WAREHOUSE_BUCKET             = var.warehouse_bucket
       ATHENA_WORKGROUP             = aws_athena_workgroup.ingestion.name
       USER_IDENTITY_GLUE_TABLE     = var.user_identity_table_name
       USER_IDENTITY_OUTPUT_PREFIX  = var.user_identity_output_prefix

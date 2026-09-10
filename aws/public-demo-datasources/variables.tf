@@ -48,6 +48,18 @@ variable "ui_logs_output_prefix" {
   default     = "app/ui_access_logs"
 }
 
+variable "ui_logs_iceberg_table_name" {
+  description = "Glue Iceberg table continuously populated from parsed UI access logs."
+  type        = string
+  default     = "ui_access_logs_iceberg"
+}
+
+variable "ui_logs_iceberg_output_prefix" {
+  description = "Warehouse bucket prefix for the Lambda-managed UI access-log Iceberg table."
+  type        = string
+  default     = "data/tables/public_demo_app.db/ui_access_logs_iceberg"
+}
+
 variable "user_identity_table_name" {
   description = "Glue table containing auth user identity snapshots with hashed email values."
   type        = string

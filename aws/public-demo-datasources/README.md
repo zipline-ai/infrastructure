@@ -8,6 +8,7 @@ It creates:
 
 - S3 raw and curated demo buckets.
 - Glue databases and external tables for demo sources.
+- A Lambda-managed Iceberg access-log table used by Zipline jobs.
 - A Kubernetes UI/server access-log harvester over CloudWatch container logs.
 - A Lambda ingestor invoked by EventBridge schedules.
 - Parquet identity snapshots that Spark can read directly without the Glue Hive client.
@@ -31,9 +32,13 @@ look healthy when it is not.
 Set the profile in `public-demo-datasources.auto.tfvars`, run `tofu apply`, and
 EventBridge will update the harvesting cadence. The default remains `low_cost`.
 
-All datasource tables are partitioned by `snapshot_date` only. Keeping minute
+Datasource landing tables are partitioned by `snapshot_date`. Keeping minute
 level freshness in columns instead of partition keys makes Chronon partition
 readiness predictable for the demo.
+
+The ingestor also merges each run into
+`public_demo_app.ui_access_logs_iceberg`, partitioned by `ds`. This table is the
+Zipline-facing source and advances automatically with the scheduled Lambda.
 
 ## Configure
 

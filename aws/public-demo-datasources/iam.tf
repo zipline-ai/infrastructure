@@ -37,6 +37,7 @@ data "aws_iam_policy_document" "lambda_datasource" {
     resources = [
       "${aws_s3_bucket.raw.arn}/*",
       "${aws_s3_bucket.curated.arn}/*",
+      "arn:aws:s3:::${var.warehouse_bucket}/*",
     ]
   }
 
@@ -48,6 +49,7 @@ data "aws_iam_policy_document" "lambda_datasource" {
     ]
     resources = [
       aws_s3_bucket.curated.arn,
+      "arn:aws:s3:::${var.warehouse_bucket}",
     ]
   }
 

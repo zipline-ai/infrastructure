@@ -4,7 +4,9 @@
 **/.terraform/
 **/.terraform.lock.hcl
 
+#python
 **/__pycache__/
+
 # Local Terraform/OpenTofu configuration and plans
 *.tfvars
 *.tfvars.json

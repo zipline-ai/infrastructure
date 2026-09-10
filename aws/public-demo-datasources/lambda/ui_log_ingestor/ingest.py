@@ -362,6 +362,43 @@ def _write_parquet_rows(bucket, prefix, snapshot_date, key_name, rows, columns):
     return key
 
 
+def _load_ui_log_partition(bucket, prefix, snapshot_date):
+    paginator = s3.get_paginator("list_objects_v2")
+    rows_by_event_id = {}
+    for page in paginator.paginate(Bucket=bucket, Prefix=f"{prefix}/snapshot_date={snapshot_date}/"):
+        for item in page.get("Contents", []):
+            key = item.get("Key", "")
+            if not key.endswith(".jsonl"):
+                continue
+            response = s3.get_object(Bucket=bucket, Key=key)
+            for line in response["Body"].read().decode("utf-8").splitlines():
+                if line.strip():
+                    row = json.loads(line)
+                    rows_by_event_id[row["event_id"]] = row
+    return list(rows_by_event_id.values())
+
+
+def _write_ui_logs_iceberg(database_name, table_name, warehouse_bucket, prefix, rows, snapshot_date):
+    if not rows:
+        return
+
+    iceberg_rows = [{**row, "ds": snapshot_date} for row in rows]
+    wr.athena.to_iceberg(
+        df=pd.DataFrame(iceberg_rows),
+        database=database_name,
+        table=table_name,
+        temp_path=f"s3://{warehouse_bucket}/tmp/ui_access_logs_iceberg/",
+        table_location=f"s3://{warehouse_bucket}/{prefix}/",
+        partition_cols=["ds"],
+        mode="append",
+        merge_cols=["event_id"],
+        merge_condition="ignore",
+        keep_files=False,
+        workgroup=os.environ["ATHENA_WORKGROUP"],
+        dtype={**{column["Name"]: column["Type"] for column in UI_LOG_COLUMNS}, "ds": "string"},
+    )
+
+
 def _write_identity_iceberg(database_name, table_name, bucket, prefix, rows, snapshot_dates):
     iceberg_rows = []
     for snapshot_date in snapshot_dates:
@@ -426,6 +463,11 @@ def handler(event, _context):
     database_name = os.environ["GLUE_DATABASE"]
     bucket = os.environ["CURATED_BUCKET"]
     prefix = os.environ.get("OUTPUT_PREFIX", "app/ui_access_logs").strip("/")
+    warehouse_bucket = os.environ["WAREHOUSE_BUCKET"]
+    ui_logs_iceberg_table = os.environ.get("UI_LOGS_ICEBERG_TABLE", "ui_access_logs_iceberg")
+    ui_logs_iceberg_prefix = os.environ.get(
+        "UI_LOGS_ICEBERG_PREFIX", "data/tables/public_demo_app.db/ui_access_logs_iceberg"
+    ).strip("/")
     user_identity_prefix = os.environ.get("USER_IDENTITY_OUTPUT_PREFIX", "app/user_identity_snapshots").strip("/")
     user_identity_parquet_prefix = os.environ.get(
         "USER_IDENTITY_PARQUET_PREFIX", "app/user_identity_snapshots_parquet"
@@ -505,6 +547,28 @@ def handler(event, _context):
     else:
         key = ""
 
+    _write_ui_logs_iceberg(
+        database_name,
+        ui_logs_iceberg_table,
+        warehouse_bucket,
+        ui_logs_iceberg_prefix,
+        rows,
+        snapshot_date,
+    )
+    iceberg_backfill_dates = sorted(
+        {str(value) for value in event.get("ui_logs_iceberg_backfill_dates", [])} - {snapshot_date}
+    )
+    for backfill_date in iceberg_backfill_dates:
+        _parse_snapshot_date(backfill_date)
+        _write_ui_logs_iceberg(
+            database_name,
+            ui_logs_iceberg_table,
+            warehouse_bucket,
+            ui_logs_iceberg_prefix,
+            _load_ui_log_partition(bucket, prefix, backfill_date),
+            backfill_date,
+        )
+
     existing_user_rows = _load_latest_identity_rows(bucket, user_identity_prefix)
     user_rows = _merge_identity_rows(existing_user_rows, users_by_id.values())
     if user_rows:
@@ -562,6 +626,8 @@ def handler(event, _context):
         "user_identity_rows": len(user_rows),
         "bucket": bucket,
         "key": key,
+        "ui_logs_iceberg_table": f"{database_name}.{ui_logs_iceberg_table}",
+        "ui_logs_iceberg_backfill_dates": iceberg_backfill_dates,
         "user_identity_keys": user_identity_keys,
         "user_identity_parquet_keys": user_identity_parquet_keys,
         "user_identity_iceberg_table": (
