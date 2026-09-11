@@ -108,7 +108,7 @@ pulls.
 | `orchestration.image_pull_secret.dockerhub_username` | `ziplineai` | The pull token belongs to a different Docker Hub user. |
 | `orchestration.image_pull_secret.dockerhub_token` | `""` | Required when `create = true`. |
 | `orchestration.compute.spark_image` | `ziplineai/spark:nightly` | You need a pinned or custom Spark image. |
-| `orchestration.compute.flink_image` | `ziplineai/flink:1.20.3` | You need a pinned or custom Flink image. |
+| `orchestration.compute.flink_image` | `ziplineai/flink:1.20.3-spark4` | You need a pinned or custom Flink image. |
 | `orchestration.hub.image` | AWS wrapper default | You need to override the AWS Hub image. |
 | `orchestration.eval.image` | AWS wrapper default | You need to override the AWS Eval image. |
 
