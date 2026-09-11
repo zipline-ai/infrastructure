@@ -61,6 +61,7 @@ locals {
 
   install                       = try(var.orchestration.install, {})
   deployment                    = var.orchestration.deployment
+  deploy_fetcher                = try(local.deployment.deploy_fetcher, false)
   name_prefix                   = local.deployment.customer_name
   cluster_name                  = local.cloud_args.cluster_name != "" ? local.cloud_args.cluster_name : "${local.name_prefix}-eks"
   orchestration_namespace       = try(local.install.namespace, "zipline-system")
@@ -528,6 +529,15 @@ locals {
     runtime_env = [
       { name = "AWS_REGION", value = local.cloud_args.region },
       { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
+    ]
+    fetcher_env = [
+      { name = "PROVIDER", value = "AWS" },
+      { name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix },
+      { name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) },
+      { name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) },
+      { name = "CHRONON_METRICS_READER", value = "prometheus" },
+      { name = "KV_STORE_TYPE", value = "dynamodb" },
+      { name = "AWS_STS_REGIONAL_ENDPOINTS", value = "regional" },
     ]
     hub_env = concat(
       local.cloud_args.kv_table_prefix == "" ? [] : [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }],

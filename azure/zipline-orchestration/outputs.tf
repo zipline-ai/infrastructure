@@ -77,3 +77,8 @@ output "prometheus_query_endpoint" {
   description = "PromQL query endpoint passed to the Zipline UI."
   value       = azurerm_monitor_workspace.prometheus.query_endpoint
 }
+
+output "fetcher_cosmos_endpoint" {
+  description = "Endpoint for the Terraform-managed fetcher Cosmos DB account."
+  value       = local.deploy_fetcher ? azurerm_cosmosdb_account.fetcher[0].endpoint : ""
+}

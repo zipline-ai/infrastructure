@@ -323,6 +323,9 @@ for the environment.
 
 ### DynamoDB, Glue, MSK, and Observability
 
+The AWS fetcher uses the Terraform-managed DynamoDB tables. The wrapper passes
+the table prefix, TTL setting, and replica regions to the fetcher automatically.
+
 | Field | Default | Use when |
 | --- | --- | --- |
 | `aws.kv_table_prefix` | `""` | Hub needs a prefix for Chronon KV tables. |
