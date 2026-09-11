@@ -18,6 +18,15 @@ orchestration = {
     origin = "https://try.zipline.ai"
   }
 
+  hub = {
+    env = [
+      {
+        name  = "CRUCIBLE_JAR_URI"
+        value = "s3://zipline-public-demo-artifacts/release/latest/jars/cloud_aws_lib_spark4_deploy.jar"
+      },
+    ]
+  }
+
   image_pull_secret = {
     create             = true
     dockerhub_username = "ziplineai"
