@@ -36,7 +36,7 @@ spec:
       {{- end }}
       containers:
         - name: eval
-          image: "{{ required "orchestration.eval.image is required" .Values.orchestration.eval.image }}:{{ .Values.global.version }}"
+          image: "{{ required "orchestration.eval.image is required" .Values.orchestration.eval.image }}:{{ include "zipline-orchestration.spark4Version" . }}"
           imagePullPolicy: Always
           env:
             - name: ORCHESTRATION_PORT

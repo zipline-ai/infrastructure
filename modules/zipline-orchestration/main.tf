@@ -496,15 +496,12 @@ locals {
   compute_defaults = {
     default_namespace      = "zipline-default"
     namespaces             = [{ name = "zipline-default", team = "default" }]
-    spark_image            = "ziplineai/spark:nightly"
-    flink_image            = "ziplineai/flink:1.20.3"
     spark_service_account  = "spark-operator-spark"
     flink_service_account  = "flink"
     spark_event_log_dir    = ""
     rbac_create            = true
     image_prepull_enabled  = true
     image_prepull_images   = []
-    history_server_image   = ""
     history_server_options = []
     spark_defaults         = {}
     flink_defaults         = {}
@@ -528,24 +525,22 @@ locals {
   compute_spark_defaults = merge(
     {
       eventLogDir = local.compute.spark_event_log_dir
-      image       = local.compute.spark_image
     },
-    local.compute.spark_defaults,
+    { for key, value in local.compute.spark_defaults : key => value if key != "image" },
   )
 
   compute_flink_defaults = merge(
     {
-      image                     = local.compute.flink_image
       serviceAccount            = local.compute.flink_service_account
       serviceAccountAnnotations = local.compute_service_account.annotations
     },
-    local.compute.flink_defaults,
+    { for key, value in local.compute.flink_defaults : key => value if key != "image" },
   )
 
   compute_image_prepull = merge(
     {
       enabled = local.compute.image_prepull_enabled
-      images  = length(local.compute.image_prepull_images) > 0 ? local.compute.image_prepull_images : (local.compute.image_prepull_enabled ? [local.compute.spark_image] : [])
+      images  = local.compute.image_prepull_images
     },
     local.compute.image_prepull_overrides,
   )
@@ -576,7 +571,6 @@ locals {
   )
 
   compute_history_server = {
-    image                 = local.compute.history_server_image != "" ? local.compute.history_server_image : local.compute.spark_image
     extraSparkHistoryOpts = local.compute.history_server_options
   }
 

@@ -27,12 +27,24 @@ The chart does not branch on a cloud provider. Cloud-specific infrastructure is 
 - `orchestration.hub.metricsReader`, `orchestration.hub.metricsPort`, and
   optional `orchestration.hub.podAnnotations` for Hub metrics exposure
 
+## Spark 4 Runtime
+
+Crucible has one compute runtime across every cloud. Spark jobs and the History
+Server use `ziplineai/spark:nightly`, and Flink uses
+`ziplineai/flink:1.20.3-spark4`. `CRUCIBLE_SPARK_IMAGE` and
+`CRUCIBLE_FLINK_IMAGE` are chart-owned environment variables and cannot be set
+through `runtime.env` or `orchestration.hub.env`.
+
+`global.version` is the base service tag. Hub and Eval use its Spark 4 variant:
+`nightly` stays `nightly`, while release and commit tags gain a `-spark4`
+suffix. UI and Fetcher continue to use the base tag.
+
 ## Required Overrides
 
 At minimum, each Terraform module should provide:
 
 - `global.customer_name`
-- `global.version`
+- `global.version` (the base tag before any `-spark4` suffix)
 - `database.host`
 - `orchestration.hub.image`
 - `orchestration.hub.verticleClass`

@@ -62,12 +62,10 @@ compute:
     create: true
   sparkDefaults:
     eventLogDir: ""
-    image: "ziplineai/spark:nightly"
     imagePullPolicy: "Always"
     chrononJarPath: "/opt/chronon/chronon-spark.jar"
     spotNodeSelector: {}
   flinkDefaults:
-    image: "ziplineai/flink:1.20.3"
     serviceAccount: flink
     serviceAccountAnnotations: {}
   systemPriorityClass:
@@ -93,7 +91,6 @@ compute:
     nodeSelector: {}
     tolerations: []
   historyServer:
-    image: "ziplineai/spark:nightly"
     proxyBase: "spark-history"
     daemonMemory: "5g"
     hybridStoreMemory: "4g"

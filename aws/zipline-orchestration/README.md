@@ -61,7 +61,7 @@ Set these for every environment.
 | --- | --- |
 | `orchestration.deployment.customer_name` | Used as the environment/customer prefix for generated resources. |
 | `orchestration.deployment.artifact_prefix` | S3 URI for Zipline artifacts. The wrapper creates the bucket portion of this URI. |
-| `orchestration.deployment.zipline_version` | Image tag used across Zipline services. |
+| `orchestration.deployment.zipline_version` | Base image tag. Hub and Eval use its Spark 4 variant; `nightly` stays `nightly` and other tags gain `-spark4`. |
 | `orchestration.ingress.domain` | Public host used by the UI, Hub, Eval, and supporting ingress routes. |
 | `aws.region` | AWS region for all regional resources and providers. |
 | `aws.warehouse_bucket` | S3 bucket for the warehouse. The wrapper creates this bucket. |
@@ -97,9 +97,11 @@ shape.
 
 ### Images and Pull Secrets
 
-The default Spark and Flink images are public defaults. Configure a pull secret
-when the environment pulls from a private Docker Hub image or needs authenticated
-pulls.
+Crucible always runs Spark 4. Spark jobs and the History Server use
+`ziplineai/spark:nightly`, Flink uses `ziplineai/flink:1.20.3-spark4`, and Hub
+and Eval use the Spark 4 variant of `orchestration.deployment.zipline_version`.
+These images cannot be overridden through Terraform. Configure a pull secret
+when the environment needs authenticated Docker Hub pulls.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -107,10 +109,6 @@ pulls.
 | `orchestration.image_pull_secret.create` | `false` | Terraform should create the Docker Hub pull Secret. |
 | `orchestration.image_pull_secret.dockerhub_username` | `ziplineai` | The pull token belongs to a different Docker Hub user. |
 | `orchestration.image_pull_secret.dockerhub_token` | `""` | Required when `create = true`. |
-| `orchestration.compute.spark_image` | `ziplineai/spark:nightly` | You need a pinned or custom Spark image. |
-| `orchestration.compute.flink_image` | `ziplineai/flink:1.20.3-spark4` | You need a pinned or custom Flink image. |
-| `orchestration.hub.image` | AWS wrapper default | You need to override the AWS Hub image. |
-| `orchestration.eval.image` | AWS wrapper default | You need to override the AWS Eval image. |
 
 ### Ingress and TLS
 
@@ -232,7 +230,7 @@ namespace policy.
 | `orchestration.compute.flink_service_account` | `flink` | Flink jobs use a non-default service account name. |
 | `orchestration.compute.rbac_create` | `true` | RBAC is managed outside this chart. |
 | `orchestration.compute.image_prepull_enabled` | `true` | You want to disable image prepull. |
-| `orchestration.compute.image_prepull_images` | Spark image | You want to prepull additional or different images. |
+| `orchestration.compute.image_prepull_images` | Spark 4 image | You want to prepull additional images alongside the Spark 4 image. |
 | `orchestration.compute.warm_pool` | disabled in shared defaults, enabled by AWS provider values | You need to tune pre-warmed Spark driver capacity. |
 | `orchestration.compute.system_priority_class` | disabled | Compute support workloads need a PriorityClass. |
 
