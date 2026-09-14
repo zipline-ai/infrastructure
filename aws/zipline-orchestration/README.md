@@ -314,6 +314,7 @@ buckets.
 | `aws.spark_libs_bucket` | `""` | Spark needs access to an existing bucket for shared libraries. |
 | `aws.additional_data_buckets` | `[]` | Spark compute and orchestration read paths need access to more buckets. |
 | `aws.additional_flink_s3_buckets` | `[]` | Flink compute needs access to more buckets. |
+| `aws.additional_flink_readonly_s3_buckets` | `[]` | Flink compute needs read-only access to externally managed artifact buckets. |
 | `aws.encryption_kms_key_arn` | `""` | RDS, Secrets Manager, DynamoDB, or Polaris storage policy should use a specific KMS key. |
 | `aws.encryption_kms_key_arns` | `{}` | DynamoDB replica regions need region-specific KMS keys. |
 

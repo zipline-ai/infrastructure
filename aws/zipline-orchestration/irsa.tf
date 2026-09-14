@@ -428,6 +428,26 @@ data "aws_iam_policy_document" "flink_compute_s3_policy" {
       ]
     ])
   }
+
+  dynamic "statement" {
+    for_each = length(local.cloud_args.additional_flink_readonly_s3_buckets) > 0 ? [1] : []
+
+    content {
+      sid    = "ReadOnlyExternalBuckets"
+      effect = "Allow"
+      actions = [
+        "s3:GetBucketLocation",
+        "s3:GetObject",
+        "s3:ListBucket",
+      ]
+      resources = flatten([
+        for bucket in local.cloud_args.additional_flink_readonly_s3_buckets : [
+          "arn:aws:s3:::${bucket}",
+          "arn:aws:s3:::${bucket}/*",
+        ]
+      ])
+    }
+  }
 }
 
 resource "aws_iam_policy" "flink_compute_s3" {
