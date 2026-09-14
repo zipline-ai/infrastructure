@@ -62,9 +62,6 @@ cp public-demo.auto.tfvars.example public-demo.auto.tfvars
 
 The public demo should keep datasource buckets in
 `../public-demo-datasources` and reset only this orchestration layer weekly.
-The reset workflow lives in this infrastructure repo at
-`.github/workflows/public-demo-aws.yml`; it checks out `zipline-ai/platform`
-only to build and install the Zipline CLI.
 
 ## Required Inputs
 
