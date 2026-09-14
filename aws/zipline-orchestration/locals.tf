@@ -438,12 +438,6 @@ locals {
   )))
 
   module_orchestration = merge(var.orchestration, {
-    compute = merge(
-      {
-        flink_image = "ziplineai/flink:1.20.3-spark4"
-      },
-      try(var.orchestration.compute, {}),
-    )
     extra_secret_objects = []
     secrets = merge(try(var.orchestration.secrets, {}), {
       extra_secret_objects = []

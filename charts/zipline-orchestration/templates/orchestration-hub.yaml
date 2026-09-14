@@ -1,3 +1,4 @@
+{{- include "zipline-orchestration.validateComputeImageEnv" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -40,7 +41,7 @@ spec:
       {{- end }}
       containers:
         - name: orchestration-hub
-          image: "{{ required "orchestration.hub.image is required" .Values.orchestration.hub.image }}:{{ .Values.global.version }}"
+          image: "{{ required "orchestration.hub.image is required" .Values.orchestration.hub.image }}:{{ include "zipline-orchestration.spark4Version" . }}"
           imagePullPolicy: Always
           env:
             - name: VERTICLE_CLASS
@@ -77,7 +78,7 @@ spec:
             - name: CRUCIBLE_DEFAULT_NAMESPACE
               value: {{ include "zipline-orchestration.computeJobNamespace" . | quote }}
             - name: CRUCIBLE_SPARK_IMAGE
-              value: "{{ .Values.compute.sparkDefaults.image }}"
+              value: {{ include "zipline-orchestration.sparkImage" . | quote }}
             - name: CRUCIBLE_SPARK_SERVICE_ACCOUNT
               value: "{{ .Values.compute.serviceAccount.sparkName }}"
             {{- $historyServerPublicUrl := include "zipline-orchestration.historyServerPublicUrl" . }}
@@ -94,7 +95,7 @@ spec:
               value: {{ toJson . | quote }}
             {{- end }}
             - name: CRUCIBLE_FLINK_IMAGE
-              value: "{{ .Values.compute.flinkDefaults.image }}"
+              value: {{ include "zipline-orchestration.flinkImage" . | quote }}
             - name: CRUCIBLE_FLINK_SERVICE_ACCOUNT
               value: "{{ .Values.compute.flinkDefaults.serviceAccount | default "flink" }}"
             - name: AUTH_ENABLED
