@@ -1,0 +1,98 @@
+orchestration = {
+  deployment = {
+    customer_name   = "public-demo"
+    artifact_prefix = "s3://zipline-public-demo-artifacts"
+    zipline_version = "nightly"
+    deploy_fetcher  = true
+  }
+
+  ingress = {
+    domain                      = "try.zipline.ai"
+    tls_secret_name             = "try-zipline-ai-tls"
+    cert_manager_cluster_issuer = "letsencrypt-prod"
+    create_cluster_issuer       = true
+    cluster_issuer_email        = "nikhil@zipline.ai"
+  }
+
+  ui = {
+    origin = "https://try.zipline.ai"
+  }
+
+  hub = {
+    env = [
+      {
+        name  = "CRUCIBLE_JAR_URI"
+        value = "s3://zipline-public-demo-artifacts/release/latest/jars/cloud_aws_lib_spark4_deploy.jar"
+      },
+    ]
+  }
+
+  image_pull_secret = {
+    create             = true
+    dockerhub_username = "ziplineai"
+    dockerhub_token    = ""
+  }
+
+  compute = {
+    default_namespace = "zipline-default"
+    flink_image       = "ziplineai/flink:1.20.3-spark4"
+    namespaces = [
+      { name = "zipline-default", team = "default" },
+    ]
+  }
+
+  # Enable Google auth after creating the OAuth client and secret values in AWS.
+  auth = {
+    enabled                = false
+    google_oauth_client_id = ""
+  }
+
+  values = {
+    orchestration = {
+      fetcher = {
+        replicas = 1
+        resources = {
+          requests = { cpu = "1", memory = "2Gi" }
+          limits   = { cpu = "2", memory = "4Gi" }
+        }
+      }
+    }
+  }
+}
+
+aws = {
+  region           = "us-west-2"
+  cluster_name     = "public-demo-eks"
+  warehouse_bucket = "zipline-public-demo-warehouse"
+  glue_schema_registry_name = "zipline-public-demo"
+  kv_table_prefix  = "PUBLIC_DEMO_"
+  eks_instance_type = "m8a.large"
+  eks_desired_size  = 2
+  eks_min_size      = 2
+  eks_max_size      = 4
+  ingress_traffic_policy = "Local"
+
+  # Omit vpc_id/primary_subnet_id/secondary_subnet_id to let the wrapper create a
+  # disposable VPC for the weekly-reset platform.
+
+  database_instance_class        = "db.t3.medium"
+  database_multi_az              = false
+  database_backup_retention_days = 0
+  database_skip_final_snapshot   = true
+  bucket_force_destroy           = true
+  secret_force_delete            = true
+
+  additional_data_buckets = [
+    "zipline-public-demo-curated",
+  ]
+
+  additional_flink_readonly_s3_buckets = [
+    "zipline-artifacts-crucible",
+  ]
+
+  karpenter = {
+    pool_limits     = { cpu = "200", memory = "800Gi" }
+    driver_limits   = { cpu = "40", memory = "160Gi" }
+    executor_limits = { cpu = "200", memory = "800Gi" }
+  }
+}

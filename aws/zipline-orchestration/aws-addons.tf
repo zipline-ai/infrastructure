@@ -191,6 +191,14 @@ resource "aws_iam_role_policy" "eks_node_cloudwatch" {
   policy = data.aws_iam_policy_document.fluent_bit_cloudwatch.json
 }
 
+resource "aws_iam_role_policy" "karpenter_node_cloudwatch" {
+  count = local.karpenter.enabled ? 1 : 0
+
+  name   = "${local.name_prefix}-karpenter-node-cloudwatch"
+  role   = aws_iam_role.karpenter_node[0].id
+  policy = data.aws_iam_policy_document.fluent_bit_cloudwatch.json
+}
+
 resource "helm_release" "fluent_bit" {
   name       = "fluent-bit"
   repository = "https://fluent.github.io/helm-charts"
@@ -206,6 +214,10 @@ resources:
   limits:
     cpu: 200m
     memory: 200Mi
+tolerations:
+  - key: "zipline.ai/node-pool"
+    operator: "Exists"
+    effect: "NoSchedule"
 config:
   service: |
     [SERVICE]
@@ -241,6 +253,7 @@ EOT
   depends_on = [
     aws_eks_node_group.default,
     aws_iam_role_policy.eks_node_cloudwatch,
+    aws_iam_role_policy.karpenter_node_cloudwatch,
   ]
 }
 

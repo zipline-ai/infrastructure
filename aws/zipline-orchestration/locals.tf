@@ -1,41 +1,43 @@
 locals {
   cloud_args = merge({
-    cluster_name                   = ""
-    eks_version                    = "1.36"
-    eks_instance_type              = "m8a.4xlarge"
-    eks_desired_size               = 3
-    eks_min_size                   = 3
-    eks_max_size                   = 8
-    eks_disk_size                  = 100
-    personnel_arns                 = []
-    kv_table_prefix                = ""
-    kv_enable_ttl                  = true
-    kv_replica_regions             = []
-    kv_batch_table_gc_age_days     = ""
-    kv_read_capacity               = 10
-    kv_write_capacity              = 10
-    eks_log_group                  = ""
-    auth_secret_arn                = ""
-    auth_secret_values             = {}
-    extra_external_secrets         = []
-    extra_secret_arns              = []
-    additional_data_buckets        = []
-    additional_flink_s3_buckets    = []
-    shared_warehouse_bucket        = ""
-    spark_libs_bucket              = ""
-    logs_bucket                    = ""
-    glue_schema_registry_name      = ""
-    msk_cluster_arn                = ""
-    amp_workspace_arn              = ""
-    encryption_kms_key_arn         = ""
-    encryption_kms_key_arns        = {}
-    database_name                  = "execution_info"
-    database_username              = "locker_user"
-    database_instance_class        = "db.t3.medium"
-    database_allocated_storage     = 20
-    database_multi_az              = true
-    database_publicly_accessible   = false
-    database_backup_retention_days = 7
+    cluster_name                         = ""
+    eks_version                          = "1.36"
+    eks_instance_type                    = "m8a.4xlarge"
+    eks_desired_size                     = 3
+    eks_min_size                         = 3
+    eks_max_size                         = 8
+    eks_disk_size                        = 100
+    ingress_traffic_policy               = "Cluster"
+    personnel_arns                       = []
+    kv_table_prefix                      = ""
+    kv_enable_ttl                        = true
+    kv_replica_regions                   = []
+    kv_batch_table_gc_age_days           = ""
+    kv_read_capacity                     = 10
+    kv_write_capacity                    = 10
+    eks_log_group                        = ""
+    auth_secret_arn                      = ""
+    auth_secret_values                   = {}
+    extra_external_secrets               = []
+    extra_secret_arns                    = []
+    additional_data_buckets              = []
+    additional_flink_s3_buckets          = []
+    additional_flink_readonly_s3_buckets = []
+    shared_warehouse_bucket              = ""
+    spark_libs_bucket                    = ""
+    logs_bucket                          = ""
+    glue_schema_registry_name            = ""
+    msk_cluster_arn                      = ""
+    amp_workspace_arn                    = ""
+    encryption_kms_key_arn               = ""
+    encryption_kms_key_arns              = {}
+    database_name                        = "execution_info"
+    database_username                    = "locker_user"
+    database_instance_class              = "db.t3.medium"
+    database_allocated_storage           = 20
+    database_multi_az                    = true
+    database_publicly_accessible         = false
+    database_backup_retention_days       = 7
     # Prod-safe default: take a final snapshot on destroy. Test/POC accounts set
     # aws.database_skip_final_snapshot = true for clean, snapshot-free teardown.
     database_skip_final_snapshot = false
@@ -562,7 +564,22 @@ locals {
       ],
     )
     ui_env = local.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.eks_log_group }]
-    values = local.provider_values
+    values = merge(
+      local.provider_values,
+      try(var.orchestration.values, {}),
+      {
+        orchestration = merge(
+          try(local.provider_values.orchestration, {}),
+          try(var.orchestration.values.orchestration, {}),
+          {
+            fetcher = merge(
+              try(local.provider_values.orchestration.fetcher, {}),
+              try(var.orchestration.values.orchestration.fetcher, {}),
+            )
+          }
+        )
+      }
+    )
   }
 
   spark_event_log_dir = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "s3a://${local.cloud_args.warehouse_bucket}/spark-events"
@@ -629,6 +646,7 @@ locals {
   )))
 
   ingress_lb_service = {
+    externalTrafficPolicy = local.cloud_args.ingress_traffic_policy
     annotations = {
       "service.beta.kubernetes.io/aws-load-balancer-type"    = "nlb"
       "service.beta.kubernetes.io/aws-load-balancer-scheme"  = "internet-facing"
@@ -652,6 +670,11 @@ locals {
         aws_s3_use_aws_sdk_default_behavior = true
         aws_s3_use_instance_profile         = true
         enable_load_volume_from_conf        = true
+      }
+      awsGlueCatalog = {
+        enabled = true
+        name    = "aws_glue"
+        region  = local.cloud_args.region
       }
       serviceAccount = local.orchestration_service_account
       nodeSelector   = local.system_node_selector

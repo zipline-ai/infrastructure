@@ -9,6 +9,10 @@
 {{- end }}
 {{- /* StarRocks catalog names are independent from Polaris warehouse names. */ -}}
 {{- $catalogName := "zipline_catalog" }}
+{{- $awsGlueCatalog := default dict $starrocks.awsGlueCatalog }}
+{{- $awsGlueCatalogEnabled := default false $awsGlueCatalog.enabled }}
+{{- $awsGlueCatalogName := default "aws_glue" $awsGlueCatalog.name }}
+{{- $awsGlueRegion := default "" $awsGlueCatalog.region }}
 {{- $polarisCatalogName := printf "polaris_%s" $realm }}
 {{- $principalRole := default "chronon-engine" $runtimeClient.principalRole }}
 {{- /* The official operator exposes the FE query service as <cluster>-fe-service. */ -}}
@@ -79,6 +83,18 @@ spec:
                 "iceberg.catalog.vended-credentials-enabled" = "true",
                 "iceberg.catalog.header.X-Iceberg-Access-Delegation" = "vended-credentials"
               );
+              {{- if $awsGlueCatalogEnabled }}
+              DROP CATALOG IF EXISTS \`{{ $awsGlueCatalogName }}\`;
+              CREATE EXTERNAL CATALOG \`{{ $awsGlueCatalogName }}\`
+              PROPERTIES (
+                "type" = "iceberg",
+                "iceberg.catalog.type" = "glue",
+                "aws.glue.use_aws_sdk_default_behavior" = "true",
+                "aws.glue.region" = "{{ $awsGlueRegion }}",
+                "aws.s3.use_aws_sdk_default_behavior" = "true",
+                "aws.s3.region" = "{{ $awsGlueRegion }}"
+              );
+              {{- end }}
               SQL
               mysql -h {{ $feService }} -P {{ $starrocks.ports.mysql }} -u root -e 'SHOW CATALOGS;'
           volumeMounts:

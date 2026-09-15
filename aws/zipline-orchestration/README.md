@@ -53,6 +53,16 @@ Run with a backend configured for the target environment:
 tofu init -reconfigure -backend-config=backend.hcl
 ```
 
+For the public demo, use the same wrapper with a separate git-ignored config:
+
+```shell
+cp public-demo.auto.tfvars.example public-demo.auto.tfvars
+../../push_public_demo_config.sh
+```
+
+The public demo should keep datasource buckets in
+`../public-demo-datasources` and reset only this orchestration layer weekly.
+
 ## Required Inputs
 
 Set these for every environment.
@@ -253,6 +263,7 @@ Spark executors, Flink job managers, and Flink task managers.
 | `aws.eks_desired_size` | `3` | The default node group desired size should change. |
 | `aws.eks_max_size` | `8` | The default node group maximum should change. |
 | `aws.eks_disk_size` | `100` | EKS node root volumes need a different size in GB. |
+| `aws.ingress_traffic_policy` | `Cluster` | Set `Local` when the ingress NLB should preserve client source IPs. |
 | `aws.personnel_arns` | `[]` | Human or automation IAM principals need EKS cluster-admin access. |
 | `aws.karpenter.enabled` | `true` | Karpenter should be disabled for an environment. |
 | `aws.karpenter.namespace` | `kube-system` | Karpenter should run in a different namespace. |
@@ -300,6 +311,7 @@ buckets.
 | `aws.spark_libs_bucket` | `""` | Spark needs access to an existing bucket for shared libraries. |
 | `aws.additional_data_buckets` | `[]` | Spark compute and orchestration read paths need access to more buckets. |
 | `aws.additional_flink_s3_buckets` | `[]` | Flink compute needs access to more buckets. |
+| `aws.additional_flink_readonly_s3_buckets` | `[]` | Flink compute needs read-only access to externally managed artifact buckets. |
 | `aws.encryption_kms_key_arn` | `""` | RDS, Secrets Manager, DynamoDB, or Polaris storage policy should use a specific KMS key. |
 | `aws.encryption_kms_key_arns` | `{}` | DynamoDB replica regions need region-specific KMS keys. |
 
