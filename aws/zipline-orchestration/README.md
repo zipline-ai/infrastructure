@@ -349,6 +349,27 @@ the table prefix, TTL setting, and replica regions to the fetcher automatically.
 | `aws.amp_workspace_arn` | created workspace ARN | Scraping, UI queries, and IAM permissions should use an existing AWS Managed Prometheus workspace. |
 | `aws.eks_log_group` | `/aws/eks/<cluster_name>/containers` | UI log links should point at a different EKS log group. |
 
+### Fetcher metrics
+
+When `orchestration.deployment.deploy_fetcher` is enabled, the chart enables
+Prometheus metrics by default. The AMP `fetcher` scrape job discovers the
+`chronon-metrics` and `vertx-metrics` container ports (8905 and 8906) and scrapes
+both `/metrics` endpoints. No pod scrape annotations or tfvars changes are
+required for the default configuration.
+
+Explicit metrics environment variables in `orchestration.fetcher_env` or
+`orchestration.runtime_env` are preserved. For example, an existing `http`
+reader continues to use its OTLP collector instead of the AMP fetcher job.
+Chart settings can also be overridden through
+`orchestration.values.orchestration.fetcher`; see the
+[chart metrics configuration](../../charts/zipline-orchestration/README.md#fetcher-metrics).
+
+Apply the wrapper to update both the Helm deployment and AMP scraper. After
+the fetcher rollout, run fetch requests and query `up{job="fetcher"}` in the
+configured AMP workspace. Each running fetcher pod should have two healthy
+targets. Check `vertx_http_server_requests_total` for HTTP metrics and
+`join_fetch_java_overall_latency_millis_bucket` for join latency metrics.
+
 ### Secrets
 
 The wrapper configures External Secrets Operator against AWS Secrets Manager for
@@ -389,7 +410,7 @@ covered by a typed input above.
 | `orchestration.runtime_env` | Environment variables should be added to all services. |
 | `orchestration.hub_env` | Hub needs extra environment variables. |
 | `orchestration.ui_env` | UI needs extra environment variables. |
-| `orchestration.fetcher_env` | Fetcher needs extra environment variables. |
+| `orchestration.fetcher_env` | Fetcher needs extra environment variables, including metrics reader or port overrides. |
 | `orchestration.eval_env` | Eval needs extra environment variables. |
 | `orchestration.hub.pod_annotations` | Hub pods need additional annotations, such as scrape annotations. |
 | `orchestration.hub.chronon_metrics_reader` | Hub metrics should use a reader other than the Prometheus default. |

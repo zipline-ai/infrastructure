@@ -79,7 +79,35 @@ across the catalog, including namespaces created after bootstrap. Cloud
 Terraform wrappers should pass this grant explicitly when they construct
 provider values.
 
+## Fetcher metrics
+
+When `global.deploy_fetcher` is enabled, the fetcher defaults to the `prometheus`
+metrics reader. It exposes Chronon metrics on the `chronon-metrics` container
+port (8905) and Vert.x HTTP metrics on `vertx-metrics` (8906), both at `/metrics`.
+The AWS wrapper scrapes both named ports directly. Metrics ports are not added
+to the public Service or Ingress.
+
+Set `orchestration.fetcher.metricsReader` to an empty string to disable metrics,
+or to `http`/`grpc` to use an existing OTLP collector. Set `metricsPort` and
+`vertxMetricsPort` under the same object to change the Prometheus ports.
+Explicit `CHRONON_METRICS_READER`, `CHRONON_PROMETHEUS_SERVER_PORT`, and
+`VERTX_PROMETHEUS_SERVER_PORT` entries in `runtime.env` or
+`orchestration.fetcher.env` take precedence over these defaults. Fetcher env
+entries take precedence over runtime env entries, as with other fetcher settings.
+
+Use literal `value` entries for the reader when using direct scraping: Helm
+cannot determine the reader from `valueFrom`, so it preserves that entry but
+does not declare metrics ports. If a port uses `valueFrom`, set its chart port
+to the same number so discovery matches the exporter.
+
 ## Validation
+
+Run the fetcher rendering and AWS scrape discovery regression tests (requires
+Helm and Python with PyYAML):
+
+```sh
+uv run --with PyYAML python -m unittest discover -s tests -v
+```
 
 Render the chart with explicit overrides before wiring a cloud module:
 
