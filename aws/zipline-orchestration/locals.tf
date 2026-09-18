@@ -273,6 +273,15 @@ locals {
   karpenter_pool_limits     = merge({ cpu = "1000", memory = "4000Gi" }, try(local.karpenter.pool_limits, {}))
   karpenter_driver_limits   = merge({ cpu = "100", memory = "400Gi" }, try(local.karpenter.driver_limits, {}))
   karpenter_executor_limits = merge({ cpu = "1000", memory = "4000Gi" }, try(local.karpenter.executor_limits, {}))
+  # Per-team pool overrides (Flow 1/3): X cpu / Y mem caps and Z instance types.
+  # Keyed by the same normalized team slug as the pools, so authors may write the
+  # raw team name (e.g. "aws_databricks") and it resolves to "aws-databricks".
+  # Shape per team: { driver_limits = {cpu,memory}, executor_limits = {cpu,memory},
+  #                   driver_instance_types = [..], executor_instance_types = [..] }
+  karpenter_team_overrides = {
+    for team, cfg in try(local.karpenter.teams, {}) :
+    trim(replace(replace(lower(trimspace(team)), "/[^a-z0-9-]/", "-"), "/-+/", "-"), "-") => cfg
+  }
   # Driver pool: on-demand — drivers are lightweight (1/job) and must NOT run on
   # spot (a spot eviction kills the whole job).
   karpenter_driver_requirements = [
@@ -314,6 +323,14 @@ locals {
       size           = pool.size
       node_pool      = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
       instance_store = pool.engine == "spark" && pool.role == "executor"
+      # Per-team X cpu / Y mem cap: global role default overlaid with the team override.
+      limits = merge(
+        pool.size == "driver" ? local.karpenter_driver_limits : local.karpenter_executor_limits,
+        pool.size == "driver" ? try(local.karpenter_team_overrides[local.compute_team_slugs[pool.team]].driver_limits, {}) : try(local.karpenter_team_overrides[local.compute_team_slugs[pool.team]].executor_limits, {}),
+      )
+      # Per-team Z instance types (optional): when set, pins the pool to exactly these
+      # types instead of the category/generation selector.
+      instance_types = try(local.karpenter_team_overrides[local.compute_team_slugs[pool.team]][pool.size == "driver" ? "driver_instance_types" : "executor_instance_types"], [])
       taints = [
         {
           key      = "zipline.ai/workload"
@@ -360,11 +377,16 @@ locals {
       }
       taints = pool.taints
       requirements = concat(
-        pool.size == "driver" ? local.karpenter_driver_requirements : local.karpenter_executor_requirements,
+        # Pinning explicit instance types REPLACES the category/generation selector
+        # (Karpenter ANDs requirements, so keeping both would narrow to empty and
+        # never provision); os/arch/capacity-type still apply.
+        [for r in(pool.size == "driver" ? local.karpenter_driver_requirements : local.karpenter_executor_requirements) :
+        r if length(pool.instance_types) == 0 || !contains(["karpenter.k8s.aws/instance-category", "karpenter.k8s.aws/instance-generation"], r.key)],
+        length(pool.instance_types) > 0 ? [{ key = "node.kubernetes.io/instance-type", operator = "In", values = pool.instance_types, minValues = null }] : [],
         pool.instance_store ? local.karpenter_spark_executor_instance_store_requirements : [],
       )
       expireAfter = local.karpenter_compute_expire_after
-      limits      = pool.size == "driver" ? local.karpenter_driver_limits : local.karpenter_executor_limits
+      limits      = pool.limits
       disruption = {
         # Only reclaim genuinely-empty nodes. WhenEmptyOrUnderutilized would
         # drain still-in-use nodes, disrupting running Spark executors / Flink
