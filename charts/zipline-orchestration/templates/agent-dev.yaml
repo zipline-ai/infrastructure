@@ -1,0 +1,179 @@
+{{- if .Values.orchestration.agentDev.enabled }}
+{{- $agent := .Values.orchestration.agentDev -}}
+{{- if and $agent.serviceAccount.create (ne $agent.serviceAccount.name (include "zipline-orchestration.serviceAccountName" .)) }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $agent.serviceAccount.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+---
+{{- end }}
+{{- if $agent.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: agent-dev-workspace
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/resource-policy": keep
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- with $agent.persistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ $agent.persistence.size }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zipline-agent-dev
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: agent-dev
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  replicas: {{ $agent.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: agent-dev
+  template:
+    metadata:
+      labels:
+        app: agent-dev
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ default (include "zipline-orchestration.serviceAccountName" .) $agent.serviceAccount.name }}
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $agent.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $agent.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: agent-dev
+          image: "{{ $agent.image }}:{{ default .Values.global.version $agent.tag }}"
+          imagePullPolicy: Always
+          env:
+            - name: AGENT_DEV_REPO
+              value: {{ $agent.repo | quote }}
+            - name: AGENT_DEV_CONFIG_FOLDER
+              value: {{ $agent.configFolder | quote }}
+            - name: AGENT_DEV_MAIN_BRANCH
+              value: {{ $agent.mainBranch | quote }}
+            - name: AGENT_DEV_MODEL
+              value: {{ $agent.model | quote }}
+            - name: CODEX_HOME
+              value: /workspace/.codex
+            - name: AGENT_DEV_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $agent.secretName }}
+                  key: service-token
+                  optional: true
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $agent.secretName }}
+                  key: openai-api-key
+                  optional: true
+            - name: ZIPLINE_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $agent.secretName }}
+                  key: zipline-api-token
+                  optional: true
+            - name: HUB_URL
+              value: http://orchestration-hub-service
+            - name: ZIPLINE_HUB_URL
+              value: http://orchestration-hub-service
+            - name: EVAL_URL
+              value: http://eval-service
+            - name: ZIPLINE_EVAL_URL
+              value: http://eval-service
+            {{- if .Values.global.deploy_fetcher }}
+            - name: FETCHER_URL
+              value: http://fetcher-service
+            - name: ZIPLINE_FETCH_URL
+              value: http://fetcher-service
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ $agent.port }}
+          resources:
+            {{- toYaml $agent.resources | nindent 12 }}
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            {{- if $agent.codexAuth.enabled }}
+            - name: codex-auth
+              mountPath: /run/secrets/codex-auth.json
+              subPath: codex-auth.json
+              readOnly: true
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+      volumes:
+        - name: workspace
+          {{- if $agent.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: agent-dev-workspace
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if $agent.codexAuth.enabled }}
+        - name: codex-auth
+          secret:
+            secretName: {{ $agent.secretName }}
+            items:
+              - key: {{ $agent.codexAuth.key | quote }}
+                path: codex-auth.json
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-dev-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: agent-dev
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: agent-dev
+  ports:
+    - name: http
+      port: {{ $agent.port }}
+      targetPort: http
+{{- end }}

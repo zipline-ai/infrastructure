@@ -63,6 +63,74 @@ cp public-demo.auto.tfvars.example public-demo.auto.tfvars
 The public demo should keep datasource buckets in
 `../public-demo-datasources` and reset only this orchestration layer weekly.
 
+### Agent dev dark deployment
+
+Agent dev has two Helm controls under
+`orchestration.values.orchestration.agentDev`:
+
+- `enabled` deploys the internal service and its persistent workspace.
+- `uiEnabled` sets the initial server-side feature value for installations that
+  do not yet have a persisted setting. After that, an authenticated administrator
+  controls the feature from **Admin → Features → Enable Agent-dev**; the saved
+  value governs the navigation item, page, and remote API.
+
+The public-demo example intentionally sets `enabled = true` and
+`uiEnabled = false`. The service has no ingress and uses a dedicated Kubernetes
+service account without the orchestration IRSA role. Its PVC is retained across
+Helm upgrades and uninstalls so Codex rollout and chat state survive pod
+replacement. The UI server receives the internal Agent-dev URL, repository
+coordinates, and service token while the runtime is deployed even when the
+feature defaults off. The token remains server-side; OpenAI and Zipline API keys
+remain confined to the Agent-dev pod.
+
+Before enabling the UI, create an AWS Secrets Manager JSON secret and sync it to
+the `agent-dev-secrets` Kubernetes Secret through `aws.extra_external_secrets`.
+The Kubernetes Secret must contain `service-token` plus one Codex credential:
+either `openai-api-key` or, for a private ChatGPT/Codex subscription trial,
+`codex-auth.json`. It can also contain `zipline-api-token` for authenticated
+Zipline service calls. Do not put their values in tfvars. Also enable UI auth or
+otherwise restrict ingress before enabling Agent-dev. Admin-managed feature
+settings require UI authentication; with `auth.enabled = false`, the Admin area
+is unavailable and every public-demo visitor otherwise has operator permissions.
+
+To use an existing Codex CLI login, first run `codex login status` and confirm
+`~/.codex/auth.json` exists. Store that file as a separate raw AWS Secrets
+Manager secret, then map it into the `agent-dev-secrets` Kubernetes Secret:
+
+```hcl
+{ secretKey = "codex-auth.json", remoteRef = { key = "<codex-auth-secret-arn>" } }
+```
+
+Enable its pod mount with
+`orchestration.values.orchestration.agentDev.codexAuth.enabled = true`. The
+container uses this only to seed `/workspace/.codex/auth.json`; subsequent token
+refreshes remain on the persistent workspace. This credential represents the
+person and ChatGPT workspace that created it, and all Agent-dev users share that
+identity, so use it only for a tightly restricted trial. Prefer a dedicated
+automation identity for a multi-user or public deployment.
+
+For example, add an ExternalSecret whose data entries map those properties from
+the Secrets Manager ARN:
+
+```hcl
+aws = {
+  # ...existing settings...
+  extra_external_secrets = [{
+    name = "agent-dev-secrets"
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = { name = "zipline-secret-store", kind = "SecretStore" }
+      target = { name = "agent-dev-secrets", creationPolicy = "Owner" }
+      data = [
+        { secretKey = "service-token", remoteRef = { key = "<secret-arn>", property = "service-token" } },
+        { secretKey = "openai-api-key", remoteRef = { key = "<secret-arn>", property = "openai-api-key" } },
+        { secretKey = "zipline-api-token", remoteRef = { key = "<secret-arn>", property = "zipline-api-token" } },
+      ]
+    }
+  }]
+}
+```
+
 ## Required Inputs
 
 Set these for every environment.

@@ -49,6 +49,23 @@ orchestration = {
 
   values = {
     orchestration = {
+      # Run the agent privately so its image, checkout, persistence, and service
+      # can be verified. uiEnabled is the initial default; an authenticated
+      # administrator can later enable it from Admin -> Features.
+      agentDev = {
+        enabled      = true
+        uiEnabled    = false
+        image        = "ziplineai/agent-dev"
+        repo         = "https://github.com/zipline-ai/chronon.git"
+        configFolder = "python/test/canary"
+        mainBranch   = "main"
+        model        = "gpt-5.6-sol"
+        secretName   = "agent-dev-secrets"
+        persistence = {
+          storageClass = "gp3"
+          size         = "50Gi"
+        }
+      }
       fetcher = {
         replicas = 1
         resources = {

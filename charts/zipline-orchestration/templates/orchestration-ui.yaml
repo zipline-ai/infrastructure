@@ -79,6 +79,26 @@ spec:
               value: "true"
             - name: AUTH_ENABLED
               value: "{{ .Values.auth.enabled }}"
+            - name: AGENT_DEV_ENABLED
+              value: "{{ and .Values.orchestration.agentDev.enabled .Values.orchestration.agentDev.uiEnabled }}"
+            {{- if .Values.orchestration.agentDev.enabled }}
+            - name: AGENT_DEV_URL
+              value: "http://agent-dev-service:{{ .Values.orchestration.agentDev.port }}"
+            - name: AGENT_DEV_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.orchestration.agentDev.secretName }}
+                  key: service-token
+                  optional: true
+            - name: AGENT_DEV_REPO
+              value: {{ .Values.orchestration.agentDev.repo | quote }}
+            - name: AGENT_DEV_CONFIG_FOLDER
+              value: {{ .Values.orchestration.agentDev.configFolder | quote }}
+            - name: AGENT_DEV_MAIN_BRANCH
+              value: {{ .Values.orchestration.agentDev.mainBranch | quote }}
+            - name: AGENT_DEV_MODEL
+              value: {{ .Values.orchestration.agentDev.model | quote }}
+            {{- end }}
             {{- if .Values.auth.enabled }}
             - name: AUTH_URL
               value: "{{ .Values.auth.url }}"
