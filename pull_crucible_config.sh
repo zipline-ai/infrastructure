@@ -70,6 +70,8 @@ clean_ignored_config_files() {
 
   find "${dest}" -mindepth 1 -maxdepth 1 \( \
     -name 'backend.hcl' -o \
+    -name '.terraform.lock.hcl' -o \
+    -name '.terraform' -o \
     -name '*.tfvars' -o \
     -name '*.tfvars.json' -o \
     -name '*.auto.tfvars' -o \
