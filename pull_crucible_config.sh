@@ -65,6 +65,26 @@ download_optional_azure_blob() {
   fi
 }
 
+clean_ignored_config_files() {
+  local dest="$1"
+
+  find "${dest}" -mindepth 1 -maxdepth 1 \( \
+    -name 'backend.hcl' -o \
+    -name '.terraform.lock.hcl' -o \
+    -name '.terraform' -o \
+    -name '*.tfvars' -o \
+    -name '*.tfvars.json' -o \
+    -name '*.auto.tfvars' -o \
+    -name '*.auto.tfvars.json' -o \
+    -name 'current-helm-values.*' -o \
+    -name 'dns-provider.tf' -o \
+    -name 'cloudflare.tf' -o \
+    -name 'github.tf' -o \
+    -name '.crucible-config' -o \
+    -name 'crucible-config' \
+  \) -exec rm -rf {} +
+}
+
 if [ "$#" -ne 1 ]; then
   usage
   exit 1
@@ -93,6 +113,7 @@ case "${cloud}" in
     aws s3 cp "s3://${bucket}/${backend_key}" "${tmp_backend}"
     aws s3 cp "s3://${bucket}/${wrapper_key}" "${tmp_tfvars}"
     require_grouped_tfvars aws "${tmp_tfvars}"
+    clean_ignored_config_files "${root_dest}"
     mv "${tmp_backend}" "${root_dest}/backend.hcl"
     mv "${tmp_tfvars}" "${root_dest}/crucible.auto.tfvars.json"
     trap - EXIT
@@ -140,6 +161,7 @@ EOF
       --output none
 
     require_grouped_tfvars azure "${tmp_tfvars}"
+    clean_ignored_config_files "${dest}"
     mv "${tmp_backend}" "${dest}/backend.hcl"
     mv "${tmp_tfvars}" "${dest}/crucible.auto.tfvars.json"
     trap - EXIT
