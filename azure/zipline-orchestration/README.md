@@ -147,6 +147,18 @@ The expected Key Vault secret names are:
 - `sso-client-secret`
 - `sso-saml-cert`, only when `orchestration.auth.sso_use_saml = true`
 
+`auth-secret` is the Zipline frontend's encryption secret. Generate it locally
+with a cryptographically secure random generator; it is not supplied by Azure
+and should never be committed to tfvars or checked into source control. The
+other entries are credentials issued by the corresponding identity provider
+(for example, the Microsoft Entra client secret). Store those provider-issued
+values in Key Vault under the names above.
+
+The wrapper maps `auth-secret` to the frontend's `AUTH_SECRET` environment
+variable through External Secrets. The secret should be at least 32 characters.
+If auth is already running, do not replace it casually: rotating this value can
+invalidate existing auth material and sessions.
+
 Set only the auth provider fields that the environment uses:
 
 | Field | Use when |
@@ -375,8 +387,43 @@ tofu apply
 KEYVAULT_NAME="$(tofu output -raw keyvault_name)"
 ```
 
-Add each auth value without storing it in tfvars. The following function prompts
-without echoing the value and clears its shell variable after each command:
+You can inspect the vault identity and confirm that a secret exists without
+printing its value:
+
+```shell
+tofu output -raw keyvault_id
+az keyvault show --name "$KEYVAULT_NAME" \
+  --query '{name:name,id:id,tenantId:properties.tenantId}' -o json
+az keyvault secret list --vault-name "$KEYVAULT_NAME" \
+  --query '[].name' -o tsv
+```
+
+Generate `auth-secret` with OpenSSL and write it directly to Key Vault. The
+value is held only in the shell variable for this command and is not written to
+Terraform state:
+
+```shell
+AUTH_SECRET="$(openssl rand -base64 32)"
+az keyvault secret set \
+  --vault-name "$KEYVAULT_NAME" \
+  --name auth-secret \
+  --value "$AUTH_SECRET" \
+  --output none
+unset AUTH_SECRET
+```
+
+If OpenSSL is unavailable, Python's standard library provides an equivalent:
+
+```shell
+AUTH_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+az keyvault secret set --vault-name "$KEYVAULT_NAME" \
+  --name auth-secret --value "$AUTH_SECRET" --output none
+unset AUTH_SECRET
+```
+
+Add each provider-issued auth value without storing it in tfvars. The following
+function prompts without echoing the value and clears its shell variable after
+each command:
 
 ```shell
 set_auth_secret() {
@@ -391,12 +438,15 @@ set_auth_secret() {
   unset secret_value
 }
 
-set_auth_secret auth-secret
 set_auth_secret google-oauth-client-secret
 set_auth_secret github-oauth-client-secret
 set_auth_secret microsoft-entra-oauth-client-secret
 set_auth_secret sso-client-secret
 ```
+
+Only run the commands for providers configured in `orchestration.auth`; add
+`auth-secret` with the generated command above and add `sso-saml-cert` only when
+SAML is enabled.
 
 When SAML is enabled, add its certificate from a protected local file:
 
