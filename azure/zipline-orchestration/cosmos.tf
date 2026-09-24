@@ -34,6 +34,77 @@ resource "azurerm_cosmosdb_sql_database" "fetcher" {
   account_name        = azurerm_cosmosdb_account.fetcher[0].name
 }
 
+# Containers - Batch Tables (multi-level partition: /dataset and /keyHash)
+resource "azurerm_cosmosdb_sql_container" "groupby_batch" {
+  count = local.deploy_fetcher ? 1 : 0
+  name                  = "groupby_batch"
+  resource_group_name   = azurerm_resource_group.main.name
+  account_name          = azurerm_cosmosdb_account.fetcher[0].name
+  database_name         = azurerm_cosmosdb_sql_database.fetcher[0].name
+  partition_key_paths   = ["/dataset", "/keyHash"]
+  partition_key_kind    = "MultiHash"
+  partition_key_version = 2
+  default_ttl           = 432000 # 120h = 5 days in seconds
+}
+
+# Containers - Streaming Tables (multi-level partition: /dataset and /keyHashDay)
+resource "azurerm_cosmosdb_sql_container" "groupby_streaming" {
+  count = local.deploy_fetcher ? 1 : 0
+  name                  = "groupby_streaming"
+  resource_group_name   = azurerm_resource_group.main.name
+  account_name          = azurerm_cosmosdb_account.fetcher[0].name
+  database_name         = azurerm_cosmosdb_sql_database.fetcher[0].name
+  partition_key_paths   = ["/dataset", "/keyHashDay"]
+  partition_key_kind    = "MultiHash"
+  partition_key_version = 2
+  default_ttl           = 432000
+}
+
+# Containers - Metadata Tables (single partition: /keyHash)
+resource "azurerm_cosmosdb_sql_container" "chronon_metadata" {
+  count = local.deploy_fetcher ? 1 : 0
+  name                  = "chronon_metadata"
+  resource_group_name   = azurerm_resource_group.main.name
+  account_name          = azurerm_cosmosdb_account.fetcher[0].name
+  database_name         = azurerm_cosmosdb_sql_database.fetcher[0].name
+  partition_key_paths   = ["/keyHash"]
+  partition_key_version = 2
+  default_ttl           = 432000
+}
+
+resource "azurerm_cosmosdb_sql_container" "enhanced_stats" {
+  count = local.deploy_fetcher ? 1 : 0
+  name                  = "enhanced_stats"
+  resource_group_name   = azurerm_resource_group.main.name
+  account_name          = azurerm_cosmosdb_account.fetcher[0].name
+  database_name         = azurerm_cosmosdb_sql_database.fetcher[0].name
+  partition_key_paths   = ["/keyHash"]
+  partition_key_version = 2
+  default_ttl           = 63072000 # 2 years in seconds
+}
+
+resource "azurerm_cosmosdb_sql_container" "data_quality_metrics_batch" {
+  count = local.deploy_fetcher ? 1 : 0
+  name                  = "data_quality_metrics_batch"
+  resource_group_name   = azurerm_resource_group.main.name
+  account_name          = azurerm_cosmosdb_account.fetcher[0].name
+  database_name         = azurerm_cosmosdb_sql_database.fetcher[0].name
+  partition_key_paths   = ["/keyHash"]
+  partition_key_version = 2
+  default_ttl           = 63072000 # 2 years in seconds
+}
+
+resource "azurerm_cosmosdb_sql_container" "table_partitions" {
+  count = local.deploy_fetcher ? 1 : 0
+  name                  = "table_partitions"
+  resource_group_name   = azurerm_resource_group.main.name
+  account_name          = azurerm_cosmosdb_account.fetcher[0].name
+  database_name         = azurerm_cosmosdb_sql_database.fetcher[0].name
+  partition_key_paths   = ["/keyHash"]
+  partition_key_version = 2
+  default_ttl           = 432000
+}
+
 resource "azurerm_private_dns_zone" "cosmos" {
   count = local.deploy_fetcher ? 1 : 0
 
