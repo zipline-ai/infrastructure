@@ -374,6 +374,9 @@ orchestration:
     image: "ziplineai/chronon-fetcher"
     replicas: 3
     port: 9000
+    metricsReader: prometheus
+    metricsPort: 8905
+    vertxMetricsPort: 8906
     env: []
     nodeSelector: {}
     tolerations: []
