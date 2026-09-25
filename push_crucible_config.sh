@@ -92,6 +92,7 @@ case "${cloud}" in
     aws s3 cp "${wrapper_file}" "s3://${bucket}/${wrapper_key}"
     upload_optional_s3_object "${bucket}" "${config_prefix}" "${wrapper_root}/dns-provider.tf" "dns-provider.tf"
     upload_optional_s3_object "${bucket}" "${config_prefix}" "${wrapper_root}/dns.auto.tfvars.json" "dns.auto.tfvars.json"
+    upload_optional_s3_object "${bucket}" "${config_prefix}" "${wrapper_root}/.terraform.lock.hcl" ".terraform.lock.hcl"
     ;;
   azure)
     storage_account="${AZURE_CONFIG_STORAGE_ACCOUNT:-ziplineai2}"
@@ -122,6 +123,7 @@ case "${cloud}" in
 
     upload_optional_azure_blob "${storage_account}" "${container}" "${prefix}/dns-provider.tf" "${src}/dns-provider.tf"
     upload_optional_azure_blob "${storage_account}" "${container}" "${prefix}/dns.auto.tfvars.json" "${src}/dns.auto.tfvars.json"
+    upload_optional_azure_blob "${storage_account}" "${container}" "${prefix}/.terraform.lock.hcl" "${src}/.terraform.lock.hcl"
     ;;
   *)
     usage

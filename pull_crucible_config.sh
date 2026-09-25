@@ -120,6 +120,7 @@ case "${cloud}" in
 
     download_optional_s3_object "${bucket}" "${config_prefix}" "dns-provider.tf" "${root_dest}/dns-provider.tf"
     download_optional_s3_object "${bucket}" "${config_prefix}" "dns.auto.tfvars.json" "${root_dest}/dns.auto.tfvars.json"
+    download_optional_s3_object "${bucket}" "${config_prefix}" ".terraform.lock.hcl" "${root_dest}/.terraform.lock.hcl"
 
     cat <<EOF
 Pulled AWS Crucible orchestration config from:
@@ -168,6 +169,7 @@ EOF
 
     download_optional_azure_blob "${storage_account}" "${container}" "${prefix}/dns-provider.tf" "${dest}/dns-provider.tf"
     download_optional_azure_blob "${storage_account}" "${container}" "${prefix}/dns.auto.tfvars.json" "${dest}/dns.auto.tfvars.json"
+    download_optional_azure_blob "${storage_account}" "${container}" "${prefix}/.terraform.lock.hcl" "${dest}/.terraform.lock.hcl"
 
     cat <<EOF
 Pulled Azure Crucible orchestration config from:

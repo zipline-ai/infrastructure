@@ -10,7 +10,7 @@ prefix="${INFRATEST_CONFIG_PREFIX:-config}"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 src="${INFRATEST_CONFIG_ROOT:-${repo_root}/aws/zipline-orchestration}"
 
-for f in backend.hcl infratest.auto.tfvars; do
+for f in backend.hcl infratest.auto.tfvars .terraform.lock.hcl; do
   [ -f "${src}/${f}" ] || { echo "Missing ${src}/${f}" >&2; exit 1; }
   aws s3 cp "${src}/${f}" "s3://${bucket}/${prefix}/${f}"
 done

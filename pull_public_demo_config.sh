@@ -32,7 +32,7 @@ clean_ignored_config_files() {
 mkdir -p "${dest}"
 clean_ignored_config_files "${dest}"
 
-for f in backend.hcl public-demo.auto.tfvars dns-provider.tf dns.auto.tfvars.json; do
+for f in backend.hcl public-demo.auto.tfvars dns-provider.tf dns.auto.tfvars.json .terraform.lock.hcl; do
   aws s3 cp "s3://${bucket}/${prefix}/${f}" "${dest}/${f}"
 done
 
