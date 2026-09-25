@@ -9,7 +9,7 @@ prefix="${PUBLIC_DEMO_DATASOURCES_CONFIG_PREFIX:-config/datasources}"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 src="${PUBLIC_DEMO_DATASOURCES_CONFIG_ROOT:-${repo_root}/aws/public-demo-datasources}"
 
-for f in backend.hcl public-demo-datasources.auto.tfvars; do
+for f in backend.hcl public-demo-datasources.auto.tfvars .terraform.lock.hcl; do
   [ -f "${src}/${f}" ] || { echo "Missing ${src}/${f}" >&2; exit 1; }
   aws s3 cp "${src}/${f}" "s3://${bucket}/${prefix}/${f}"
 done
