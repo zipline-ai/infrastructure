@@ -506,6 +506,31 @@ locals {
     spark_defaults         = {}
     flink_defaults         = {}
     namespace_defaults     = {}
+    workload_priority_classes = {
+      enabled = true
+      backfill = {
+        name             = "zipline-backfill"
+        value            = 100
+        preemptionPolicy = "Never"
+      }
+      deploy = {
+        name             = "zipline-deploy"
+        value            = 200
+        preemptionPolicy = "Never"
+      }
+    }
+    mode_resource_quotas = {
+      "zipline-default" = {
+        backfill = {
+          priorityClassName = "zipline-backfill"
+          hard              = {}
+        }
+        deploy = {
+          priorityClassName = "zipline-deploy"
+          hard              = {}
+        }
+      }
+    }
     object_store = {
       bucket = ""
       region = ""
@@ -640,13 +665,15 @@ locals {
       rbac = {
         create = local.compute.rbac_create
       }
-      sparkDefaults       = local.compute_spark_defaults
-      flinkDefaults       = local.compute_flink_defaults
-      namespaceDefaults   = local.compute.namespace_defaults
-      imagePrepull        = local.compute_image_prepull
-      historyServer       = local.compute_history_server
-      warmPool            = local.compute_warm_pool
-      systemPriorityClass = local.compute_system_priority_class
+      sparkDefaults           = local.compute_spark_defaults
+      flinkDefaults           = local.compute_flink_defaults
+      namespaceDefaults       = local.compute.namespace_defaults
+      workloadPriorityClasses = local.compute.workload_priority_classes
+      modeResourceQuotas      = local.compute.mode_resource_quotas
+      imagePrepull            = local.compute_image_prepull
+      historyServer           = local.compute_history_server
+      warmPool                = local.compute_warm_pool
+      systemPriorityClass     = local.compute_system_priority_class
     }
 
     ingress = {

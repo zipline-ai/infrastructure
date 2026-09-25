@@ -10,6 +10,22 @@ globalDefault: false
 preemptionPolicy: PreemptLowerPriority
 description: "Zipline compute support services such as Spark History Server and Loki."
 {{- end }}
+{{- if .Values.compute.workloadPriorityClasses.enabled }}
+{{- range $mode, $class := omit .Values.compute.workloadPriorityClasses "enabled" }}
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ $class.name | default (printf "zipline-%s" $mode) }}
+  labels:
+    {{- include "zipline-orchestration.labels" $ | nindent 4 }}
+    zipline.ai/mode: {{ $mode | quote }}
+value: {{ $class.value }}
+globalDefault: false
+preemptionPolicy: {{ $class.preemptionPolicy | default "Never" }}
+description: "Zipline {{ $mode }} workload priority and quota class."
+{{- end }}
+{{- end }}
 {{- if .Values.compute.warmPool.enabled }}
 ---
 apiVersion: scheduling.k8s.io/v1
