@@ -9,7 +9,7 @@ bucket="${INFRATEST_CONFIG_BUCKET:-infratest-opentofu-state}"
 prefix="${INFRATEST_CONFIG_PREFIX:-config}"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 dest="${INFRATEST_CONFIG_ROOT:-${repo_root}/aws/zipline-orchestration}"
-profile="${INFRATEST_PROFILE:-default}"
+profile="${INFRATEST_PROFILE:-}"
 
 clean_ignored_config_files() {
   local dest="$1"
@@ -31,11 +31,20 @@ clean_ignored_config_files() {
   \) -exec rm -rf {} +
 }
 
+aws_cli() {
+  if [ -n "${profile:-}" ]; then
+    aws --profile "${profile}" "$@"
+  else
+    aws "$@"
+  fi
+}
+
+
 mkdir -p "${dest}"
 clean_ignored_config_files "${dest}"
 
 for f in backend.hcl infratest.auto.tfvars .terraform.lock.hcl; do
-  aws s3 --profile ${profile} cp "s3://${bucket}/${prefix}/${f}" "${dest}/${f}"
+  aws_cli s3 cp "s3://${bucket}/${prefix}/${f}" "${dest}/${f}"
 done
 
 echo "Pulled infratest config from s3://${bucket}/${prefix} into ${dest} (git-ignored)."
