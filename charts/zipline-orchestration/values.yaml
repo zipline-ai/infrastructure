@@ -72,6 +72,26 @@ compute:
     enabled: true
     name: "zipline-compute-system"
     value: 1000
+  workloadPriorityClasses:
+    enabled: true
+    backfill:
+      name: "zipline-backfill"
+      value: 100
+      preemptionPolicy: Never
+    deploy:
+      name: "zipline-deploy"
+      value: 200
+      preemptionPolicy: Never
+  # Mode quotas are enabled only for listed namespaces. An empty hard map
+  # inherits that namespace's aggregate resourceQuota.hard values.
+  modeResourceQuotas:
+    zipline-default:
+      backfill:
+        priorityClassName: "zipline-backfill"
+        hard: {}
+      deploy:
+        priorityClassName: "zipline-deploy"
+        hard: {}
   warmPool:
     enabled: false
     replicas: 2
