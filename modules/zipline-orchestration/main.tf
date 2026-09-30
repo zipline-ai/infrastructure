@@ -826,6 +826,7 @@ resource "kubernetes_secret_v1" "docker_hub_creds" {
 module "addons" {
   source = "../zipline-kubernetes-addons"
 
+  namespace                         = local.install.namespace
   install_external_secrets_operator = local.addons.install_external_secrets_operator
   external_secrets_operator_values  = local.addons.external_secrets_operator_values
   install_cert_manager              = local.addons.install_cert_manager
@@ -836,6 +837,8 @@ module "addons" {
   kuberay_operator_values           = local.addons.kuberay_operator_values
   install_opentelemetry_operator    = local.addons.install_opentelemetry_operator
   install_metrics_server            = local.addons.install_metrics_server
+
+  depends_on = [kubernetes_namespace_v1.this]
 }
 
 # The upstream chart installs both the StarRocksCluster CRD/operator and the
