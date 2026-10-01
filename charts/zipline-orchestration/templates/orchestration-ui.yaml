@@ -77,6 +77,10 @@ spec:
               value: "{{ .Values.starrocks.clusterName }}-fe-service:{{ .Values.starrocks.ports.mysql }}"
             - name: DATA_EXPLORER
               value: "true"
+            # Gates the Trials screens. Set here rather than left to `kubectl set env`,
+            # which a chart re-apply would wipe without anyone noticing the tab had gone.
+            - name: TRIALS
+              value: "true"
             - name: AUTH_ENABLED
               value: "{{ .Values.auth.enabled }}"
             {{- if .Values.auth.enabled }}
