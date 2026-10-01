@@ -88,6 +88,16 @@ output "table_partitions_table_name" {
   value       = aws_dynamodb_table.table_partitions.name
 }
 
+output "redis_cluster_nodes" {
+  description = "Redis cluster seed node value configured for Zipline services; empty when Redis is disabled."
+  value       = local.redis_cluster_nodes
+}
+
+output "redis_managed" {
+  description = "Whether this deployment provisions its Redis cluster with Terraform."
+  value       = local.redis_managed
+}
+
 output "amp_workspace_arn" {
   description = "AWS Managed Prometheus workspace ARN."
   value       = local.amp_workspace_arn
