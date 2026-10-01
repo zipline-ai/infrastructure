@@ -53,6 +53,24 @@ locals {
     karpenter           = {}
   }, var.aws)
 
+  redis = merge({
+    enabled             = false
+    cluster_nodes       = ""
+    password_secret_arn = ""
+    password_secret_key = "password"
+    use_ssl             = true
+    node_type           = "cache.t4g.small"
+    shards              = 1
+    replicas_per_shard  = 1
+  }, try(local.cloud_args.redis, {}))
+  redis_managed = local.redis.enabled && trimspace(local.redis.cluster_nodes) == ""
+  redis_password_secret_arn = local.redis.enabled ? (
+    local.redis_managed ? try(aws_secretsmanager_secret.redis[0].arn, "") : trimspace(local.redis.password_secret_arn)
+  ) : ""
+  redis_cluster_nodes = local.redis.enabled ? (
+    local.redis_managed ? "${aws_elasticache_replication_group.redis[0].configuration_endpoint_address}:6379" : trimspace(local.redis.cluster_nodes)
+  ) : ""
+
   # When no VPC is supplied, provision one (network.tf) and resolve ids here.
   # Kept out of cloud_args: the aws provider reads cloud_args.region, so folding
   # these resource refs into cloud_args would cycle provider -> network -> provider.
@@ -430,9 +448,29 @@ locals {
   extra_external_secrets = concat(
     try(local.cloud_args.extra_external_secrets, []),
     local.legacy_extra_external_secrets,
+    local.redis.enabled && local.redis_password_secret_arn != "" ? [{
+      name = "redis-credentials"
+      spec = {
+        refreshInterval = "1h"
+        secretStoreRef  = { name = "zipline-secret-store", kind = "SecretStore" }
+        target = {
+          name           = "redis-credentials"
+          creationPolicy = "Owner"
+          template       = { type = "Opaque" }
+        }
+        data = [{
+          secretKey = "REDIS_PASSWORD"
+          remoteRef = {
+            key      = local.redis_password_secret_arn
+            property = local.redis.password_secret_key
+          }
+        }]
+      }
+    }] : [],
   )
   extra_external_secret_arns = distinct(compact(concat(
     try(local.cloud_args.extra_secret_arns, []),
+    local.redis.enabled && local.redis_password_secret_arn != "" ? [local.redis_password_secret_arn] : [],
     flatten([
       for external_secret in local.extra_external_secrets : [
         for item in try(external_secret.spec.data, []) : tostring(try(item.remoteRef.key, ""))
@@ -534,20 +572,32 @@ locals {
       { name = "AWS_REGION", value = local.cloud_args.region },
       { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
     ]
-    fetcher_env = [
+    fetcher_env = concat([
       { name = "PROVIDER", value = "AWS" },
       { name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix },
       { name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) },
       { name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) },
       { name = "CHRONON_METRICS_READER", value = "prometheus" },
-      { name = "KV_STORE_TYPE", value = "dynamodb" },
+      { name = "KV_STORE_TYPE", value = local.redis.enabled ? "redis" : "dynamodb" },
+      ], local.redis.enabled ? [
+      { name = "REDIS_CLUSTER_NODES", value = local.redis_cluster_nodes },
+      { name = "REDIS_USE_SSL", value = tostring(local.redis.use_ssl) },
+      ] : [], local.redis_password_secret_arn != "" ? [{
+        name      = "REDIS_PASSWORD"
+        valueFrom = { secretKeyRef = { name = "redis-credentials", key = "REDIS_PASSWORD" } }
+      }] : [], [
       { name = "AWS_STS_REGIONAL_ENDPOINTS", value = "regional" },
-    ]
+    ])
     hub_env = concat(
-      local.cloud_args.kv_table_prefix == "" ? [] : [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }],
-      local.cloud_args.kv_enable_ttl ? [] : [{ name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) }],
-      length(local.cloud_args.kv_replica_regions) == 0 ? [] : [{ name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) }],
-      local.cloud_args.kv_batch_table_gc_age_days == "" ? [] : [{ name = "KV_BATCH_TABLE_GC_AGE_DAYS", value = local.cloud_args.kv_batch_table_gc_age_days }],
+      local.redis.enabled ? [
+        { name = "KV_STORE_TYPE", value = "redis" },
+        { name = "REDIS_CLUSTER_NODES", value = local.redis_cluster_nodes },
+        { name = "REDIS_USE_SSL", value = tostring(local.redis.use_ssl) },
+      ] : (local.cloud_args.kv_table_prefix == "" ? [] : [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }]),
+      local.redis.enabled || local.cloud_args.kv_enable_ttl ? [] : [{ name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) }],
+      local.redis.enabled ? [] : (length(local.cloud_args.kv_replica_regions) == 0 ? [] : [{ name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) }]),
+      local.redis.enabled ? [] : (local.cloud_args.kv_batch_table_gc_age_days == "" ? [] : [{ name = "KV_BATCH_TABLE_GC_AGE_DAYS", value = local.cloud_args.kv_batch_table_gc_age_days }]),
+      local.redis_password_secret_arn != "" ? [{ name = "REDIS_PASSWORD", valueFrom = { secretKeyRef = { name = "redis-credentials", key = "REDIS_PASSWORD" } } }] : [],
       # Cluster name drives the AWS-console deployment URL emitted by
       # CrucibleSubmitter.getJobUrl. Without it the per-step "open in
       # console" link on each job comes up empty.

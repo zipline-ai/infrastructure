@@ -339,6 +339,14 @@ the table prefix, TTL setting, and replica regions to the fetcher automatically.
 | Field | Default | Use when |
 | --- | --- | --- |
 | `aws.kv_table_prefix` | `""` | Hub needs a prefix for Chronon KV tables. |
+| `aws.redis.enabled` | `false` | Use Redis for the Chronon KV store instead of DynamoDB. With no existing cluster nodes, Terraform creates a TLS-enabled ElastiCache Redis cluster. |
+| `aws.redis.cluster_nodes` | `""` | Existing Redis seed nodes as comma-separated `host:port` values. Leave empty to create a managed cluster. For ElastiCache, use its cluster configuration endpoint. |
+| `aws.redis.password_secret_arn` | `""` | Optional Secrets Manager ARN holding the existing Redis password as a JSON field. Managed clusters generate and store a password automatically. |
+| `aws.redis.password_secret_key` | `"password"` | JSON field name containing the Redis password in Secrets Manager. |
+| `aws.redis.use_ssl` | `true` | Use TLS for Redis connections. |
+| `aws.redis.node_type` | `"cache.t4g.small"` | ElastiCache node type for a managed cluster. |
+| `aws.redis.shards` | `1` | Number of shards in a managed Redis cluster. |
+| `aws.redis.replicas_per_shard` | `1` | Replica count per shard in a managed cluster. Set to `0` for a single-node test cluster. |
 | `aws.kv_enable_ttl` | `true` | TTL should be disabled for KV records. |
 | `aws.kv_replica_regions` | `[]` | DynamoDB global table replicas are required. |
 | `aws.kv_batch_table_gc_age_days` | `""` | Override (in days) for the DynamoDB batch-table GC age used by the Hub's `AWSCleanupVerticle`. Empty falls back to the platform default of 30 days. Set to e.g. `"7"` to sweep batch upload tables more aggressively, or a larger value to retain them longer. No effect when `aws.kv_enable_ttl` is `false`. |
@@ -348,6 +356,28 @@ the table prefix, TTL setting, and replica regions to the fetcher automatically.
 | `aws.msk_cluster_arn` | `""` | Flink needs IAM permissions for an MSK cluster. |
 | `aws.amp_workspace_arn` | created workspace ARN | Scraping, UI queries, and IAM permissions should use an existing AWS Managed Prometheus workspace. |
 | `aws.eks_log_group` | `/aws/eks/<cluster_name>/containers` | UI log links should point at a different EKS log group. |
+
+To let Terraform create a managed cluster, set `aws.redis.enabled = true` and
+leave `cluster_nodes` empty. To use a cluster managed elsewhere, provide its
+seed endpoint and, when needed, a Secrets Manager secret ARN containing the
+password JSON field:
+
+```hcl
+redis = {
+  enabled       = true
+  cluster_nodes = "clustercfg.example.abc123.usw2.cache.amazonaws.com:6379"
+  password_secret_arn = "arn:aws:secretsmanager:us-west-2:123456789012:secret:existing-redis-auth-AbCdEf"
+  password_secret_key = "password"
+  use_ssl       = true
+}
+```
+
+For an existing unauthenticated cluster, omit `password_secret_arn`. The
+orchestration Hub and fetcher receive the Redis settings, and the Hub passes
+them to submitted Spark and Flink jobs. Managed Redis creates a cluster-mode
+enabled ElastiCache replication group and a generated credential in Secrets
+Manager. When Redis is disabled, the existing DynamoDB configuration remains
+active.
 
 ### Fetcher metrics
 

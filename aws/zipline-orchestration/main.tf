@@ -41,12 +41,24 @@ resource "terraform_data" "configuration_validation" {
     auth_enabled       = local.auth_enabled
     auth_secret_arn    = local.configured_auth_secret_arn
     create_auth_secret = local.create_auth_secret
+    redis_enabled      = local.redis.enabled
+    redis_managed      = local.redis_managed
   }
 
   lifecycle {
     precondition {
       condition     = !local.auth_enabled || local.create_auth_secret || trimspace(local.configured_auth_secret_arn) != ""
       error_message = "When auth.enabled is true, set aws.auth_secret_arn, orchestration.auth.secrets_arn, or aws.auth_secret_values so the AWS wrapper can provide the auth secret."
+    }
+
+    precondition {
+      condition     = !local.redis.enabled || local.redis_managed || trimspace(local.redis.password_secret_arn) == "" || startswith(trimspace(local.redis.password_secret_arn), "arn:")
+      error_message = "aws.redis.password_secret_arn must be a Secrets Manager ARN when using an existing Redis cluster."
+    }
+
+    precondition {
+      condition     = !local.redis_managed || (local.redis.shards >= 1 && local.redis.replicas_per_shard >= 0)
+      error_message = "Managed Redis requires aws.redis.shards >= 1 and aws.redis.replicas_per_shard >= 0."
     }
   }
 }

@@ -66,6 +66,9 @@ aws = {
   warehouse_bucket = "zipline-public-demo-warehouse"
   glue_schema_registry_name = "zipline-public-demo"
   kv_table_prefix  = "PUBLIC_DEMO_"
+  redis = {
+    enabled = false
+  }
   eks_instance_type = "m8a.large"
   eks_desired_size  = 2
   eks_min_size      = 2
