@@ -260,10 +260,11 @@
       fill: none;
       stroke: #3b5a51;
       stroke-width: 2;
-      opacity: 0.52;
+      opacity: 0.2;
       marker-end: url(#arrow);
       transition: stroke 180ms ease, opacity 180ms ease, stroke-width 180ms ease;
     }
+    .arch-edge.request-edge { opacity: 0; }
     .arch-edge.active {
       stroke: var(--green);
       stroke-width: 4;
@@ -542,14 +543,15 @@
             <div class="legend">
               <span class="chip">Solid box: service or workload</span>
               <span class="chip">Dashed box: boundary</span>
-              <span class="chip">Arrow: runtime or publication path</span>
+              <span class="chip">Arrow: direct dependency</span>
+              <span class="chip">NLB and ingress are implicit in request flows</span>
             </div>
             <span id="map-caption" class="note" aria-live="polite">Select a flow to highlight its path.</span>
           </div>
           <div class="diagram-scroll">
             <svg id="architecture" viewBox="0 0 1500 920" role="img" aria-labelledby="architecture-title architecture-desc">
               <title id="architecture-title">AWS Crucible architecture</title>
-              <desc id="architecture-desc">The Zipline CLI, UI, and automation call services in the zipline-system namespace. The Hub submits Spark, Flink, and Ray resources into zipline-default or team compute namespaces. Operators reconcile those resources. Workloads use S3, RDS, DynamoDB, Glue, Managed Prometheus, IAM, and Secrets Manager.</desc>
+              <desc id="architecture-desc">The Zipline CLI, UI, and automation call services in the zipline-system namespace through an implicit NLB and ingress layer. The Hub submits Spark, Flink, and Ray resources into zipline-default or team compute namespaces. Operators reconcile those resources. Eval and batch Spark use Polaris. Workloads use S3, RDS, DynamoDB, Glue, Managed Prometheus, IAM, and Secrets Manager.</desc>
               <defs>
                 <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                   <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"></path>
@@ -565,35 +567,31 @@
               <rect class="boundary aws" x="1150" y="28" width="325" height="854" rx="22"></rect>
               <text class="boundary-label" x="1170" y="54">AWS managed services</text>
 
-              <path id="edge-ci-registry" class="arch-edge" d="M205 90 C220 90 220 150 238 150"></path>
-              <path id="edge-ci-s3" class="arch-edge" d="M205 90 C680 5 1100 100 1170 145"></path>
-              <path id="edge-cli-ingress" class="arch-edge" d="M205 225 C245 225 265 150 305 150"></path>
-              <path id="edge-client-ingress" class="arch-edge" d="M205 345 C245 345 265 165 305 160"></path>
-              <path id="edge-ingress-ui" class="arch-edge" d="M445 135 L485 135"></path>
-              <path id="edge-ingress-hub" class="arch-edge" d="M445 150 C560 150 565 150 680 150"></path>
-              <path id="edge-ingress-eval" class="arch-edge" d="M445 170 C705 195 785 160 880 160"></path>
-              <path id="edge-ingress-fetcher" class="arch-edge" d="M410 185 C430 235 450 250 485 250"></path>
-              <path id="edge-ui-hub" class="arch-edge" d="M635 135 L680 135"></path>
-              <path id="edge-ui-starrocks" class="arch-edge" d="M560 180 C590 300 770 280 880 270"></path>
-              <path id="edge-ui-loki" class="arch-edge" d="M525 180 C500 310 650 370 690 370"></path>
-              <path id="edge-ui-amp" class="arch-edge" d="M580 180 C800 335 1060 330 1170 675"></path>
-              <path id="edge-hub-rds" class="arch-edge" d="M830 130 C1000 90 1090 205 1170 225"></path>
-              <path id="edge-hub-operators" class="arch-edge" d="M755 195 C755 255 790 285 820 320"></path>
-              <path id="edge-hub-shs" class="arch-edge" d="M730 195 C700 265 650 320 620 350"></path>
-              <path id="edge-polaris-rds" class="arch-edge" d="M835 255 C1030 250 1090 235 1170 235"></path>
-              <path id="edge-polaris-s3" class="arch-edge" d="M835 270 C1020 315 1090 170 1170 155"></path>
-              <path id="edge-starrocks-s3" class="arch-edge" d="M1030 250 C1100 245 1110 170 1170 160"></path>
-              <path id="edge-fetcher-ddb" class="arch-edge" d="M635 250 C900 300 1080 320 1170 330"></path>
-              <path id="edge-operators-workloads" class="arch-edge" d="M850 420 C850 465 800 490 755 515"></path>
+              <path id="edge-ci-registry" class="arch-edge" d="M115 125 V140"></path>
+              <path id="edge-ci-s3" class="arch-edge" d="M205 90 H225 V75 H1130 V155 H1170"></path>
+              <path id="edge-cli-hub" class="arch-edge request-edge" d="M205 240 H245 V145 H485"></path>
+              <path id="edge-cli-eval" class="arch-edge request-edge" d="M205 240 H235 V102 H955 V120"></path>
+              <path id="edge-client-fetcher" class="arch-edge request-edge" d="M205 360 H235 V255 H485"></path>
+              <path id="edge-ui-hub" class="arch-edge request-edge" d="M685 145 H635"></path>
+              <path id="edge-hub-rds" class="arch-edge" d="M560 195 V205 H1125 V255 H1170"></path>
+              <path id="edge-hub-operators" class="arch-edge" d="M635 175 H650 V315 H770"></path>
+              <path id="edge-hub-shs" class="arch-edge" d="M525 195 H460 V365 H470"></path>
+              <path id="edge-eval-polaris" class="arch-edge" d="M955 190 V220"></path>
+              <path id="edge-starrocks-polaris" class="arch-edge" d="M835 255 H880"></path>
+              <path id="edge-polaris-rds" class="arch-edge" d="M1030 265 H1170"></path>
+              <path id="edge-polaris-s3" class="arch-edge" d="M1030 240 H1100 V155 H1170"></path>
+              <path id="edge-fetcher-ddb" class="arch-edge" d="M635 255 H650 V305 H1125 V350 H1170"></path>
+              <path id="edge-operators-workloads" class="arch-edge" d="M850 420 V480 H755 V515"></path>
               <path id="edge-spark-driver-executor" class="arch-edge" d="M480 570 L525 570"></path>
+              <path id="edge-spark-driver-polaris" class="arch-edge" d="M400 530 V445 H940 V290"></path>
+              <path id="edge-spark-executor-polaris" class="arch-edge" d="M605 530 V453 H955 V290"></path>
               <path id="edge-flink-jm-tm" class="arch-edge" d="M825 570 L870 570"></path>
               <path id="edge-ray-head-workers" class="arch-edge" d="M650 745 L705 745"></path>
-              <path id="edge-workload-s3" class="arch-edge" d="M1040 570 C1100 520 1110 180 1170 165"></path>
-              <path id="edge-workload-ddb" class="arch-edge" d="M1040 600 C1110 570 1110 350 1170 340"></path>
-              <path id="edge-workload-glue" class="arch-edge" d="M1040 625 C1110 620 1120 440 1170 430"></path>
-              <path id="edge-metrics-amp" class="arch-edge" d="M1030 690 C1110 690 1120 675 1170 675"></path>
-              <path id="edge-logs-loki" class="arch-edge" d="M740 515 C650 480 450 430 370 395"></path>
-              <path id="edge-secrets-pods" class="arch-edge" d="M1170 765 C1100 800 1070 760 1030 735"></path>
+              <path id="edge-engine-s3" class="arch-edge" d="M685 570 H1070 V175 H1170"></path>
+              <path id="edge-flink-s3" class="arch-edge" d="M1045 550 H1090 V185 H1170"></path>
+              <path id="edge-flink-ddb" class="arch-edge" d="M1045 575 H1115 V350 H1170"></path>
+              <path id="edge-ray-s3" class="arch-edge" d="M890 745 H1080 V195 H1170"></path>
+              <path id="edge-metrics-amp" class="arch-edge" d="M1045 730 H1120 V680 H1170"></path>
 
               <g id="node-ci" class="arch-node external-node" transform="translate(25 55)">
                 <rect width="180" height="70"></rect><text class="node-title" x="14" y="28">Chronon + Platform CI</text><text class="node-sub" x="14" y="48">build and publish</text>
@@ -609,24 +607,24 @@
               </g>
 
               <g id="node-ingress" class="arch-node" transform="translate(305 115)">
-                <rect width="140" height="70"></rect><text class="node-title" x="14" y="28">NGINX ingress</text><text class="node-sub" x="14" y="48">AWS NLB routes</text>
+                <rect width="140" height="70"></rect><text class="node-title" x="14" y="28">NLB + ingress</text><text class="node-sub" x="14" y="48">implicit edge routing</text>
               </g>
-              <g id="node-ui" class="arch-node" transform="translate(485 110)">
+              <g id="node-ui" class="arch-node" transform="translate(685 110)">
                 <rect width="150" height="70"></rect><text class="node-title" x="14" y="28">Orchestration UI</text><text class="node-sub" x="14" y="48">auth and operations</text>
               </g>
-              <g id="node-hub" class="arch-node" transform="translate(680 110)">
+              <g id="node-hub" class="arch-node" transform="translate(485 110)">
                 <rect width="150" height="85"></rect><text class="node-title" x="14" y="28">AWS Hub</text><text class="node-sub" x="14" y="48">plan, schedule, submit</text><text class="node-sub" x="14" y="65">track and cancel</text>
               </g>
               <g id="node-eval" class="arch-node" transform="translate(880 120)">
-                <rect width="150" height="70"></rect><text class="node-title" x="14" y="28">Eval</text><text class="node-sub" x="14" y="48">Spark 4 validation</text>
+                <rect width="150" height="70"></rect><text class="node-title" x="14" y="28">Eval</text><text class="node-sub" x="14" y="48">conf feedback</text>
               </g>
               <g id="node-fetcher" class="arch-node" transform="translate(485 220)">
                 <rect width="150" height="70"></rect><text class="node-title" x="14" y="28">Fetcher</text><text class="node-sub" x="14" y="48">online feature serving</text>
               </g>
-              <g id="node-polaris" class="arch-node" transform="translate(685 220)">
+              <g id="node-polaris" class="arch-node" transform="translate(880 220)">
                 <rect width="150" height="70"></rect><text class="node-title" x="14" y="28">Polaris</text><text class="node-sub" x="14" y="48">Iceberg REST catalog</text>
               </g>
-              <g id="node-starrocks" class="arch-node" transform="translate(880 220)">
+              <g id="node-starrocks" class="arch-node" transform="translate(685 220)">
                 <rect width="150" height="70"></rect><text class="node-title" x="14" y="28">StarRocks</text><text class="node-sub" x="14" y="48">Data Explorer query</text>
               </g>
               <g id="node-operators" class="arch-node operator-node" transform="translate(650 315)">
@@ -685,6 +683,8 @@
 
         <div class="callout">
           <p><strong>Current namespace shape.</strong> The application chart runs in <code>zipline-system</code>. The Spark operator is part of that release. The Flink and KubeRay operators still run in their own operator namespaces. Their workloads run in compute namespaces. External Secrets, cert-manager, and OpenTelemetry also use separate namespaces in current <code>main</code>.</p>
+          <p><strong>Interaction rule.</strong> Request flows show logical caller-to-service hops. The AWS NLB and NGINX ingress route those calls but are not repeated as a step in each flow.</p>
+          <p><strong>Catalog contract.</strong> Eval queries Polaris when it validates configuration against table schemas. During batch execution, the Spark driver and executors use Polaris for Iceberg catalog operations.</p>
         </div>
       </div>
     </section>
@@ -1047,6 +1047,7 @@
           <li><a href="https://github.com/zipline-ai/platform/blob/35d88948c62001dfb6c0893d2fbb438baa081743/crucible/src/main/scala/ai/chronon/crucible/k8s/CrucibleKubernetesSpecs.scala">Platform: Kubernetes workload specs and placement</a></li>
           <li><a href="https://github.com/zipline-ai/platform/blob/35d88948c62001dfb6c0893d2fbb438baa081743/crucible/src/main/scala/ai/chronon/crucible/k8s/CrucibleLabels.scala">Platform: mode PriorityClass names</a></li>
           <li><a href="https://github.com/zipline-ai/platform/blob/35d88948c62001dfb6c0893d2fbb438baa081743/crucible/src/main/scala/ai/chronon/crucible/service/KubernetesCrucibleJobStore.scala">Platform: status, cancellation, logs, UI proxy, and terminal archive</a></li>
+          <li><a href="https://github.com/zipline-ai/platform/blob/35d88948c62001dfb6c0893d2fbb438baa081743/eval/src/main/scala/ai/chronon/eval/schema/IcebergSchemaUtils.scala">Platform: Eval schema inspection through the Iceberg catalog</a></li>
           <li><a href="https://github.com/zipline-ai/chronon/blob/83ee675941f0964780728699e82b1b490e5b8e92/python/src/ai/chronon/repo/hub_runner.py">Chronon: CLI workflow, schedule, cancel, fetch, and eval commands</a></li>
           <li><a href="https://github.com/zipline-ai/chronon/blob/83ee675941f0964780728699e82b1b490e5b8e92/python/src/ai/chronon/repo/hub_uploader.py">Chronon: config diff and upload</a></li>
           <li><a href="https://github.com/zipline-ai/chronon/blob/83ee675941f0964780728699e82b1b490e5b8e92/.github/workflows/reusable_build_and_push.yaml#L85-L210">Chronon: Spark 3 and Spark 4 artifact build and publication</a></li>
@@ -1070,11 +1071,11 @@
           summary: "CLI → Hub → SparkApplication → Iceberg and online stores",
           stops: ["CLI", "Hub", "Spark operator", "Driver + executors", "AWS data"],
           steps: [
-            { title: "Compile and compare configuration", body: "The CLI compiles repository configuration, calculates hashes, asks the Hub for a diff, and uploads changed objects.", writes: "Writes: Hub configuration rows and staged configuration data.", nodes: ["node-cli", "node-ingress", "node-hub", "node-rds"], edges: ["edge-cli-ingress", "edge-ingress-hub", "edge-hub-rds"], source: "Chronon hub_runner.py and hub_uploader.py" },
+            { title: "Compile and compare configuration", body: "The CLI compiles repository configuration, calculates hashes, asks the Hub for a diff, and uploads changed objects.", writes: "Writes: Hub configuration rows and staged configuration data.", nodes: ["node-cli", "node-hub", "node-rds"], edges: ["edge-cli-hub", "edge-hub-rds"], source: "Chronon hub_runner.py and hub_uploader.py" },
             { title: "Create a durable workflow", body: "The Hub resolves the requested date range, creates the workflow plan and steps, stores them as waiting work, and queues execution.", writes: "Writes: workflow, step, and dependency state in RDS.", nodes: ["node-hub", "node-rds"], edges: ["edge-hub-rds"], source: "Platform WorkflowManager and WorkflowPlanGenerator" },
-            { title: "Submit the Spark custom resource", body: "The Hub selects Crucible at process startup. It resolves the team namespace, stages node JSON in S3, and creates a SparkApplication.", writes: "Writes: staged node JSON in S3 and a SparkApplication in the team namespace.", nodes: ["node-hub", "node-s3", "node-operators"], edges: ["edge-hub-operators", "edge-ci-s3"], source: "Platform NodeSubmitter and CrucibleSubmitter" },
+            { title: "Submit the Spark custom resource", body: "The Hub selects Crucible at process startup. It resolves the team namespace, stages node JSON in S3, and creates a SparkApplication.", writes: "Writes: staged node JSON in S3 and a SparkApplication in the team namespace.", nodes: ["node-hub", "node-s3", "node-operators"], edges: ["edge-hub-operators"], source: "Platform NodeSubmitter and CrucibleSubmitter" },
             { title: "Reconcile pods and nodes", body: "The Spark operator creates a driver. The driver creates executors. Team, engine, and role selectors place them on the matching Karpenter pools.", writes: "Writes: driver and executor pods, services, and Spark status.", nodes: ["node-operators", "node-spark-driver", "node-spark-executor"], edges: ["edge-operators-workloads", "edge-spark-driver-executor"], source: "Platform CrucibleKubernetesSpecs; Infrastructure Karpenter locals" },
-            { title: "Read, compute, and commit", body: "The engine reads source data, calculates features, commits Iceberg data through Polaris, and can write online values and partition metadata to DynamoDB.", writes: "Writes: S3 data and metadata, Polaris transactions, DynamoDB values, logs, metrics, and Spark event logs.", nodes: ["node-spark-driver", "node-spark-executor", "node-polaris", "node-s3", "node-ddb", "node-promtail", "node-amp", "node-loki"], edges: ["edge-spark-driver-executor", "edge-workload-s3", "edge-workload-ddb", "edge-metrics-amp", "edge-logs-loki", "edge-polaris-s3"], source: "Chronon BatchNodeRunner; Infrastructure object store and observability values" }
+            { title: "Read, compute, and commit", body: "The Spark driver and executors use Polaris for Iceberg catalog operations. They read and write table data in S3 and can materialize online values in DynamoDB.", writes: "Writes: Iceberg data and metadata, DynamoDB values, logs, metrics, and Spark event logs.", nodes: ["node-spark-driver", "node-spark-executor", "node-polaris", "node-s3", "node-ddb", "node-promtail", "node-amp", "node-loki"], edges: ["edge-spark-driver-executor", "edge-spark-driver-polaris", "edge-spark-executor-polaris"], source: "Chronon BatchNodeRunner; Infrastructure Polaris, object store, and observability values" }
           ]
         },
         {
@@ -1096,11 +1097,11 @@
           summary: "CLI → Hub → FlinkDeployment → checkpointed stream",
           stops: ["CLI", "Hub", "Flink operator", "JM + TMs", "Online store"],
           steps: [
-            { title: "Submit a deploy workflow", body: "The CLI uploads the configuration and requests a workflow whose long-running node selects the Flink path.", writes: "Writes: configuration and workflow state in RDS.", nodes: ["node-cli", "node-ingress", "node-hub", "node-rds"], edges: ["edge-cli-ingress", "edge-ingress-hub", "edge-hub-rds"], source: "Chronon hub_runner.py; Platform NodeSubmitter" },
-            { title: "Create the FlinkDeployment", body: "The Hub resolves the team namespace and creates a FlinkDeployment. An init container downloads the versioned Spark 4-compatible Flink and connector JARs from S3.", writes: "Writes: FlinkDeployment and localized JAR volume.", nodes: ["node-hub", "node-s3", "node-operators"], edges: ["edge-hub-operators", "edge-ci-s3"], source: "Platform CrucibleSubmitter and CrucibleKubernetesSpecs" },
+            { title: "Submit a deploy workflow", body: "The CLI uploads the configuration and requests a workflow whose long-running node selects the Flink path.", writes: "Writes: configuration and workflow state in RDS.", nodes: ["node-cli", "node-hub", "node-rds"], edges: ["edge-cli-hub", "edge-hub-rds"], source: "Chronon hub_runner.py; Platform NodeSubmitter" },
+            { title: "Create the FlinkDeployment", body: "The Hub resolves the team namespace and creates a FlinkDeployment. An init container downloads the versioned Spark 4-compatible Flink and connector JARs from S3.", writes: "Writes: FlinkDeployment and localized JAR volume.", nodes: ["node-hub", "node-s3", "node-operators"], edges: ["edge-hub-operators"], source: "Platform CrucibleSubmitter and CrucibleKubernetesSpecs" },
             { title: "Reconcile JobManager", body: "The Flink operator creates the JobManager on the on-demand role pool.", writes: "Writes: JobManager deployment, service, and status.", nodes: ["node-operators", "node-flink-jm"], edges: ["edge-operators-workloads"], source: "Platform Flink placement; Infrastructure Karpenter pools" },
-            { title: "Run TaskManagers", body: "TaskManagers run on the worker pool, consume the stream, and use RocksDB incremental state with periodic checkpoints.", writes: "Writes: checkpoint state in S3 and Flink metrics.", nodes: ["node-flink-jm", "node-flink-tm", "node-s3", "node-promtail", "node-amp"], edges: ["edge-flink-jm-tm", "edge-workload-s3", "edge-metrics-amp", "edge-logs-loki"], source: "Platform FlinkConfigBuilder and CrucibleKubernetesSpecs" },
-            { title: "Materialize online values", body: "The streaming job writes online feature values and metadata. Fetcher serves those values independently of the Hub.", writes: "Writes: DynamoDB online data and metadata.", nodes: ["node-flink-tm", "node-ddb", "node-fetcher"], edges: ["edge-workload-ddb", "edge-fetcher-ddb"], source: "Chronon FlinkJob and Fetcher" }
+            { title: "Run TaskManagers", body: "TaskManagers run on the worker pool, consume the stream, and use RocksDB incremental state with periodic checkpoints.", writes: "Writes: checkpoint state in S3 and Flink metrics.", nodes: ["node-flink-jm", "node-flink-tm", "node-s3", "node-promtail", "node-amp"], edges: ["edge-flink-jm-tm", "edge-flink-s3", "edge-metrics-amp"], source: "Platform FlinkConfigBuilder and CrucibleKubernetesSpecs" },
+            { title: "Materialize online values", body: "The streaming job writes online feature values and metadata. Fetcher serves those values independently of the Hub.", writes: "Writes: DynamoDB online data and metadata.", nodes: ["node-flink-tm", "node-ddb", "node-fetcher"], edges: ["edge-flink-ddb", "edge-fetcher-ddb"], source: "Chronon FlinkJob and Fetcher" }
           ]
         },
         {
@@ -1112,34 +1113,34 @@
             { title: "Reach a training node", body: "The workflow planner makes a model-training node runnable after its dependencies complete.", writes: "Writes: training step state in RDS.", nodes: ["node-hub", "node-rds"], edges: ["edge-hub-rds"], source: "Platform workflow planning and NodeSubmitter" },
             { title: "Create a namespaced RayJob", body: "The Hub creates a RayJob in the resolved team namespace and supplies the training command and environment.", writes: "Writes: RayJob desired state.", nodes: ["node-hub", "node-operators"], edges: ["edge-hub-operators"], source: "Platform CrucibleSubmitter" },
             { title: "Create the Ray cluster", body: "KubeRay creates the submitter, head, and autoscaling worker group.", writes: "Writes: Ray pods, services, and RayJob status.", nodes: ["node-operators", "node-ray-head", "node-ray-workers"], edges: ["edge-operators-workloads", "edge-ray-head-workers"], source: "Platform CrucibleKubernetesSpecs" },
-            { title: "Run distributed training", body: "The head coordinates training and workers scale within the configured group bounds.", writes: "Writes: logs and metrics. Training code controls intermediate state.", nodes: ["node-ray-head", "node-ray-workers", "node-promtail", "node-amp"], edges: ["edge-ray-head-workers", "edge-metrics-amp", "edge-logs-loki"], source: "Platform RayConfigBuilder" },
-            { title: "Publish the model artifact", body: "Training writes its model output to S3 and reports terminal state through RayJob status.", writes: "Writes: model artifact in S3 and workflow status in RDS.", nodes: ["node-ray-head", "node-ray-workers", "node-s3", "node-hub", "node-rds"], edges: ["edge-workload-s3", "edge-hub-rds"], source: "Platform KubernetesCrucibleJobStore" }
+            { title: "Run distributed training", body: "The head coordinates training and workers scale within the configured group bounds.", writes: "Writes: logs and metrics. Training code controls intermediate state.", nodes: ["node-ray-head", "node-ray-workers", "node-promtail", "node-amp"], edges: ["edge-ray-head-workers", "edge-metrics-amp"], source: "Platform RayConfigBuilder" },
+            { title: "Publish the model artifact", body: "Training writes its model output to S3 and reports terminal state through RayJob status.", writes: "Writes: model artifact in S3 and workflow status in RDS.", nodes: ["node-ray-head", "node-ray-workers", "node-s3", "node-hub", "node-rds"], edges: ["edge-ray-s3", "edge-hub-rds"], source: "Platform KubernetesCrucibleJobStore" }
           ]
         },
         {
           id: "fetch",
           label: "Online fetch",
-          summary: "Client → ingress → Fetcher → DynamoDB",
-          stops: ["Client", "Ingress", "Fetcher", "Online store", "Response"],
+          summary: "Client → Fetcher → DynamoDB → response",
+          stops: ["Client", "Fetcher", "Metadata", "Values", "Response"],
           steps: [
-            { title: "Send a feature request", body: "The online client calls the Fetcher route through the AWS load balancer and NGINX ingress.", writes: "Writes: request telemetry only.", nodes: ["node-client", "node-ingress"], edges: ["edge-client-ingress"], source: "Infrastructure ingress; Chronon FetcherVerticle" },
-            { title: "Route to Fetcher", body: "NGINX rewrites the Fetcher service path and sends the request to the Fetcher service in zipline-system.", writes: "Writes: access logs and latency metrics.", nodes: ["node-ingress", "node-fetcher"], edges: ["edge-ingress-fetcher"], source: "Infrastructure ingress values" },
+            { title: "Send a feature request", body: "The online client calls Fetcher. The shared edge routing layer is implicit in this flow.", writes: "Writes: request telemetry only.", nodes: ["node-client", "node-fetcher"], edges: ["edge-client-fetcher"], source: "Chronon FetcherVerticle; Infrastructure service routing" },
+            { title: "Accept the Fetcher request", body: "Fetcher validates the request and determines the join and keys that must be resolved.", writes: "Writes: service logs and latency metrics.", nodes: ["node-fetcher", "node-promtail", "node-amp"], edges: ["edge-metrics-amp"], source: "Chronon FetcherVerticle" },
             { title: "Resolve feature metadata", body: "Fetcher loads the join definition and online metadata required to construct the response.", writes: "Reads: Chronon metadata in the online store.", nodes: ["node-fetcher", "node-ddb"], edges: ["edge-fetcher-ddb"], source: "Chronon Fetcher" },
             { title: "Fetch and compose values", body: "Fetcher reads join-part values, applies external features and derivations, and assembles the response.", writes: "Reads: online feature values from DynamoDB.", nodes: ["node-fetcher", "node-ddb"], edges: ["edge-fetcher-ddb"], source: "Chronon Fetcher, JoinPartFetcher, and GroupByFetcher" },
-            { title: "Return independently of Hub", body: "Fetcher returns the result through ingress. The Hub is not in the online request path.", writes: "Writes: Fetcher and ingress telemetry.", nodes: ["node-fetcher", "node-ingress", "node-client", "node-promtail", "node-amp"], edges: ["edge-ingress-fetcher", "edge-client-ingress", "edge-metrics-amp", "edge-logs-loki"], source: "Chronon FetcherVerticle; Infrastructure observability" }
+            { title: "Return independently of Hub", body: "Fetcher returns the composed result to the client. The Hub is not in the online request path.", writes: "Writes: Fetcher telemetry.", nodes: ["node-fetcher", "node-client", "node-promtail", "node-amp"], edges: ["edge-client-fetcher", "edge-metrics-amp"], source: "Chronon FetcherVerticle; Infrastructure observability" }
           ]
         },
         {
           id: "eval",
           label: "Eval",
-          summary: "CLI → Eval service → Spark 4-compatible evaluation",
-          stops: ["CLI", "Ingress", "Eval", "Data systems", "Result"],
+          summary: "CLI → Eval → Polaris → conf feedback",
+          stops: ["CLI", "Eval", "Conf state", "Polaris", "Feedback"],
           steps: [
-            { title: "Sync the target configuration", body: "The CLI uses the Hub configuration sync path before requesting evaluation.", writes: "Writes: changed configuration through Hub.", nodes: ["node-cli", "node-ingress", "node-hub", "node-rds"], edges: ["edge-cli-ingress", "edge-ingress-hub", "edge-hub-rds"], source: "Chronon hub_runner.py and hub_uploader.py" },
-            { title: "Call the Eval route", body: "The CLI calls the separately deployed Eval service through the shared ingress.", writes: "Writes: Eval request logs.", nodes: ["node-cli", "node-ingress", "node-eval"], edges: ["edge-cli-ingress", "edge-ingress-eval"], source: "Infrastructure Eval ingress and deployment" },
-            { title: "Load the evaluation runtime", body: "The AWS Eval image is built against the Spark 4 and Scala 2.13 release profile.", writes: "Reads: versioned engine dependencies packaged for Eval.", nodes: ["node-eval", "node-s3"], edges: ["edge-ci-s3"], source: "Platform build_and_publish_images workflow" },
-            { title: "Read feature data", body: "Eval uses the configured catalog and storage clients to inspect feature outputs for the request.", writes: "Reads: catalog metadata and data in S3.", nodes: ["node-eval", "node-polaris", "node-s3"], edges: ["edge-polaris-s3"], source: "Platform AWS Eval configuration" },
-            { title: "Return the evaluation", body: "Eval returns the result synchronously to the CLI and emits logs and metrics.", writes: "Writes: service telemetry.", nodes: ["node-eval", "node-ingress", "node-cli", "node-promtail", "node-amp"], edges: ["edge-ingress-eval", "edge-metrics-amp", "edge-logs-loki"], source: "Chronon CLI eval command" }
+            { title: "Build the conf request", body: "The CLI compiles the requested configuration and builds the conf-name and conf-hash state that Eval will check.", writes: "Builds: the Eval request from the current repository state.", nodes: ["node-cli"], edges: [], source: "Chronon hub_runner.py" },
+            { title: "Call Eval directly", body: "The CLI posts the conf state to the configured Eval service. The shared edge routing layer is implicit in this flow.", writes: "Writes: Eval request logs.", nodes: ["node-cli", "node-eval"], edges: ["edge-cli-eval"], source: "Chronon ZiplineHub.call_eval_api" },
+            { title: "Resolve the conf state", body: "Eval resolves the requested configuration snapshot and recursively evaluates its dependencies.", writes: "Reads: uploaded configuration state and request-local evaluation state.", nodes: ["node-eval", "node-rds"], edges: [], source: "Platform EvalVerticle and ConfEvaluator" },
+            { title: "Inspect schemas through Polaris", body: "Eval uses the Polaris-backed Iceberg catalog to resolve table schemas and validate the configuration against catalog state.", writes: "Reads: Iceberg catalog metadata through Polaris.", nodes: ["node-eval", "node-polaris"], edges: ["edge-eval-polaris"], source: "Platform IcebergSchemaUtils and SchemaDispatcher" },
+            { title: "Return conf feedback", body: "Eval returns validation success, errors, and schema or lineage feedback directly to the CLI.", writes: "Writes: Eval telemetry only.", nodes: ["node-eval", "node-cli", "node-promtail", "node-amp"], edges: ["edge-cli-eval", "edge-metrics-amp"], source: "Chronon CLI eval command; Platform EvalVerticle" }
           ]
         },
         {
@@ -1148,10 +1149,10 @@
           summary: "UI or CLI → Hub → RDS, Kubernetes, Loki, History Server",
           stops: ["Operator", "Hub", "State", "Diagnostics", "Action"],
           steps: [
-            { title: "Request workflow status", body: "The UI or CLI calls Hub. Browser traffic uses UI forward-auth. CLI traffic supplies a bearer token.", writes: "Writes: access and audit-adjacent application logs.", nodes: ["node-cli", "node-ui", "node-ingress", "node-hub"], edges: ["edge-cli-ingress", "edge-ingress-ui", "edge-ui-hub", "edge-ingress-hub"], source: "Infrastructure ingress; Platform OrchestrationVerticle" },
+            { title: "Request workflow status", body: "The UI or CLI calls Hub. Browser traffic uses UI forward-auth. CLI traffic supplies a bearer token. Edge routing is implicit.", writes: "Writes: access and audit-adjacent application logs.", nodes: ["node-cli", "node-ui", "node-hub"], edges: ["edge-cli-hub", "edge-ui-hub"], source: "Infrastructure ingress; Platform OrchestrationVerticle" },
             { title: "Join durable and live state", body: "Hub reads workflow state from RDS and engine state from informer caches or a live Kubernetes API fallback.", writes: "Reads: workflow rows and custom-resource status.", nodes: ["node-hub", "node-rds", "node-operators"], edges: ["edge-hub-rds", "edge-hub-operators"], source: "Platform KubernetesCrucibleJobStore" },
-            { title: "Read logs", body: "Hub first reads pod logs directly. If needed, it queries Loki using job labels added to workload pods.", writes: "Reads: Kubernetes pod log or Loki stream.", nodes: ["node-hub", "node-loki", "node-promtail"], edges: ["edge-logs-loki"], source: "Platform KubernetesCrucibleJobStore; Infrastructure Promtail" },
-            { title: "Open an engine UI", body: "Hub proxies a live Spark UI, Flink UI, or Ray dashboard. A terminal Spark job can redirect to Spark History Server.", writes: "Reads: live engine service or S3 event log through History Server.", nodes: ["node-hub", "node-shs", "node-s3", "node-spark-driver", "node-flink-jm", "node-ray-head"], edges: ["edge-hub-shs", "edge-workload-s3"], source: "Platform KubernetesCrucibleJobStore" },
+            { title: "Read logs", body: "Hub first reads pod logs directly. If needed, it queries Loki using job labels added to workload pods.", writes: "Reads: Kubernetes pod log or Loki stream.", nodes: ["node-hub", "node-loki", "node-promtail"], edges: [], source: "Platform KubernetesCrucibleJobStore; Infrastructure Promtail" },
+            { title: "Open an engine UI", body: "Hub proxies a live Spark UI, Flink UI, or Ray dashboard. A terminal Spark job can redirect to Spark History Server.", writes: "Reads: live engine service or S3 event log through History Server.", nodes: ["node-hub", "node-shs", "node-s3", "node-spark-driver", "node-flink-jm", "node-ray-head"], edges: ["edge-hub-shs", "edge-engine-s3"], source: "Platform KubernetesCrucibleJobStore" },
             { title: "Cancel the workload", body: "Hub deletes the engine custom resource and records cancellation. The operator removes owned runtime resources.", writes: "Writes: Kubernetes delete and terminal workflow state.", nodes: ["node-hub", "node-operators", "node-rds"], edges: ["edge-hub-operators", "edge-hub-rds"], source: "Platform KubernetesCrucibleJobStore and WorkflowOrchestrator" }
           ]
         },
@@ -1164,8 +1165,8 @@
             { title: "Build engine artifacts", body: "Chronon CI builds Spark 3 artifacts and a Spark 4 Scala 2.13.17 profile in the same artifact job.", writes: "Writes: CI artifacts for AWS engine, Flink, and Kinesis connector JARs.", nodes: ["node-ci"], edges: [], source: "Chronon reusable_build_and_push workflow" },
             { title: "Publish distinct Spark 4 names", body: "CI uploads Spark 4 JARs under the normal version path. The filenames include spark4, so they do not overwrite Spark 3 JARs. Release engine images contain both sets.", writes: "Writes: versioned S3 objects and engine-aws image.", nodes: ["node-ci", "node-s3", "node-registry"], edges: ["edge-ci-s3", "edge-ci-registry"], source: "Chronon reusable build and publish_release workflows" },
             { title: "Publish Platform images", body: "Platform CI builds Hub and Eval with the Spark 4 profile and publishes Spark 4-specific commit and release tags.", writes: "Writes: Hub and Eval images in Docker Hub.", nodes: ["node-ci", "node-registry"], edges: ["edge-ci-registry"], source: "Platform build_and_publish_images workflow" },
-            { title: "Render the AWS chart", body: "Terraform passes the release version, images, artifact bucket, IAM roles, database, catalog, ingress, and placement values to Helm.", writes: "Writes: Kubernetes deployments, services, RBAC, namespaces, and operator configuration.", nodes: ["node-registry", "node-security", "node-ingress", "node-hub", "node-eval", "node-operators"], edges: ["edge-secrets-pods"], source: "Infrastructure AWS module and zipline-orchestration chart" },
-            { title: "Run end-to-end checks", body: "The release should prove UC/Iceberg backfill, ad hoc batch, scheduling, Eval, Flink deployment, Ray training, online fetch, status, logs, and cancellation.", writes: "Writes: test workflows and their isolated outputs.", nodes: ["node-cli", "node-hub", "node-eval", "node-fetcher", "node-spark-driver", "node-flink-jm", "node-ray-head"], edges: ["edge-cli-ingress", "edge-ingress-hub", "edge-hub-operators"], source: "Chronon integration tests and Platform Crucible update workflow" }
+            { title: "Render the AWS chart", body: "Terraform passes the release version, images, artifact bucket, IAM roles, database, catalog, ingress, and placement values to Helm.", writes: "Writes: Kubernetes deployments, services, RBAC, namespaces, and operator configuration.", nodes: ["node-registry", "node-security", "node-ingress", "node-hub", "node-eval", "node-operators"], edges: [], source: "Infrastructure AWS module and zipline-orchestration chart" },
+            { title: "Run end-to-end checks", body: "The release should prove UC/Iceberg backfill, ad hoc batch, scheduling, Eval, Flink deployment, Ray training, online fetch, status, logs, and cancellation.", writes: "Writes: test workflows and their isolated outputs.", nodes: ["node-cli", "node-hub", "node-eval", "node-fetcher", "node-spark-driver", "node-flink-jm", "node-ray-head"], edges: ["edge-cli-hub", "edge-hub-operators"], source: "Chronon integration tests and Platform Crucible update workflow" }
           ]
         }
       ];
