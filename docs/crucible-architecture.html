@@ -258,16 +258,16 @@
     }
     .arch-edge {
       fill: none;
-      stroke: #3b5a51;
-      stroke-width: 2;
-      opacity: 0.2;
+      stroke: #5f8d7e;
+      stroke-width: 2.8;
+      opacity: 0.44;
       marker-end: url(#arrow);
       transition: stroke 180ms ease, opacity 180ms ease, stroke-width 180ms ease;
     }
     .arch-edge.request-edge { opacity: 0; }
     .arch-edge.active {
       stroke: var(--green);
-      stroke-width: 4;
+      stroke-width: 5;
       opacity: 1;
       stroke-dasharray: 10 7;
       animation: flow-line 900ms linear infinite;
@@ -553,7 +553,7 @@
               <title id="architecture-title">AWS Crucible architecture</title>
               <desc id="architecture-desc">The Zipline CLI, UI, and automation call services in the zipline-system namespace through an implicit NLB and ingress layer. The Hub submits Spark, Flink, and Ray resources into zipline-default or team compute namespaces. Operators reconcile those resources. Eval and batch Spark use Polaris. Workloads use S3, RDS, DynamoDB, Glue, Managed Prometheus, IAM, and Secrets Manager.</desc>
               <defs>
-                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
                   <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"></path>
                 </marker>
               </defs>
@@ -607,7 +607,7 @@
               </g>
 
               <g id="node-ingress" class="arch-node" transform="translate(305 115)">
-                <rect width="140" height="70"></rect><text class="node-title" x="14" y="28">NLB + ingress</text><text class="node-sub" x="14" y="48">implicit edge routing</text>
+                <rect width="140" height="70"></rect><text class="node-title" x="14" y="39">NLB + ingress</text>
               </g>
               <g id="node-ui" class="arch-node" transform="translate(685 110)">
                 <rect width="150" height="70"></rect><text class="node-title" x="14" y="28">Orchestration UI</text><text class="node-sub" x="14" y="48">auth and operations</text>
