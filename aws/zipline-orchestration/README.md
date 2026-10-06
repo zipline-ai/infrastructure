@@ -374,10 +374,12 @@ redis = {
 
 For an existing unauthenticated cluster, omit `password_secret_arn`. The
 orchestration Hub and fetcher receive the Redis settings, and the Hub passes
-them to submitted Spark and Flink jobs. Managed Redis creates a cluster-mode
-enabled ElastiCache replication group and a generated credential in Secrets
-Manager. When Redis is disabled, the existing DynamoDB configuration remains
-active.
+them to submitted Spark and Flink jobs. When a password is configured, the
+secret is synchronized into each configured compute namespace and Spark injects
+it into driver and executor pods as `REDIS_PASSWORD`. Managed Redis creates a
+cluster-mode enabled ElastiCache replication group and a generated credential
+in Secrets Manager. When Redis is disabled, the existing DynamoDB configuration
+remains active.
 
 ### Fetcher metrics
 
