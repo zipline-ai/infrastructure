@@ -302,7 +302,11 @@ locals {
   compute_node_pool_matrix = [
     for pool in local.compute_node_pool_pairs : {
       key            = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
-      team           = pool.team
+      # The slug, not the raw team: the pod's nodeSelector is built from the same
+      # DNS-safe form the namespace and workload labels use, so a raw team name
+      # containing an underscore never matches. Identical for "default", which is
+      # why this only surfaces for the first team whose name is not already a slug.
+      team           = local.compute_team_slugs[pool.team]
       engine         = pool.engine
       role           = pool.role
       size           = pool.size
