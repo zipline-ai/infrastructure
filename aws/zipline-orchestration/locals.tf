@@ -113,15 +113,17 @@ locals {
     { engine = "flink", role = "jobmanager", size = "driver" },
     { engine = "flink", role = "taskmanager", size = "executor" },
   ]
-  compute_node_pool_pairs = [
-    for workload in local.compute_node_pool_workloads : {
-      team      = "default"
-      engine    = workload.engine
-      role      = workload.role
-      size      = workload.size
-      node_pool = "default-${workload.engine}-${workload.role}"
-    }
-  ]
+  compute_node_pool_pairs = flatten([
+    for team in local.compute_teams : [
+      for workload in local.compute_node_pool_workloads : {
+        team      = team
+        engine    = workload.engine
+        role      = workload.role
+        size      = workload.size
+        node_pool = "${local.compute_team_slugs[team]}-${workload.engine}-${workload.role}"
+      }
+    ]
+  ])
   compute_node_pool_slugs = {
     for pool in local.compute_node_pool_pairs :
     "${pool.team}:${pool.engine}:${pool.role}" => (
