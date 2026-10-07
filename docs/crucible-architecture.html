@@ -173,6 +173,8 @@
     .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .card { min-width: 0; overflow-wrap: anywhere; }
+    #resource-management { scroll-margin-top: 72px; }
 
     .card, .callout, .diagram-shell, .flow-shell, .table-shell {
       border: 1px solid var(--line);
@@ -377,6 +379,15 @@
     }
 
     .table-shell { overflow-x: auto; }
+    .config-example {
+      overflow-x: auto;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--page);
+      font-size: 13px;
+      line-height: 1.5;
+    }
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 13px 15px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
     th { color: var(--muted); background: rgb(7 17 15 / 0.42); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; }
@@ -451,6 +462,7 @@
       <a href="#architecture-map">Architecture</a>
       <a href="#flows">Request flows</a>
       <a href="#placement">Placement</a>
+      <a href="#resource-management">Resource management</a>
       <a href="#state">State</a>
       <a href="#security">Security</a>
       <a href="#operations">Operations</a>
@@ -510,14 +522,14 @@
               <li>This document covers only the AWS Crucible deployment.</li>
               <li>A single Hub does not choose between Crucible and an external AWS compute backend per submitted job.</li>
               <li>Namespaces do not place pods on nodes by themselves. Selectors, taints, tolerations, and matching node pools do that.</li>
-              <li>The current implementation does not provide complete Ray role placement or per-mode resource quotas.</li>
+              <li>The baseline snapshots do not provide complete Ray role placement or per-mode resource quotas. The resource management design below tracks the open PRs and proposed extensions.</li>
               <li>This document does not claim that every component is highly available.</li>
             </ul>
           </article>
         </div>
 
         <div class="callout">
-          <p><strong>Reading rule.</strong> Green means the cited code implements the behavior. Amber means part of the path exists but has a known constraint. Red means the design needs more implementation. Violet is a recommendation.</p>
+          <p><strong>Reading rule.</strong> Green means the cited code implements the behavior, which does not establish that it is merged or deployed. Amber means part of the path exists but has a known constraint. Red means the design needs more implementation. Violet is a proposal. The resource management update is dated 2026-10-07 and distinguishes the baseline snapshots from open PRs.</p>
           <div class="legend">
             <span class="status implemented">Implemented</span>
             <span class="status partial">Partial</span>
@@ -543,27 +555,29 @@
             <div class="legend">
               <span class="chip">Solid box: service or workload</span>
               <span class="chip">Dashed box: boundary</span>
-              <span class="chip">Arrow: direct dependency</span>
+              <span class="chip">Arrow: dependency or observed state</span>
               <span class="chip">NLB and ingress are implicit in request flows</span>
             </div>
             <span id="map-caption" class="note" aria-live="polite">Select a flow to highlight its path.</span>
           </div>
           <div class="diagram-scroll">
-            <svg id="architecture" viewBox="0 0 1500 920" role="img" aria-labelledby="architecture-title architecture-desc">
+            <svg id="architecture" viewBox="0 0 1500 1100" role="img" aria-labelledby="architecture-title architecture-desc">
               <title id="architecture-title">AWS Crucible architecture</title>
-              <desc id="architecture-desc">The Zipline CLI, UI, and automation call services in the zipline-system namespace through an implicit NLB and ingress layer. The Hub submits Spark, Flink, and Ray resources into zipline-default or team compute namespaces. Operators reconcile those resources. Eval and batch Spark use Polaris. Workloads use S3, RDS, DynamoDB, Glue, Managed Prometheus, IAM, and Secrets Manager.</desc>
+              <desc id="architecture-desc">The Zipline CLI, UI, and automation call services in the zipline-system namespace through an implicit NLB and ingress layer. The Hub submits Spark, Flink, and Ray resources into zipline-default or team compute namespaces. Operators reconcile those resources. Quota admission checks pod budgets; the scheduler matches node selectors and tolerations; Karpenter observes unscheduled pods and provisions capacity. Run-mode-specific node pools are proposed. Eval and batch Spark use Polaris. Workloads use S3, RDS, DynamoDB, Glue, Managed Prometheus, IAM, and Secrets Manager.</desc>
               <defs>
                 <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
                   <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"></path>
                 </marker>
               </defs>
 
-              <rect class="boundary" x="250" y="28" width="875" height="854" rx="22"></rect>
+              <rect class="boundary" x="250" y="28" width="875" height="1044" rx="22"></rect>
               <text class="boundary-label" x="270" y="54">Amazon EKS cluster</text>
               <rect class="boundary system" x="275" y="70" width="825" height="365" rx="18"></rect>
               <text class="boundary-label" x="295" y="96">zipline-system · services and Spark operator</text>
               <rect class="boundary compute" x="275" y="460" width="825" height="390" rx="18"></rect>
               <text class="boundary-label" x="295" y="486">zipline-default · team data plane</text>
+              <rect class="boundary" x="275" y="880" width="825" height="165" rx="18"></rect>
+              <text class="boundary-label" x="295" y="906">Admission and capacity · mode-specific placement proposed</text>
               <rect class="boundary aws" x="1150" y="28" width="325" height="854" rx="22"></rect>
               <text class="boundary-label" x="1170" y="54">AWS managed services</text>
 
@@ -592,6 +606,8 @@
               <path id="edge-flink-ddb" class="arch-edge" d="M1045 575 H1115 V350 H1170"></path>
               <path id="edge-ray-s3" class="arch-edge" d="M890 745 H1080 V195 H1170"></path>
               <path id="edge-metrics-amp" class="arch-edge" d="M1045 730 H1120 V680 H1170"></path>
+              <path id="edge-quota-scheduler" class="arch-edge request-edge" d="M525 976 H565"></path>
+              <path id="edge-scheduler-karpenter" class="arch-edge request-edge" d="M795 976 H835"></path>
 
               <g id="node-ci" class="arch-node external-node" transform="translate(25 55)">
                 <rect width="180" height="70"></rect><text class="node-title" x="14" y="28">Chronon + Platform CI</text><text class="node-sub" x="14" y="48">build and publish</text>
@@ -657,6 +673,15 @@
               </g>
               <g id="node-promtail" class="arch-node" transform="translate(915 690)">
                 <rect width="130" height="80"></rect><text class="node-title" x="14" y="28">Telemetry</text><text class="node-sub" x="14" y="48">Promtail</text><text class="node-sub" x="14" y="65">Prometheus scrape</text>
+              </g>
+              <g id="node-quota" class="arch-node operator-node" transform="translate(295 935)">
+                <rect width="230" height="82"></rect><text class="node-title" x="14" y="25">API server · quota admission</text><text class="node-sub" x="14" y="46">Namespace total + mode quota</text><text class="node-sub" x="14" y="64">Mode matches PriorityClass (#179)</text>
+              </g>
+              <g id="node-scheduler" class="arch-node operator-node" transform="translate(565 935)">
+                <rect width="230" height="82"></rect><text class="node-title" x="14" y="25">Kubernetes scheduler</text><text class="node-sub" x="14" y="46">Node selectors + tolerations</text><text class="node-sub" x="14" y="64">Unscheduled pods signal demand</text>
+              </g>
+              <g id="node-karpenter" class="arch-node operator-node" transform="translate(835 935)">
+                <rect width="245" height="82"></rect><text class="node-title" x="14" y="25">Karpenter · node capacity</text><text class="node-sub" x="14" y="46">Observes unscheduled pods</text><text class="node-sub" x="14" y="64">Pool limits constrain provisioning</text>
               </g>
 
               <g id="node-s3" class="arch-node aws-node" transform="translate(1170 115)">
@@ -780,7 +805,7 @@
 
         <div class="table-shell">
           <table>
-            <thead><tr><th>Layer</th><th>Current behavior</th><th>What it enforces</th><th>Status</th></tr></thead>
+            <thead><tr><th>Layer</th><th>Baseline snapshot behavior</th><th>What it enforces</th><th>Status</th></tr></thead>
             <tbody>
               <tr><td>Control namespace</td><td><code>zipline-system</code> contains Hub, UI, Fetcher, Eval, Polaris, StarRocks, Loki, Spark History Server, ingress, and Spark operator.</td><td>Separates long-lived services from workload objects.</td><td><span class="status implemented">Implemented</span></td></tr>
               <tr><td>Compute namespace</td><td><code>zipline-default</code> is created by default. The chart can create more labeled team namespaces.</td><td>Namespaced RBAC, ResourceQuota, LimitRange, and service accounts.</td><td><span class="status implemented">Implemented</span></td></tr>
@@ -789,8 +814,8 @@
               <tr><td>Flink pools</td><td>JobManager and TaskManager pods select separate default-team pools. JobManagers use on-demand capacity. TaskManagers default to spot.</td><td>Separates coordination from elastic processing.</td><td><span class="status implemented">Implemented</span></td></tr>
               <tr><td>Ray pools</td><td>RayJob submission is namespaced. Ray supports optional selectors in Platform, but Infrastructure does not generate default Ray role pools.</td><td>No standard default placement contract yet.</td><td><span class="status partial">Partial</span></td></tr>
               <tr><td>More teams</td><td>The namespace and routing primitives are generic. Generated Karpenter compute pools currently cover only the default team.</td><td>Namespace isolation exists before matching team capacity isolation.</td><td><span class="status partial">Partial</span></td></tr>
-              <tr><td>Mode priority</td><td>Platform assigns <code>zipline-backfill</code> or <code>zipline-deploy</code> to engine pods. Infrastructure does not define either PriorityClass in the reviewed snapshot.</td><td>A pod that names a missing PriorityClass is rejected. Define both classes before deploying this Platform revision.</td><td><span class="status gap">Gap</span></td></tr>
-              <tr><td>Per-mode quota</td><td>The default ResourceQuota applies to the whole namespace. It does not distinguish backfill, deploy, or training mode.</td><td>Aggregate namespace ceiling only.</td><td><span class="status gap">Gap</span></td></tr>
+              <tr><td>Mode priority</td><td>The reviewed Platform snapshot assigns <code>zipline-backfill</code> or <code>zipline-deploy</code> to engine pods. The Infrastructure baseline does not define either PriorityClass.</td><td>A pod that names a missing PriorityClass is rejected. Infrastructure #179 supplies the classes; deploy them before Platform #1341.</td><td><span class="status gap">Baseline gap</span></td></tr>
+              <tr><td>Per-mode quota</td><td>The baseline ResourceQuota applies to the whole namespace. Infrastructure #179 adds backfill and deploy quotas selected by PriorityClass.</td><td>Aggregate namespace ceiling in the baseline; mode ceilings require the PR configuration and classified pods.</td><td><span class="status partial">Open PR</span></td></tr>
             </tbody>
           </table>
         </div>
@@ -805,6 +830,92 @@
             <h3>Extension contract</h3>
             <p>To add a team, create its compute namespace and RBAC, generate its engine-role pools, and ensure every workload pod carries matching labels, selectors, and tolerations.</p>
             <p class="note">Add Ray head, worker, and submitter roles before claiming the same placement guarantee for training.</p>
+          </article>
+        </div>
+
+        <h3 id="resource-management" class="section-subhead">Resource management: one request, two enforcement paths</h3>
+        <div class="callout">
+          <p><span class="status proposed">Design · 2026-10-07</span></p>
+          <p>The incoming workload carries team and <code>run-mode</code> intent. Crucible derives the namespace, pod labels, quota class, node selectors, and tolerations from that intent. Kubernetes admits pods against the team and mode quotas, then schedules them onto matching nodes. Karpenter supplies matching capacity when needed.</p>
+          <p>Keep one namespace per team. The proposed placement key is <code>(team, run mode, engine, role)</code>. Backfill and deploy can therefore use separate pools inside the same namespace. A pod label records the mode; its node selector and tolerations enforce placement.</p>
+        </div>
+
+        <div class="table-shell">
+          <table>
+            <thead><tr><th>Request or derived field</th><th>Example: recommendations backfill</th><th>Owner and effect</th></tr></thead>
+            <tbody>
+              <tr><td>Incoming labels</td><td><code>zipline-team=recommendations</code><br><code>run-mode=backfill</code></td><td>Workflow submission already carries these labels. The engine selects its role when building pod specs.</td></tr>
+              <tr><td>Namespace</td><td><code>zipline-recommendations</code></td><td>Crucible resolves the team boundary. The namespace ResourceQuota counts all its non-terminal pods.</td></tr>
+              <tr><td>Pod mode label</td><td><code>zipline.ai/mode=backfill</code></td><td>Proposed propagation to every workload pod for identification. This label alone neither routes pods nor selects #179's quota.</td></tr>
+              <tr><td>Quota class</td><td><code>priorityClassName: zipline-backfill</code></td><td>Platform #1341 derives the class from run mode. #179's quota selects this class within the team namespace.</td></tr>
+              <tr><td>Placement selector</td><td><code>zipline.ai/team=recommendations</code><br><code>zipline.ai/mode=backfill</code><br><code>zipline.ai/engine=spark</code><br><code>zipline.ai/role=executor</code></td><td>Proposed extension: Crucible sets all four node selectors; Infrastructure labels the matching pool's nodes.</td></tr>
+              <tr><td>Pool and toleration</td><td><code>recommendations-backfill-spark-executor</code></td><td>Proposed pool name and <code>zipline.ai/workload</code> taint value. The pod gets a matching <code>NoSchedule</code> toleration.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="section-subhead">How the PRs fit together</h3>
+        <div class="table-shell">
+          <table>
+            <thead><tr><th>Change</th><th>What its reviewed code supplies</th><th>Remaining work</th></tr></thead>
+            <tbody>
+              <tr><td><a href="https://github.com/zipline-ai/infrastructure/pull/174">Infrastructure #174</a><br><span class="status partial">Open PR</span></td><td>Generates Spark/Flink pools for each team, engine, and role. Adds per-team instance types and driver/executor node-capacity limits.</td><td>Add run mode to pool generation, node labels, taints, and configuration. Its current pools have no mode dimension. Role limits apply independently to each engine's pool.</td></tr>
+              <tr><td><a href="https://github.com/zipline-ai/infrastructure/pull/179">Infrastructure #179</a><br><span class="status partial">Open PR</span></td><td>Defines non-preempting mode PriorityClasses and namespace-to-mode ResourceQuotas. Only <code>zipline-default</code> opts in by default.</td><td>Configure each team's mode ceilings. This quota mechanism can remain unchanged when pools gain a mode dimension.</td></tr>
+              <tr><td><a href="https://github.com/zipline-ai/platform/pull/1341">Platform #1341</a><br><span class="status partial">Open PR</span></td><td>Applies the mode PriorityClass to Spark, Flink, and Ray pod roles. Ray training currently counts as backfill.</td><td>Derive mode labels, node selectors, and tolerations from the same request field. Ray still needs matching role pools and placement wiring.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="section-subhead">Terraform and Helm configuration</h3>
+        <p>Operators define budgets in deployment configuration. The workload request only supplies team and mode. These settings control different quantities:</p>
+        <div class="table-shell">
+          <table>
+            <thead><tr><th>Terraform input</th><th>Helm value or output</th><th>Budget scope</th></tr></thead>
+            <tbody>
+              <tr><td><code>orchestration.compute.namespaces[].resourceQuota</code></td><td><code>compute.namespaces[].resourceQuota</code></td><td>Aggregate requested resources, declared limits, and pod count within a team namespace.</td></tr>
+              <tr><td><code>orchestration.compute.mode_resource_quotas[namespace][mode]</code></td><td><code>compute.modeResourceQuotas[namespace][mode]</code> in #179</td><td>Additional ceiling for pods with the mode's PriorityClass in that namespace.</td></tr>
+              <tr><td><code>aws.karpenter.teams[team].driver_limits</code><br><code>aws.karpenter.teams[team].executor_limits</code></td><td>Each generated NodePool's <code>spec.limits</code> in #174</td><td>Provisioned node CPU and memory per team, engine, and role. These values are not pod-request quotas.</td></tr>
+              <tr><td><code>aws.karpenter.teams[team].modes[mode]</code><br><span class="status proposed">Proposed input</span></td><td>Mode-specific pools with matching node labels and taints</td><td>Extend #174 with mode overrides for role limits and instance types, inheriting team and global defaults. This input is not implemented by #174.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="space-top">Example for #179: add these entries to the deployment's existing <code>orchestration.compute</code> settings. Keep its other namespace and mode entries. This example caps aggregate requests at 100 CPUs / 400 GiB, with separate backfill and deploy budgets.</p>
+        <pre class="config-example"><code>namespaces = [
+  { name = "zipline-default", team = "default" },
+  {
+    name = "zipline-recommendations"
+    team = "recommendations"
+    resourceQuota = {
+      hard = {
+        "requests.cpu"    = "100"
+        "requests.memory" = "400Gi"
+      }
+    }
+  }
+]
+mode_resource_quotas = {
+  "zipline-default" = { backfill = { hard = {} }, deploy = { hard = {} } }
+  "zipline-recommendations" = {
+    backfill = {
+      hard = { "requests.cpu" = "60", "requests.memory" = "240Gi" }
+    }
+    deploy = {
+      hard = { "requests.cpu" = "40", "requests.memory" = "160Gi" }
+    }
+  }
+}</code></pre>
+        <p class="note">An explicit namespace quota replaces the default quota block; the example only caps requests. Add <code>limits.cpu</code>, <code>limits.memory</code>, or <code>pods</code> when those ceilings are needed. In #179, an empty mode <code>hard</code> map inherits the namespace quota; a nonempty map supplies that mode's complete set of limits.</p>
+
+        <div class="grid-2 space-top">
+          <article class="card">
+            <h3>Admission and capacity failures</h3>
+            <p>A backfill pod must fit both its mode quota and the namespace total. If either is exceeded, the API server rejects pod creation; the workload custom resource may still exist. A pod admitted under quota can remain Pending if no matching node has room or Karpenter cannot provision one.</p>
+            <p class="note">Node limits need room for system overhead and instance sizing. Karpenter's limit checks are eventually consistent and can overrun during rapid scale-out. Separate pools and quotas do not guarantee available cloud capacity or reserved resources.</p>
+          </article>
+          <article class="card">
+            <h3>Rollout and verification</h3>
+            <p>Install namespaces, quotas, PriorityClasses, and matching pools before enabling their selectors in Platform. Keep <code>zipline-backfill</code> and <code>zipline-deploy</code> aligned across both repositories. Existing or unclassified pods still count toward the aggregate quota but do not automatically join a mode quota.</p>
+            <p class="note">Verify every pod role for two teams and both modes, then exceed one mode quota and inspect the rejection. Check the other mode separately, test the aggregate ceiling, and inspect actual node placement and pool capacity. Ray training currently uses backfill; a separate training mode needs an explicit classification change.</p>
           </article>
         </div>
       </div>
@@ -972,9 +1083,9 @@
         </div>
         <div class="grid-2">
           <article class="card">
-            <span class="status gap">Gap</span>
-            <h3 class="gap-title">Install mode PriorityClasses</h3>
-            <p>Define <code>zipline-backfill</code> and <code>zipline-deploy</code> in the Infrastructure chart. Choose explicit values and preemption policies. Platform already references these names on Spark, Flink, and Ray pods.</p>
+            <span class="status partial">Open PRs</span>
+            <h3 class="gap-title">Deploy mode quotas with pod classification</h3>
+            <p>Infrastructure #179 defines <code>zipline-backfill</code> and <code>zipline-deploy</code> with non-preempting policies and scoped quotas. Configure each team namespace, deploy these objects first, then deploy Platform #1341's matching pod classification.</p>
           </article>
           <article class="card">
             <span class="status gap">Gap</span>
@@ -987,9 +1098,9 @@
             <p>Persist the namespace, CR kind, CR name, and relevant terminal links with the workflow step. Do not depend on a process-local archive after CR deletion.</p>
           </article>
           <article class="card">
-            <span class="status partial">Partial</span>
-            <h3 class="gap-title">Extend capacity isolation to each team</h3>
-            <p>Generate the four Spark/Flink role pools per configured team. Add account-level and cluster-level capacity limits. Keep ResourceQuota for admission control.</p>
+            <span class="status proposed">Proposed extension</span>
+            <h3 class="gap-title">Include run mode in team pool placement</h3>
+            <p>Infrastructure #174 generates Spark/Flink pools per team, engine, and role. Extend that contract with run mode in both pool generation and Platform selectors and tolerations. Keep #179's mode quotas for pod admission. See the <a href="#resource-management">resource management design</a>.</p>
           </article>
           <article class="card">
             <span class="status proposed">Proposed</span>
@@ -1027,9 +1138,20 @@
             <p class="eyebrow">11 · Evidence index</p>
             <h2>Claims are pinned to reviewed commits.</h2>
           </div>
-          <p>Links point to the source snapshot used for this document. Runtime topology and health still require a live cluster check.</p>
+          <p>Baseline links retain the original reviewed snapshots. Resource management links pin the open PR revisions reviewed on 2026-10-07. Proposed mode-specific pool generation is not implemented by those PRs. Runtime topology and health still require a live cluster check.</p>
         </div>
         <ol class="source-list">
+          <li><a href="https://github.com/zipline-ai/infrastructure/blob/4c9b7ecee132e4d80ffff667da6f29484d7ac238/aws/zipline-orchestration/locals.tf#L110-L132">Infrastructure #174: team, engine, and role pool generation</a></li>
+          <li><a href="https://github.com/zipline-ai/infrastructure/blob/4c9b7ecee132e4d80ffff667da6f29484d7ac238/aws/zipline-orchestration/locals.tf#L256-L371">Infrastructure #174: per-team limits, instance types, labels, and taints</a></li>
+          <li><a href="https://github.com/zipline-ai/infrastructure/blob/2beb768b05177050c76c00ee1bb1a717974adf3c/charts/zipline-orchestration/templates/compute-namespace.yaml#L7-L83">Infrastructure #179: aggregate and PriorityClass-scoped namespace quotas</a></li>
+          <li><a href="https://github.com/zipline-ai/infrastructure/blob/2beb768b05177050c76c00ee1bb1a717974adf3c/charts/zipline-orchestration/templates/compute-priorityclasses.yaml#L13-L27">Infrastructure #179: non-preempting workload PriorityClasses</a></li>
+          <li><a href="https://github.com/zipline-ai/infrastructure/blob/2beb768b05177050c76c00ee1bb1a717974adf3c/modules/zipline-orchestration/main.tf#L656-L676">Infrastructure #179: Terraform inputs passed to Helm</a></li>
+          <li><a href="https://github.com/zipline-ai/platform/blob/f33b9d0f5cfc4984122ee632b707e2bce9d5cda5/orchestration/src/main/scala/ai/chronon/orchestration/executor/NodeSubmitter.scala#L134-L140">Platform #1341 snapshot: team and run-mode request labels</a></li>
+          <li><a href="https://github.com/zipline-ai/platform/blob/f33b9d0f5cfc4984122ee632b707e2bce9d5cda5/crucible/src/main/scala/ai/chronon/crucible/k8s/CrucibleKubernetesSpecs.scala#L680-L712">Platform #1341: mode quota classification and placement without run mode</a></li>
+          <li><a href="https://github.com/zipline-ai/platform/blob/f33b9d0f5cfc4984122ee632b707e2bce9d5cda5/crucible/src/main/scala/ai/chronon/crucible/submission/CrucibleSubmitter.scala#L132-L143">Platform #1341: Ray training classified as backfill</a></li>
+          <li><a href="https://kubernetes.io/docs/concepts/policy/resource-quotas/#priorityclass-scope">Kubernetes: quota admission and PriorityClass scope</a></li>
+          <li><a href="https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector">Kubernetes: node selectors match node labels</a></li>
+          <li><a href="https://karpenter.sh/docs/concepts/nodepools/#speclimits">Karpenter: node capacity limits and eventual consistency</a></li>
           <li><a href="https://github.com/zipline-ai/infrastructure/blob/d52321d9c8c56b3124755274ad714b48a6db3cbc/charts/zipline-orchestration/values.yaml#L24-L135">Infrastructure: compute namespaces, quotas, History Server, and Loki</a></li>
           <li><a href="https://github.com/zipline-ai/infrastructure/blob/d52321d9c8c56b3124755274ad714b48a6db3cbc/charts/zipline-orchestration/values.yaml#L406-L554">Infrastructure: ingress, Spark operator, and Promtail</a></li>
           <li><a href="https://github.com/zipline-ai/infrastructure/blob/d52321d9c8c56b3124755274ad714b48a6db3cbc/charts/zipline-orchestration/templates/compute-namespace.yaml#L1-L90">Infrastructure: compute namespace, ResourceQuota, and LimitRange template</a></li>
@@ -1076,6 +1198,19 @@
             { title: "Submit the Spark custom resource", body: "The Hub selects Crucible at process startup. It resolves the team namespace, stages node JSON in S3, and creates a SparkApplication.", writes: "Writes: staged node JSON in S3 and a SparkApplication in the team namespace.", nodes: ["node-hub", "node-s3", "node-operators"], edges: ["edge-hub-operators"], source: "Platform NodeSubmitter and CrucibleSubmitter" },
             { title: "Reconcile pods and nodes", body: "The Spark operator creates a driver. The driver creates executors. Team, engine, and role selectors place them on the matching Karpenter pools.", writes: "Writes: driver and executor pods, services, and Spark status.", nodes: ["node-operators", "node-spark-driver", "node-spark-executor"], edges: ["edge-operators-workloads", "edge-spark-driver-executor"], source: "Platform CrucibleKubernetesSpecs; Infrastructure Karpenter locals" },
             { title: "Read, compute, and commit", body: "The Spark driver and executors use Polaris for Iceberg catalog operations. They read and write table data in S3 and can materialize online values in DynamoDB.", writes: "Writes: Iceberg data and metadata, DynamoDB values, logs, metrics, and Spark event logs.", nodes: ["node-spark-driver", "node-spark-executor", "node-polaris", "node-s3", "node-ddb", "node-promtail", "node-amp", "node-loki"], edges: ["edge-spark-driver-executor", "edge-spark-driver-polaris", "edge-spark-executor-polaris"], source: "Chronon BatchNodeRunner; Infrastructure Polaris, object store, and observability values" }
+          ]
+        },
+        {
+          id: "resources",
+          label: "Resource management (proposed)",
+          summary: "Team + run mode → quota admission → matching nodes and capacity",
+          stops: ["Request", "Classify pods", "Quota admission", "Node placement", "Capacity"],
+          steps: [
+            { title: "Carry team and run mode", body: "A workload request carries zipline-team=recommendations and run-mode=backfill. The workflow submitter already supplies these labels. The proposed resource path uses this same intent for quota classification and mode-specific placement.", writes: "Input: team and run mode; deployment configuration owns the budgets.", nodes: ["node-cli", "node-hub"], edges: ["edge-cli-hub"], source: "Platform #1341 NodeSubmitter snapshot; resource management design" },
+            { title: "Derive one consistent pod contract", body: "Crucible resolves zipline-recommendations and priorityClassName=zipline-backfill. The proposed extension also stamps the pod mode label and adds run mode to node selectors and the workload toleration for each engine role. Ray needs matching role pools before enabling that placement.", writes: "Writes: workload custom resource with per-role pod settings. Mode-specific placement remains proposed.", nodes: ["node-hub", "node-operators"], edges: ["edge-hub-operators"], source: "Platform #1341 quota classification; proposed placement extension" },
+            { title: "Check both budgets when creating pods", body: "As operators and engines create pods, Kubernetes checks the namespace total and #179's matching PriorityClass quota. In the example, backfill requests must fit 60 CPUs / 240 GiB and the team's 100 CPUs / 400 GiB total. Exceeding either rejects pod creation; the workload custom resource can still exist.", writes: "Admission: creates the pod only if all applicable quotas permit it.", nodes: ["node-operators", "node-quota"], edges: [], source: "Infrastructure #179 compute-namespace.yaml; Kubernetes ResourceQuota" },
+            { title: "Select nodes for team, mode, engine, and role", body: "The scheduler uses node selectors and tolerations, not the pod mode label alone. The proposed Spark executor selects recommendations + backfill + spark + executor. If no suitable node has room, the admitted pod remains Pending.", writes: "Scheduling: binds the pod to a matching node when capacity is available.", nodes: ["node-quota", "node-scheduler", "node-spark-executor"], edges: ["edge-quota-scheduler"], source: "Proposed extension to #174 and Platform placement; Kubernetes node selectors" },
+            { title: "Provision matching node capacity", body: "Karpenter independently observes unscheduled pods and provisions matching nodes within pool constraints. The proposed recommendations-backfill-spark-executor pool has its own instance types and capacity limits. The scheduler can then bind the pod. Pool limits count node capacity; they do not replace quotas or reserve cloud capacity.", writes: "Writes: NodeClaims and nodes when provisioning succeeds. Resource pressure can still leave pods Pending.", nodes: ["node-scheduler", "node-karpenter", "node-spark-executor"], edges: ["edge-scheduler-karpenter"], source: "Infrastructure #174 foundation; proposed mode pools; Karpenter NodePool limits" }
           ]
         },
         {
