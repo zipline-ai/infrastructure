@@ -100,6 +100,18 @@ cannot determine the reader from `valueFrom`, so it preserves that entry but
 does not declare metrics ports. If a port uses `valueFrom`, set its chart port
 to the same number so discovery matches the exporter.
 
+## Compute workload quotas
+
+The chart creates non-preempting `zipline-backfill` and `zipline-deploy`
+PriorityClasses. Pods select one of these classes, and namespace ResourceQuotas
+use the class name to account for backfill and deploy resources separately.
+
+Mode quotas are initially enabled only for `zipline-default` through
+`compute.modeResourceQuotas`. An empty mode `hard` map inherits the namespace's
+aggregate `resourceQuota.hard` values, so enabling the scoped quotas does not
+reduce existing capacity. Add another namespace key with explicit `hard` values
+when extending mode quotas to another team.
+
 ## Validation
 
 Run the fetcher rendering and AWS scrape discovery regression tests (requires
