@@ -27,12 +27,24 @@ The chart does not branch on a cloud provider. Cloud-specific infrastructure is 
 - `orchestration.hub.metricsReader`, `orchestration.hub.metricsPort`, and
   optional `orchestration.hub.podAnnotations` for Hub metrics exposure
 
+## Spark 4 Runtime
+
+Crucible has one compute runtime across every cloud. Spark jobs and the History
+Server use `ziplineai/spark:nightly`, and Flink uses
+`ziplineai/flink:1.20.3-spark4`. `CRUCIBLE_SPARK_IMAGE` and
+`CRUCIBLE_FLINK_IMAGE` are chart-owned environment variables and cannot be set
+through `runtime.env` or `orchestration.hub.env`.
+
+`global.version` is the base service tag. Hub and Eval use its Spark 4 variant:
+`nightly` stays `nightly`, while release and commit tags gain a `-spark4`
+suffix. UI and Fetcher continue to use the base tag.
+
 ## Required Overrides
 
 At minimum, each Terraform module should provide:
 
 - `global.customer_name`
-- `global.version`
+- `global.version` (the base tag before any `-spark4` suffix)
 - `database.host`
 - `orchestration.hub.image`
 - `orchestration.hub.verticleClass`
@@ -67,7 +79,47 @@ across the catalog, including namespaces created after bootstrap. Cloud
 Terraform wrappers should pass this grant explicitly when they construct
 provider values.
 
+## Fetcher metrics
+
+When `global.deploy_fetcher` is enabled, the fetcher defaults to the `prometheus`
+metrics reader. It exposes Chronon metrics on the `chronon-metrics` container
+port (8905) and Vert.x HTTP metrics on `vertx-metrics` (8906), both at `/metrics`.
+The AWS wrapper scrapes both named ports directly. Metrics ports are not added
+to the public Service or Ingress.
+
+Set `orchestration.fetcher.metricsReader` to an empty string to disable metrics,
+or to `http`/`grpc` to use an existing OTLP collector. Set `metricsPort` and
+`vertxMetricsPort` under the same object to change the Prometheus ports.
+Explicit `CHRONON_METRICS_READER`, `CHRONON_PROMETHEUS_SERVER_PORT`, and
+`VERTX_PROMETHEUS_SERVER_PORT` entries in `runtime.env` or
+`orchestration.fetcher.env` take precedence over these defaults. Fetcher env
+entries take precedence over runtime env entries, as with other fetcher settings.
+
+Use literal `value` entries for the reader when using direct scraping: Helm
+cannot determine the reader from `valueFrom`, so it preserves that entry but
+does not declare metrics ports. If a port uses `valueFrom`, set its chart port
+to the same number so discovery matches the exporter.
+
+## Compute workload quotas
+
+The chart creates non-preempting `zipline-backfill` and `zipline-deploy`
+PriorityClasses. Pods select one of these classes, and namespace ResourceQuotas
+use the class name to account for backfill and deploy resources separately.
+
+Mode quotas are initially enabled only for `zipline-default` through
+`compute.modeResourceQuotas`. An empty mode `hard` map inherits the namespace's
+aggregate `resourceQuota.hard` values, so enabling the scoped quotas does not
+reduce existing capacity. Add another namespace key with explicit `hard` values
+when extending mode quotas to another team.
+
 ## Validation
+
+Run the fetcher rendering and AWS scrape discovery regression tests (requires
+Helm and Python with PyYAML):
+
+```sh
+uv run --with PyYAML python -m unittest discover -s tests -v
+```
 
 Render the chart with explicit overrides before wiring a cloud module:
 

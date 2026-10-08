@@ -250,10 +250,13 @@ locals {
     install_external_secrets_operator = true
     install_cert_manager              = true
     install_flink_operator            = true
+    install_kuberay_operator          = true
     install_opentelemetry_operator    = false
     install_metrics_server            = true
     external_secrets_operator_values  = {}
     cert_manager_values               = {}
+    kuberay_operator_skip_crds        = false
+    kuberay_operator_values           = {}
   }
   addons = merge(local.addons_defaults, try(local.orchestration.addons, {}))
 
@@ -493,19 +496,41 @@ locals {
   compute_defaults = {
     default_namespace      = "zipline-default"
     namespaces             = [{ name = "zipline-default", team = "default" }]
-    spark_image            = "ziplineai/spark:nightly"
-    flink_image            = "ziplineai/flink:1.20.3"
     spark_service_account  = "spark-operator-spark"
     flink_service_account  = "flink"
     spark_event_log_dir    = ""
     rbac_create            = true
     image_prepull_enabled  = true
     image_prepull_images   = []
-    history_server_image   = ""
     history_server_options = []
     spark_defaults         = {}
     flink_defaults         = {}
     namespace_defaults     = {}
+    workload_priority_classes = {
+      enabled = true
+      backfill = {
+        name             = "zipline-backfill"
+        value            = 100
+        preemptionPolicy = "Never"
+      }
+      deploy = {
+        name             = "zipline-deploy"
+        value            = 200
+        preemptionPolicy = "Never"
+      }
+    }
+    mode_resource_quotas = {
+      "zipline-default" = {
+        backfill = {
+          priorityClassName = "zipline-backfill"
+          hard              = {}
+        }
+        deploy = {
+          priorityClassName = "zipline-deploy"
+          hard              = {}
+        }
+      }
+    }
     object_store = {
       bucket = ""
       region = ""
@@ -525,24 +550,22 @@ locals {
   compute_spark_defaults = merge(
     {
       eventLogDir = local.compute.spark_event_log_dir
-      image       = local.compute.spark_image
     },
-    local.compute.spark_defaults,
+    { for key, value in local.compute.spark_defaults : key => value if key != "image" },
   )
 
   compute_flink_defaults = merge(
     {
-      image                     = local.compute.flink_image
       serviceAccount            = local.compute.flink_service_account
       serviceAccountAnnotations = local.compute_service_account.annotations
     },
-    local.compute.flink_defaults,
+    { for key, value in local.compute.flink_defaults : key => value if key != "image" },
   )
 
   compute_image_prepull = merge(
     {
       enabled = local.compute.image_prepull_enabled
-      images  = length(local.compute.image_prepull_images) > 0 ? local.compute.image_prepull_images : (local.compute.image_prepull_enabled ? [local.compute.spark_image] : [])
+      images  = local.compute.image_prepull_images
     },
     local.compute.image_prepull_overrides,
   )
@@ -573,7 +596,6 @@ locals {
   )
 
   compute_history_server = {
-    image                 = local.compute.history_server_image != "" ? local.compute.history_server_image : local.compute.spark_image
     extraSparkHistoryOpts = local.compute.history_server_options
   }
 
@@ -643,13 +665,15 @@ locals {
       rbac = {
         create = local.compute.rbac_create
       }
-      sparkDefaults       = local.compute_spark_defaults
-      flinkDefaults       = local.compute_flink_defaults
-      namespaceDefaults   = local.compute.namespace_defaults
-      imagePrepull        = local.compute_image_prepull
-      historyServer       = local.compute_history_server
-      warmPool            = local.compute_warm_pool
-      systemPriorityClass = local.compute_system_priority_class
+      sparkDefaults           = local.compute_spark_defaults
+      flinkDefaults           = local.compute_flink_defaults
+      namespaceDefaults       = local.compute.namespace_defaults
+      workloadPriorityClasses = local.compute.workload_priority_classes
+      modeResourceQuotas      = local.compute.mode_resource_quotas
+      imagePrepull            = local.compute_image_prepull
+      historyServer           = local.compute_history_server
+      warmPool                = local.compute_warm_pool
+      systemPriorityClass     = local.compute_system_priority_class
     }
 
     ingress = {
@@ -829,13 +853,19 @@ resource "kubernetes_secret_v1" "docker_hub_creds" {
 module "addons" {
   source = "../zipline-kubernetes-addons"
 
+  namespace                         = local.install.namespace
   install_external_secrets_operator = local.addons.install_external_secrets_operator
   external_secrets_operator_values  = local.addons.external_secrets_operator_values
   install_cert_manager              = local.addons.install_cert_manager
   cert_manager_values               = local.addons.cert_manager_values
   install_flink_operator            = local.addons.install_flink_operator
+  install_kuberay_operator          = local.addons.install_kuberay_operator
+  kuberay_operator_skip_crds        = local.addons.kuberay_operator_skip_crds
+  kuberay_operator_values           = local.addons.kuberay_operator_values
   install_opentelemetry_operator    = local.addons.install_opentelemetry_operator
   install_metrics_server            = local.addons.install_metrics_server
+
+  depends_on = [kubernetes_namespace_v1.this]
 }
 
 # The upstream chart installs both the StarRocksCluster CRD/operator and the

@@ -60,7 +60,7 @@ Set these for every environment.
 | --- | --- |
 | `orchestration.deployment.customer_name` | Used as the environment/customer prefix for generated resources. |
 | `orchestration.deployment.artifact_prefix` | ABFS/WASBS URI for Zipline artifacts. The wrapper creates the container portion of this URI. |
-| `orchestration.deployment.zipline_version` | Image tag used across Zipline services. |
+| `orchestration.deployment.zipline_version` | Base image tag. Hub and Eval use its Spark 4 variant; `nightly` stays `nightly` and other tags gain `-spark4`. |
 | `orchestration.ingress.domain` | Public host used by the UI, Hub, Eval, and supporting ingress routes. |
 | `azure.location` | Azure region for the resource group and regional resources. |
 | `azure.tenant_id` | Azure tenant used by workload identity and Key Vault integration. |
@@ -95,9 +95,11 @@ shape.
 
 ### Images and Pull Secrets
 
-The default Spark and Flink images are public defaults. Configure a pull secret
-when the environment pulls from a private Docker Hub image or needs authenticated
-pulls.
+Crucible always runs Spark 4. Spark jobs and the History Server use
+`ziplineai/spark:nightly`, Flink uses `ziplineai/flink:1.20.3-spark4`, and Hub
+and Eval use the Spark 4 variant of `orchestration.deployment.zipline_version`.
+These images cannot be overridden through Terraform. Configure a pull secret
+when the environment needs authenticated Docker Hub pulls.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -105,10 +107,6 @@ pulls.
 | `orchestration.image_pull_secret.create` | `false` | Terraform should create the Docker Hub pull Secret. |
 | `orchestration.image_pull_secret.dockerhub_username` | `ziplineai` | The pull token belongs to a different Docker Hub user. |
 | `orchestration.image_pull_secret.dockerhub_token` | `""` | Required when `create = true`. |
-| `orchestration.compute.spark_image` | `ziplineai/spark:nightly` | You need a pinned or custom Spark image. |
-| `orchestration.compute.flink_image` | `ziplineai/flink:1.20.3` | You need a pinned or custom Flink image. |
-| `orchestration.hub.image` | Azure wrapper default | You need to override the Azure Hub image. |
-| `orchestration.eval.image` | Azure wrapper default | You need to override the Azure Eval image. |
 
 ### Ingress and TLS
 
@@ -156,6 +154,18 @@ The expected Key Vault secret names are:
 - `sso-client-secret`
 - `sso-saml-cert`, only when `orchestration.auth.sso_use_saml = true`
 
+`auth-secret` is the Zipline frontend's encryption secret. Generate it locally
+with a cryptographically secure random generator; it is not supplied by Azure
+and should never be committed to tfvars or checked into source control. The
+other entries are credentials issued by the corresponding identity provider
+(for example, the Microsoft Entra client secret). Store those provider-issued
+values in Key Vault under the names above.
+
+The wrapper maps `auth-secret` to the frontend's `AUTH_SECRET` environment
+variable through External Secrets. The secret should be at least 32 characters.
+If auth is already running, do not replace it casually: rotating this value can
+invalidate existing auth material and sessions.
+
 Set only the auth provider fields that the environment uses:
 
 | Field | Use when |
@@ -191,7 +201,7 @@ namespace policy.
 | `orchestration.compute.flink_service_account` | `flink` | Flink jobs use a non-default service account name. |
 | `orchestration.compute.rbac_create` | `true` | RBAC is managed outside this chart. |
 | `orchestration.compute.image_prepull_enabled` | `true` | You want to disable image prepull. |
-| `orchestration.compute.image_prepull_images` | Spark image | You want to prepull additional or different images. |
+| `orchestration.compute.image_prepull_images` | Spark 4 image | You want to prepull additional images alongside the Spark 4 image. |
 | `orchestration.compute.warm_pool` | disabled | You need to pre-warm Spark driver capacity. |
 | `orchestration.compute.system_priority_class` | disabled | Compute support workloads need a PriorityClass. |
 
@@ -272,6 +282,21 @@ the default database shape is not right for the environment.
 | `azure.database_backup_retention_days` | `7` | Backups need a different retention period. |
 | `azure.database_public_network_access_enabled` | `false` | The database must be publicly accessible. |
 
+### Fetcher
+
+When the fetcher is enabled, the Azure wrapper creates a serverless Cosmos DB
+account with private network access. It stores the primary key in Key Vault,
+syncs it to Kubernetes with External Secrets, and supplies the generated Cosmos
+environment variables to the fetcher.
+
+| Field | Default | Use when |
+| --- | --- | --- |
+| `azure.fetcher_cosmos_account_name` | `<customer_name>-zipline-kv` | The globally unique Cosmos account name needs an explicit value. |
+| `azure.fetcher_cosmos_database` | `chronon` | The Cosmos database has a different name. |
+| `azure.fetcher_cosmos_preferred_regions` | `[azure.location]` | Cosmos reads should prefer one or more different regions. |
+| `azure.fetcher_cosmos_secret_name` | `secretcosmos-primary-key` | The Kubernetes Secret containing the Cosmos key has a different name. |
+| `azure.fetcher_cosmos_secret_key` | `COSMOS_KEY` | The key within the Kubernetes Secret has a different name. |
+
 ### Key Vault and Secrets
 
 The wrapper configures External Secrets Operator against Azure Key Vault for
@@ -280,7 +305,8 @@ into Key Vault.
 
 | Field | Default | Use when |
 | --- | --- | --- |
-| `azure.keyvault_name` | `<customer_name>-zipline-secrets` | You need a stable or pre-created Key Vault name. |
+| `azure.keyvault_name` | `<customer_name>-zipline-secrets` | The wrapper should create the Key Vault with a specific name. |
+| `azure.existing_keyvault_id` | `""` | A pre-created Key Vault should be used instead of creating one. |
 | `azure.workload_identity_name` | `<customer_name>-workload-identity` | You need a stable workload identity name. |
 | `azure.workload_identity_client_id` | created identity client ID | You use an externally managed user-assigned identity. |
 | `azure.database_credentials_secret_name` | `<customer_name>-postgres-credentials` | The Kubernetes database Secret needs a specific name. |
@@ -289,6 +315,159 @@ into Key Vault.
 | `orchestration.secrets.extra_external_secrets` | none | You need additional `ExternalSecret` resources. |
 | `orchestration.secrets.secret_store` | Azure Key Vault SecretStore | You need to customize the generated SecretStore. |
 | `orchestration.secrets.external_secrets_enabled` | `true` | External Secrets Operator is managed differently or disabled. |
+
+#### Use an Existing Key Vault
+
+Populate the auth secrets in an existing Key Vault, then pass only its resource
+ID in tfvars. This supports a single apply without putting the auth secret values
+in Terraform configuration or state:
+
+```hcl
+azure = {
+  existing_keyvault_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/shared-secrets/providers/Microsoft.KeyVault/vaults/example-secrets"
+}
+
+orchestration = {
+  auth = {
+    enabled = true
+  }
+}
+```
+
+The existing vault must use Azure RBAC authorization and be in the same tenant
+as the orchestration deployment. The principal running Terraform needs
+permission to create role assignments at the vault scope, such as Owner, User
+Access Administrator, or Role Based Access Control Administrator. It also needs
+permission to set secrets. The wrapper grants Key Vault Secrets Officer to the
+configured Terraform administrators, or to the current Terraform principal when
+no administrators are configured. It grants Key Vault Secrets User to the
+orchestration workload identity.
+
+The existing vault must contain every auth secret listed in the Authentication
+section before the apply starts. The wrapper continues to write the generated
+database username and password into this vault.
+
+Override the default Key Vault secret names when an existing vault uses a
+different naming convention:
+
+```hcl
+orchestration = {
+  auth = {
+    enabled = true
+  }
+
+  secrets = {
+    auth_remote_refs = {
+      "auth-secret" = {
+        key = "customer-auth-secret"
+      }
+      "google-oauth-client-secret" = {
+        key = "customer-google-oauth-client-secret"
+      }
+      "github-oauth-client-secret" = {
+        key = "customer-github-oauth-client-secret"
+      }
+      "microsoft-entra-oauth-client-secret" = {
+        key = "customer-entra-oauth-client-secret"
+      }
+      "sso-client-secret" = {
+        key = "customer-sso-client-secret"
+      }
+      "sso-saml-cert" = {
+        key = "customer-sso-saml-cert"
+      }
+    }
+  }
+}
+```
+
+Omit the `sso-saml-cert` override when SAML is disabled.
+
+#### Populate a Generated Key Vault
+
+When `azure.existing_keyvault_id` is unset, the wrapper creates the Key Vault.
+Use two applies so the vault exists before adding auth secrets. First leave
+`orchestration.auth.enabled = false` and apply the infrastructure:
+
+```shell
+tofu apply
+KEYVAULT_NAME="$(tofu output -raw keyvault_name)"
+```
+
+You can inspect the vault identity and confirm that a secret exists without
+printing its value:
+
+```shell
+tofu output -raw keyvault_id
+az keyvault show --name "$KEYVAULT_NAME" \
+  --query '{name:name,id:id,tenantId:properties.tenantId}' -o json
+az keyvault secret list --vault-name "$KEYVAULT_NAME" \
+  --query '[].name' -o tsv
+```
+
+Generate `auth-secret` with OpenSSL and write it directly to Key Vault. The
+value is held only in the shell variable for this command and is not written to
+Terraform state:
+
+```shell
+AUTH_SECRET="$(openssl rand -base64 32)"
+az keyvault secret set \
+  --vault-name "$KEYVAULT_NAME" \
+  --name auth-secret \
+  --value "$AUTH_SECRET" \
+  --output none
+unset AUTH_SECRET
+```
+
+If OpenSSL is unavailable, Python's standard library provides an equivalent:
+
+```shell
+AUTH_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+az keyvault secret set --vault-name "$KEYVAULT_NAME" \
+  --name auth-secret --value "$AUTH_SECRET" --output none
+unset AUTH_SECRET
+```
+
+Add each provider-issued auth value without storing it in tfvars. The following
+function prompts without echoing the value and clears its shell variable after
+each command:
+
+```shell
+set_auth_secret() {
+  local secret_value
+  read -r -s -p "Value for $1: " secret_value
+  echo
+  az keyvault secret set \
+    --vault-name "$KEYVAULT_NAME" \
+    --name "$1" \
+    --value "$secret_value" \
+    --output none
+  unset secret_value
+}
+
+set_auth_secret google-oauth-client-secret
+set_auth_secret github-oauth-client-secret
+set_auth_secret microsoft-entra-oauth-client-secret
+set_auth_secret sso-client-secret
+```
+
+Only run the commands for providers configured in `orchestration.auth`; add
+`auth-secret` with the generated command above and add `sso-saml-cert` only when
+SAML is enabled.
+
+When SAML is enabled, add its certificate from a protected local file:
+
+```shell
+az keyvault secret set \
+  --vault-name "$KEYVAULT_NAME" \
+  --name sso-saml-cert \
+  --file ./sso-saml-cert.pem \
+  --output none
+```
+
+Protect and remove the certificate file according to the environment's secret
+handling policy. After all required secrets exist, set
+`orchestration.auth.enabled = true` and apply again.
 
 ### Container Registry
 
@@ -302,10 +481,13 @@ Use these when AKS needs pull permissions for a private Azure Container Registry
 ### Observability
 
 The wrapper enables AKS managed Prometheus, creates an Azure Monitor workspace,
-associates the workspace default collection endpoint and rule with the AKS
-cluster, grants the Zipline workload identity Monitoring Reader on the
-workspace, annotates Hub pods for scraping, and passes the workspace PromQL query
-endpoint to the UI with `METRICS_PROVIDER=azure`.
+creates an AKS-specific `MSPROM-*` data collection endpoint and rule, associates
+that endpoint and rule with the AKS cluster, grants the AKS managed identity
+Monitoring Metrics Publisher on the rule, grants the Zipline workload identity
+Monitoring Reader on the workspace, configures the AMA metrics add-on to scrape
+annotated pods in the Zipline namespace, adds a Zipline-specific custom
+Prometheus scrape job, annotates Hub pods for scraping, and passes the workspace
+PromQL query endpoint to the UI with `METRICS_PROVIDER=azure`.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -317,7 +499,12 @@ endpoint to the UI with `METRICS_PROVIDER=azure`.
 
 Hub metrics default to Chronon's Prometheus reader on port `8905`. The wrapper
 adds the standard `prometheus.io/scrape`, `prometheus.io/port`, and
-`prometheus.io/path` annotations when that reader is enabled.
+`prometheus.io/path` annotations when that reader is enabled. Azure Managed
+Prometheus only honors those annotations after
+`ama-metrics-settings-configmap` enables pod-annotation scraping for the
+namespace. The wrapper also creates `ama-metrics-prometheus-config` so Zipline
+metrics get the same `namespace` and `kubernetes_namespace` labels that the AWS
+scraper attaches.
 
 ### Addons
 
@@ -374,9 +561,11 @@ The most commonly used outputs are:
 | `aks_cluster_name` | Configure or inspect the created AKS cluster. |
 | `aks_oidc_issuer_url` | Inspect workload identity federation settings. |
 | `keyvault_name` | Inspect or integrate the Azure Key Vault used for secrets. |
+| `keyvault_id` | Inspect the resource ID of the Azure Key Vault used for secrets. |
 | `postgres_fqdn` | Inspect the PostgreSQL server hostname. |
 | `workload_identity_client_id` | Inspect the workload identity used by orchestration and compute pods. |
 | `monitor_workspace_id` | Inspect or integrate the Azure Monitor workspace. |
+| `prometheus_data_collection_rule_id` | Inspect the AKS managed Prometheus DCR associated with the cluster. |
 | `prometheus_query_endpoint` | Confirm the PromQL query endpoint passed to the Zipline UI. |
 
 ## Notes
