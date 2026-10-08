@@ -251,8 +251,21 @@ wrapper supplies the warehouse bucket and region from `aws.warehouse_bucket` and
 ### Karpenter and EKS Capacity
 
 Karpenter is enabled by default. The wrapper creates a tainted `system` NodePool
-for Zipline system services and tainted compute NodePools for Spark drivers,
-Spark executors, Flink job managers, and Flink task managers.
+for Zipline system services and four compute NodePools shared by all teams:
+
+| NodePool / workload taint value | `zipline.ai/engine` | `zipline.ai/role` |
+| --- | --- | --- |
+| `spark-driver` | `spark` | `driver` |
+| `spark-executor` | `spark` | `executor` |
+| `flink-jobmanager` | `flink` | `jobmanager` |
+| `flink-taskmanager` | `flink` | `taskmanager` |
+
+Compute nodes carry engine and role labels and a
+`zipline.ai/workload=<engine>-<role>:NoSchedule` taint. Team labels stay on
+workloads and namespaces. Adding a team namespace does not add NodePools.
+Namespace ResourceQuotas, including mode-scoped quotas, enforce team budgets.
+The pool limits below cap capacity across all teams using each pool; they do
+not reserve capacity for a team.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -283,10 +296,12 @@ Common Karpenter sizing knobs:
 | `aws.karpenter.driver_categories` | `["m"]` | Driver nodes need other EC2 instance families. |
 | `aws.karpenter.executor_arch` | `["arm64"]` | Executor nodes must use another architecture. |
 | `aws.karpenter.executor_categories` | `["c", "m", "r"]` | Executor nodes need other EC2 instance families. |
+| `aws.karpenter.driver_instance_types` | `[]` | Pin driver pools to explicit EC2 instance types instead of category/generation selectors. |
+| `aws.karpenter.executor_instance_types` | `[]` | Pin executor pools to explicit EC2 instance types instead of category/generation selectors. |
 | `aws.karpenter.executor_capacity_type` | `["spot"]` | Executors should run on on-demand, spot, or both. |
 | `aws.karpenter.executor_min_categories` | `2` | Spot diversification requirements need tuning. |
 | `aws.karpenter.min_instance_generation` | `"6"` | Pools should allow older or require newer instance generations. |
-| `aws.karpenter.pool_limits` | `{ cpu = "1000", memory = "4000Gi" }` | You want a global pool launch cap. |
+| `aws.karpenter.pool_limits` | `{ cpu = "1000", memory = "4000Gi" }` | The system pool needs a different launch cap. |
 | `aws.karpenter.driver_limits` | `{ cpu = "100", memory = "400Gi" }` | Driver pools need a different launch cap. |
 | `aws.karpenter.executor_limits` | `{ cpu = "1000", memory = "4000Gi" }` | Executor pools need a different launch cap. |
 | `aws.karpenter.system_expire_after` | `Never` | System nodes should be periodically recycled. |
@@ -297,6 +312,18 @@ Spark executor pools require EC2 instance types with local NVMe. Karpenter
 combines all instance-store disks into RAID0 and exposes the result as standard
 Kubernetes ephemeral storage, so Spark can use its default `emptyDir` local
 directories without provider-specific mounts or node labels.
+
+Ray uses its configured
+`CRUCIBLE_RAY_{HEAD,WORKER,SUBMITTER}_NODE_SELECTOR` and
+`CRUCIBLE_RAY_{HEAD,WORKER,SUBMITTER}_TOLERATIONS`. No Ray pools are generated
+by this wrapper.
+
+Run the placement and chart tests without cloud credentials:
+
+```bash
+# Terraform or OpenTofu and Helm must be on PATH; TERRAFORM can override the binary.
+uv run --with PyYAML python -m unittest discover -s tests -v
+```
 
 ### Storage, Logs, and IAM Grants
 
