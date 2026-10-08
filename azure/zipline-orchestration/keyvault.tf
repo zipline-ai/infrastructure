@@ -1,7 +1,8 @@
 data "azurerm_client_config" "current" {}
 
 resource "azurerm_key_vault" "main" {
-  name                       = local.keyvault_name
+  count                      = local.use_existing_keyvault ? 0 : 1
+  name                       = local.created_keyvault_name
   location                   = azurerm_resource_group.main.location
   resource_group_name        = azurerm_resource_group.main.name
   tenant_id                  = local.tenant_id
@@ -27,7 +28,7 @@ resource "azuread_group" "tf_admins" {
 
 
 resource "azurerm_role_assignment" "terraform_keyvault_secrets_officer" {
-  scope                = azurerm_key_vault.main.id
+  scope                = local.keyvault_id
   role_definition_name = "Key Vault Secrets Officer"
   principal_id         = azuread_group.tf_admins.object_id
   principal_type       = "Group"
@@ -35,14 +36,14 @@ resource "azurerm_role_assignment" "terraform_keyvault_secrets_officer" {
 
 resource "azurerm_role_assignment" "terraform_keyvault_secrets_officer_default" {
   count                = length(local.cloud_args.admin_principal_names) == 0 ? 1 : 0
-  scope                = azurerm_key_vault.main.id
+  scope                = local.keyvault_id
   role_definition_name = "Key Vault Secrets Officer"
   principal_id         = data.azurerm_client_config.current.object_id
   principal_type       = "User"
 }
 
 resource "azurerm_role_assignment" "workload_keyvault_secrets_user" {
-  scope                = azurerm_key_vault.main.id
+  scope                = local.keyvault_id
   role_definition_name = "Key Vault Secrets User"
   principal_id         = azurerm_user_assigned_identity.workload.principal_id
 }
@@ -55,7 +56,7 @@ resource "random_password" "db_password" {
 resource "azurerm_key_vault_secret" "db_username" {
   name         = local.cloud_args.database_username_secret_name
   value        = local.cloud_args.database_admin_username
-  key_vault_id = azurerm_key_vault.main.id
+  key_vault_id = local.keyvault_id
 
   depends_on = [azurerm_role_assignment.terraform_keyvault_secrets_officer]
 }
@@ -63,7 +64,7 @@ resource "azurerm_key_vault_secret" "db_username" {
 resource "azurerm_key_vault_secret" "db_password" {
   name         = local.cloud_args.database_password_secret_name
   value        = random_password.db_password.result
-  key_vault_id = azurerm_key_vault.main.id
+  key_vault_id = local.keyvault_id
 
   depends_on = [azurerm_role_assignment.terraform_keyvault_secrets_officer]
 }

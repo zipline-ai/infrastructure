@@ -62,18 +62,36 @@ compute:
     create: true
   sparkDefaults:
     eventLogDir: ""
-    image: "ziplineai/spark:nightly"
     imagePullPolicy: "Always"
     chrononJarPath: "/opt/chronon/chronon-spark.jar"
     spotNodeSelector: {}
   flinkDefaults:
-    image: "ziplineai/flink:1.20.3"
     serviceAccount: flink
     serviceAccountAnnotations: {}
   systemPriorityClass:
     enabled: true
     name: "zipline-compute-system"
     value: 1000
+  workloadPriorityClasses:
+    enabled: true
+    backfill:
+      name: "zipline-backfill"
+      value: 100
+      preemptionPolicy: Never
+    deploy:
+      name: "zipline-deploy"
+      value: 200
+      preemptionPolicy: Never
+  # Mode quotas are enabled only for listed namespaces. An empty hard map
+  # inherits that namespace's aggregate resourceQuota.hard values.
+  modeResourceQuotas:
+    zipline-default:
+      backfill:
+        priorityClassName: "zipline-backfill"
+        hard: {}
+      deploy:
+        priorityClassName: "zipline-deploy"
+        hard: {}
   warmPool:
     enabled: false
     replicas: 2
@@ -93,7 +111,6 @@ compute:
     nodeSelector: {}
     tolerations: []
   historyServer:
-    image: "ziplineai/spark:nightly"
     proxyBase: "spark-history"
     daemonMemory: "5g"
     hybridStoreMemory: "4g"
@@ -301,6 +318,10 @@ starrocks:
   # Cloud wrappers provide this configuration because the storage provider and
   # workload identity differ by cloud. It must enable `run_mode=shared_data`.
   feConfig: {}
+  awsGlueCatalog:
+    enabled: false
+    name: aws_glue
+    region: ""
   serviceAccount: ""
   podLabels: {}
   cnAutoscaling:
@@ -378,6 +399,9 @@ orchestration:
     image: "ziplineai/chronon-fetcher"
     replicas: 3
     port: 9000
+    metricsReader: prometheus
+    metricsPort: 8905
+    vertxMetricsPort: 8906
     env: []
     nodeSelector: {}
     tolerations: []
@@ -426,7 +450,6 @@ ingress-nginx-ui:
     admissionWebhooks:
       enabled: false
     electionID: ingress-controller-leader-ui
-    namespaceOverride: ingress-nginx-ui
 
 # Ingress configuration
 ingress:

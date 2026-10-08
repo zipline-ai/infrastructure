@@ -53,6 +53,16 @@ Run with a backend configured for the target environment:
 tofu init -reconfigure -backend-config=backend.hcl
 ```
 
+For the public demo, use the same wrapper with a separate git-ignored config:
+
+```shell
+cp public-demo.auto.tfvars.example public-demo.auto.tfvars
+../../push_public_demo_config.sh
+```
+
+The public demo should keep datasource buckets in
+`../public-demo-datasources` and reset only this orchestration layer weekly.
+
 ## Required Inputs
 
 Set these for every environment.
@@ -61,7 +71,7 @@ Set these for every environment.
 | --- | --- |
 | `orchestration.deployment.customer_name` | Used as the environment/customer prefix for generated resources. |
 | `orchestration.deployment.artifact_prefix` | S3 URI for Zipline artifacts. The wrapper creates the bucket portion of this URI. |
-| `orchestration.deployment.zipline_version` | Image tag used across Zipline services. |
+| `orchestration.deployment.zipline_version` | Base image tag. Hub and Eval use its Spark 4 variant; `nightly` stays `nightly` and other tags gain `-spark4`. |
 | `orchestration.ingress.domain` | Public host used by the UI, Hub, Eval, and supporting ingress routes. |
 | `aws.region` | AWS region for all regional resources and providers. |
 | `aws.warehouse_bucket` | S3 bucket for the warehouse. The wrapper creates this bucket. |
@@ -97,9 +107,11 @@ shape.
 
 ### Images and Pull Secrets
 
-The default Spark and Flink images are public defaults. Configure a pull secret
-when the environment pulls from a private Docker Hub image or needs authenticated
-pulls.
+Crucible always runs Spark 4. Spark jobs and the History Server use
+`ziplineai/spark:nightly`, Flink uses `ziplineai/flink:1.20.3-spark4`, and Hub
+and Eval use the Spark 4 variant of `orchestration.deployment.zipline_version`.
+These images cannot be overridden through Terraform. Configure a pull secret
+when the environment needs authenticated Docker Hub pulls.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -107,10 +119,6 @@ pulls.
 | `orchestration.image_pull_secret.create` | `false` | Terraform should create the Docker Hub pull Secret. |
 | `orchestration.image_pull_secret.dockerhub_username` | `ziplineai` | The pull token belongs to a different Docker Hub user. |
 | `orchestration.image_pull_secret.dockerhub_token` | `""` | Required when `create = true`. |
-| `orchestration.compute.spark_image` | `ziplineai/spark:nightly` | You need a pinned or custom Spark image. |
-| `orchestration.compute.flink_image` | `ziplineai/flink:1.20.3` | You need a pinned or custom Flink image. |
-| `orchestration.hub.image` | AWS wrapper default | You need to override the AWS Hub image. |
-| `orchestration.eval.image` | AWS wrapper default | You need to override the AWS Eval image. |
 
 ### Ingress and TLS
 
@@ -145,9 +153,32 @@ Choose one of these secret sources:
 
 | Field | Use when |
 | --- | --- |
-| `aws.auth_secret_arn` | Auth secrets already exist in AWS Secrets Manager. |
-| `orchestration.auth.secrets_arn` | You want to use the shared auth secret ARN field instead of the AWS-specific alias. |
+| `aws.auth_secret_arn` | The environment keeps AWS resource references in the `aws` object. |
+| `orchestration.auth.secrets_arn` | Shared configuration tooling keeps all authentication settings together in the `orchestration.auth` object. |
 | `aws.auth_secret_values` | Terraform should create the AWS Secrets Manager secret from supplied values. |
+
+To keep secret values out of tfvars, create the secret in AWS Secrets Manager
+and pass its ARN to the wrapper:
+
+```hcl
+orchestration = {
+  auth = {
+    enabled = true
+  }
+}
+
+aws = {
+  auth_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:zipline-auth-AbCdEf"
+}
+```
+
+Both ARN fields configure the same AWS Secrets Manager integration. Prefer
+`aws.auth_secret_arn` for AWS-specific tfvars. Prefer
+`orchestration.auth.secrets_arn` when a shared configuration generator or
+reusable orchestration configuration keeps authentication settings together
+under `orchestration.auth`. The shared field does not make the AWS Secrets
+Manager ARN portable to another cloud. If both fields are set,
+`aws.auth_secret_arn` takes precedence.
 
 The expected auth secret properties are:
 
@@ -209,7 +240,7 @@ namespace policy.
 | `orchestration.compute.flink_service_account` | `flink` | Flink jobs use a non-default service account name. |
 | `orchestration.compute.rbac_create` | `true` | RBAC is managed outside this chart. |
 | `orchestration.compute.image_prepull_enabled` | `true` | You want to disable image prepull. |
-| `orchestration.compute.image_prepull_images` | Spark image | You want to prepull additional or different images. |
+| `orchestration.compute.image_prepull_images` | Spark 4 image | You want to prepull additional images alongside the Spark 4 image. |
 | `orchestration.compute.warm_pool` | disabled in shared defaults, enabled by AWS provider values | You need to tune pre-warmed Spark driver capacity. |
 | `orchestration.compute.system_priority_class` | disabled | Compute support workloads need a PriorityClass. |
 
@@ -232,6 +263,7 @@ Spark executors, Flink job managers, and Flink task managers.
 | `aws.eks_desired_size` | `3` | The default node group desired size should change. |
 | `aws.eks_max_size` | `8` | The default node group maximum should change. |
 | `aws.eks_disk_size` | `100` | EKS node root volumes need a different size in GB. |
+| `aws.ingress_traffic_policy` | `Cluster` | Set `Local` when the ingress NLB should preserve client source IPs. |
 | `aws.personnel_arns` | `[]` | Human or automation IAM principals need EKS cluster-admin access. |
 | `aws.karpenter.enabled` | `true` | Karpenter should be disabled for an environment. |
 | `aws.karpenter.namespace` | `kube-system` | Karpenter should run in a different namespace. |
@@ -279,6 +311,7 @@ buckets.
 | `aws.spark_libs_bucket` | `""` | Spark needs access to an existing bucket for shared libraries. |
 | `aws.additional_data_buckets` | `[]` | Spark compute and orchestration read paths need access to more buckets. |
 | `aws.additional_flink_s3_buckets` | `[]` | Flink compute needs access to more buckets. |
+| `aws.additional_flink_readonly_s3_buckets` | `[]` | Flink compute needs read-only access to externally managed artifact buckets. |
 | `aws.encryption_kms_key_arn` | `""` | RDS, Secrets Manager, DynamoDB, or Polaris storage policy should use a specific KMS key. |
 | `aws.encryption_kms_key_arns` | `{}` | DynamoDB replica regions need region-specific KMS keys. |
 
@@ -300,17 +333,72 @@ for the environment.
 
 ### DynamoDB, Glue, MSK, and Observability
 
+The AWS fetcher uses the Terraform-managed DynamoDB tables. The wrapper passes
+the table prefix, TTL setting, and replica regions to the fetcher automatically.
+
 | Field | Default | Use when |
 | --- | --- | --- |
 | `aws.kv_table_prefix` | `""` | Hub needs a prefix for Chronon KV tables. |
+| `aws.redis.enabled` | `false` | Use Redis for the Chronon KV store instead of DynamoDB. With no existing cluster nodes, Terraform creates a TLS-enabled ElastiCache Redis cluster. |
+| `aws.redis.cluster_nodes` | `""` | Existing Redis seed nodes as comma-separated `host:port` values. Leave empty to create a managed cluster. For ElastiCache, use its cluster configuration endpoint. |
+| `aws.redis.password_secret_arn` | `""` | Optional Secrets Manager ARN holding the existing Redis password as a JSON field. Managed clusters generate and store a password automatically. |
+| `aws.redis.password_secret_key` | `"password"` | JSON field name containing the Redis password in Secrets Manager. |
+| `aws.redis.use_ssl` | `true` | Use TLS for Redis connections. |
+| `aws.redis.node_type` | `"cache.t4g.small"` | ElastiCache node type for a managed cluster. |
+| `aws.redis.shards` | `1` | Number of shards in a managed Redis cluster. |
+| `aws.redis.replicas_per_shard` | `1` | Replica count per shard in a managed cluster. Set to `0` for a single-node test cluster. |
 | `aws.kv_enable_ttl` | `true` | TTL should be disabled for KV records. |
 | `aws.kv_replica_regions` | `[]` | DynamoDB global table replicas are required. |
+| `aws.kv_batch_table_gc_age_days` | `""` | Override (in days) for the DynamoDB batch-table GC age used by the Hub's `AWSCleanupVerticle`. Empty falls back to the platform default of 30 days. Set to e.g. `"7"` to sweep batch upload tables more aggressively, or a larger value to retain them longer. No effect when `aws.kv_enable_ttl` is `false`. |
 | `aws.kv_read_capacity` | `10` | Provisioned read capacity for the table-partitions table needs tuning. |
 | `aws.kv_write_capacity` | `10` | Provisioned write capacity for the table-partitions table needs tuning. |
 | `aws.glue_schema_registry_name` | `zipline-<customer_name>` | You want to use an existing Glue registry or a specific registry name. |
 | `aws.msk_cluster_arn` | `""` | Flink needs IAM permissions for an MSK cluster. |
 | `aws.amp_workspace_arn` | created workspace ARN | Scraping, UI queries, and IAM permissions should use an existing AWS Managed Prometheus workspace. |
 | `aws.eks_log_group` | `/aws/eks/<cluster_name>/containers` | UI log links should point at a different EKS log group. |
+
+To let Terraform create a managed cluster, set `aws.redis.enabled = true` and
+leave `cluster_nodes` empty. To use a cluster managed elsewhere, provide its
+seed endpoint and, when needed, a Secrets Manager secret ARN containing the
+password JSON field:
+
+```hcl
+redis = {
+  enabled       = true
+  cluster_nodes = "clustercfg.example.abc123.usw2.cache.amazonaws.com:6379"
+  password_secret_arn = "arn:aws:secretsmanager:us-west-2:123456789012:secret:existing-redis-auth-AbCdEf"
+  password_secret_key = "password"
+  use_ssl       = true
+}
+```
+
+For an existing unauthenticated cluster, omit `password_secret_arn`. The
+orchestration Hub and fetcher receive the Redis settings, and the Hub passes
+them to submitted Spark and Flink jobs. Managed Redis creates a cluster-mode
+enabled ElastiCache replication group and a generated credential in Secrets
+Manager. When Redis is disabled, the existing DynamoDB configuration remains
+active.
+
+### Fetcher metrics
+
+When `orchestration.deployment.deploy_fetcher` is enabled, the chart enables
+Prometheus metrics by default. The AMP `fetcher` scrape job discovers the
+`chronon-metrics` and `vertx-metrics` container ports (8905 and 8906) and scrapes
+both `/metrics` endpoints. No pod scrape annotations or tfvars changes are
+required for the default configuration.
+
+Explicit metrics environment variables in `orchestration.fetcher_env` or
+`orchestration.runtime_env` are preserved. For example, an existing `http`
+reader continues to use its OTLP collector instead of the AMP fetcher job.
+Chart settings can also be overridden through
+`orchestration.values.orchestration.fetcher`; see the
+[chart metrics configuration](../../charts/zipline-orchestration/README.md#fetcher-metrics).
+
+Apply the wrapper to update both the Helm deployment and AMP scraper. After
+the fetcher rollout, run fetch requests and query `up{job="fetcher"}` in the
+configured AMP workspace. Each running fetcher pod should have two healthy
+targets. Check `vertx_http_server_requests_total` for HTTP metrics and
+`join_fetch_java_overall_latency_millis_bucket` for join latency metrics.
 
 ### Secrets
 
@@ -352,7 +440,7 @@ covered by a typed input above.
 | `orchestration.runtime_env` | Environment variables should be added to all services. |
 | `orchestration.hub_env` | Hub needs extra environment variables. |
 | `orchestration.ui_env` | UI needs extra environment variables. |
-| `orchestration.fetcher_env` | Fetcher needs extra environment variables. |
+| `orchestration.fetcher_env` | Fetcher needs extra environment variables, including metrics reader or port overrides. |
 | `orchestration.eval_env` | Eval needs extra environment variables. |
 | `orchestration.hub.pod_annotations` | Hub pods need additional annotations, such as scrape annotations. |
 | `orchestration.hub.chronon_metrics_reader` | Hub metrics should use a reader other than the Prometheus default. |

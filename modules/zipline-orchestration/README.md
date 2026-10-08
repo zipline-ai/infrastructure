@@ -13,6 +13,11 @@ module/chart layer, so AWS and Azure wrappers inherit the same behavior. Set
 `orchestration.hub.chronon_metrics_reader` or `orchestration.hub.metrics_port`
 to override it.
 
+The shared chart fixes Crucible compute to Spark 4 for every provider. The
+module ignores legacy Spark, Flink, and History Server image fields, always
+prepulls the Spark 4 image when prepulling is enabled, and derives Spark 4 Hub
+and Eval tags from `orchestration.deployment.zipline_version`.
+
 The module owns common Kubernetes installation mechanics:
 
 - Namespace creation.

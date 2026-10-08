@@ -1,4 +1,21 @@
 {{- if .Values.global.deploy_fetcher }}
+{{- $configuredEnv := dict }}
+{{- range concat .Values.runtime.env .Values.orchestration.fetcher.env }}
+{{- $_ := set $configuredEnv .name . }}
+{{- end }}
+{{- $metricsReader := .Values.orchestration.fetcher.metricsReader }}
+{{- if hasKey $configuredEnv "CHRONON_METRICS_READER" }}
+{{- $metricsReader = (get $configuredEnv "CHRONON_METRICS_READER").value | default "" }}
+{{- end }}
+{{- $metricsPort := .Values.orchestration.fetcher.metricsPort }}
+{{- $vertxMetricsPort := .Values.orchestration.fetcher.vertxMetricsPort }}
+{{/* Empty literal port env values make the application use its built-in defaults. */}}
+{{- if and (hasKey $configuredEnv "CHRONON_PROMETHEUS_SERVER_PORT") (not (hasKey (get $configuredEnv "CHRONON_PROMETHEUS_SERVER_PORT") "valueFrom")) }}
+{{- $metricsPort = (get $configuredEnv "CHRONON_PROMETHEUS_SERVER_PORT").value | default 8905 }}
+{{- end }}
+{{- if and (hasKey $configuredEnv "VERTX_PROMETHEUS_SERVER_PORT") (not (hasKey (get $configuredEnv "VERTX_PROMETHEUS_SERVER_PORT") "valueFrom")) }}
+{{- $vertxMetricsPort = (get $configuredEnv "VERTX_PROMETHEUS_SERVER_PORT").value | default 8906 }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -44,6 +61,20 @@ spec:
               value: "{{ .Values.orchestration.fetcher.port }}"
             - name: USE_ZGC
               value: "true"
+            {{- if not (hasKey $configuredEnv "CHRONON_METRICS_READER") }}
+            - name: CHRONON_METRICS_READER
+              value: {{ $metricsReader | quote }}
+            {{- end }}
+            {{- if eq $metricsReader "prometheus" }}
+            {{- if not (hasKey $configuredEnv "CHRONON_PROMETHEUS_SERVER_PORT") }}
+            - name: CHRONON_PROMETHEUS_SERVER_PORT
+              value: {{ $metricsPort | quote }}
+            {{- end }}
+            {{- if not (hasKey $configuredEnv "VERTX_PROMETHEUS_SERVER_PORT") }}
+            - name: VERTX_PROMETHEUS_SERVER_PORT
+              value: {{ $vertxMetricsPort | quote }}
+            {{- end }}
+            {{- end }}
             {{- with .Values.runtime.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -52,6 +83,14 @@ spec:
             {{- end }}
           ports:
             - containerPort: {{ .Values.orchestration.fetcher.port }}
+            {{- if eq $metricsReader "prometheus" }}
+            - name: chronon-metrics
+              containerPort: {{ $metricsPort }}
+              protocol: TCP
+            - name: vertx-metrics
+              containerPort: {{ $vertxMetricsPort }}
+              protocol: TCP
+            {{- end }}
           resources:
           {{- toYaml .Values.orchestration.fetcher.resources | nindent 12 }}
           livenessProbe:

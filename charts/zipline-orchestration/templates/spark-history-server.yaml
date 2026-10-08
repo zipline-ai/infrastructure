@@ -82,7 +82,7 @@ spec:
       {{- end }}
       initContainers:
         - name: fix-permissions
-          image: {{ .Values.compute.historyServer.image }}
+          image: {{ include "zipline-orchestration.sparkImage" . | quote }}
           command: ["sh", "-c", "mkdir -p /data/spark-history-cache && chown -R spark:spark /data"]
           securityContext:
             runAsUser: 0
@@ -91,7 +91,7 @@ spec:
               mountPath: /data
       containers:
         - name: history-server
-          image: {{ .Values.compute.historyServer.image }}
+          image: {{ include "zipline-orchestration.sparkImage" . | quote }}
           imagePullPolicy: Always
           command:
             - /opt/spark/bin/spark-class

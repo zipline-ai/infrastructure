@@ -30,6 +30,38 @@ Create chart name and version as used by the chart label.
 {{- end }}
 
 {{/*
+Spark 4 image tag used by the Hub and Eval services. Nightly is already the
+Spark 4 image; immutable and release tags use the explicit -spark4 suffix.
+*/}}
+{{- define "zipline-orchestration.spark4Version" -}}
+{{- $version := trimSuffix "-spark4" (.Values.global.version | default "latest") -}}
+{{- if eq $version "nightly" -}}
+{{- "nightly" -}}
+{{- else -}}
+{{- printf "%s-spark4" $version -}}
+{{- end -}}
+{{- end }}
+
+{{/* Crucible supports only the shared Spark 4 compute images. */}}
+{{- define "zipline-orchestration.sparkImage" -}}
+{{- "ziplineai/spark:nightly" -}}
+{{- end }}
+
+{{- define "zipline-orchestration.flinkImage" -}}
+{{- "ziplineai/flink:1.20.3-spark4" -}}
+{{- end }}
+
+{{/* Prevent runtime env from bypassing the fixed Crucible compute images. */}}
+{{- define "zipline-orchestration.validateComputeImageEnv" -}}
+{{- range concat (.Values.runtime.env | default list) (.Values.orchestration.hub.env | default list) -}}
+{{- $name := .name | default "" -}}
+{{- if or (eq $name "CRUCIBLE_SPARK_IMAGE") (eq $name "CRUCIBLE_FLINK_IMAGE") -}}
+{{- fail (printf "%s is fixed by the Crucible chart and cannot be overridden" $name) -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/*
 Common labels
 */}}
 {{- define "zipline-orchestration.labels" -}}

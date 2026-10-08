@@ -49,6 +49,29 @@ scrape_configs:
       - source_labels: [__meta_kubernetes_pod_name]
         action: replace
         target_label: kubernetes_pod_name
+  # Fetcher exposes Chronon and Vert.x metrics on separate ports. Discover
+  # the named ports directly; a pod annotation can select only one port.
+  - job_name: fetcher
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app, __meta_kubernetes_pod_container_name]
+        action: keep
+        regex: fetcher;fetcher
+      - source_labels: [__meta_kubernetes_pod_container_port_name]
+        action: keep
+        regex: chronon-metrics|vertx-metrics
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: kubernetes_namespace
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: kubernetes_pod_name
   - job_name: cadvisor
     scheme: https
     authorization:
