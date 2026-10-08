@@ -7,6 +7,14 @@ variable "chart_path" {
 variable "orchestration" {
   description = "Shared Zipline orchestration install inputs. Cloud wrappers pass this object through as the common interface."
   type        = any
+
+  validation {
+    condition = (
+      try(var.orchestration.data_explorer.enabled, false) == true ||
+      try(var.orchestration.data_explorer.enabled, false) == false
+    )
+    error_message = "orchestration.data_explorer.enabled must be a boolean."
+  }
 }
 
 variable "provider_context" {

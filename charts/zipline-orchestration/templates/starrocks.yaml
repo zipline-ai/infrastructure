@@ -1,3 +1,4 @@
+{{- if .Values.dataExplorer.enabled }}
 {{- $starrocks := .Values.starrocks }}
 {{- $runtimeClient := default dict .Values.polaris.bootstrap.runtimeClient }}
 {{- $credentialSecret := default dict $runtimeClient.credentialsSecret }}
@@ -89,3 +90,4 @@ spec:
         - name: catalog-credential
           secret:
             secretName: {{ $credentialSecretName }}
+{{- end }}

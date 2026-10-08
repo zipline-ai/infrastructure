@@ -380,3 +380,26 @@ principal, grants it access to the seeded catalog role, writes its
 `client_id:client_secret` value into the `polaris-client-credentials`
 Kubernetes Secret as `OC_CREDENTIAL`, and restarts Hub so Spark catalog
 placeholders can be resolved without customer-supplied Polaris credentials.
+
+## Data Explorer
+
+Data Explorer is disabled by default. Add this field to the existing
+`orchestration` object in each environment's tfvars to enable it:
+
+```hcl
+orchestration = {
+  # Existing deployment and other settings...
+  data_explorer = {
+    enabled = true
+  }
+}
+```
+
+Set `enabled = false` or omit `data_explorer` to disable the UI feature,
+StarRocks Helm release (operator and cluster), and catalog initialization job.
+This setting takes precedence over additional Helm values so the UI and
+StarRocks deployment stay consistent. Polaris remains available for other services.
+
+For existing deployments, set `enabled = true` before applying to retain
+Data Explorer. Applying with the default `false` removes the existing StarRocks
+release. A Terraform state migration preserves the release when enabled.
