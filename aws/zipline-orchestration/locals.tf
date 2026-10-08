@@ -15,7 +15,6 @@ locals {
     kv_write_capacity              = 10
     eks_log_group                  = ""
     auth_secret_arn                = ""
-    auth_secret_values             = {}
     extra_external_secrets         = []
     extra_secret_arns              = []
     additional_data_buckets        = []
@@ -371,10 +370,12 @@ locals {
     local.auth_saml_enabled ? ["sso-saml-cert"] : [],
   )
 
-  auth_enabled               = try(var.orchestration.auth.enabled, false)
-  configured_auth_secret_arn = try(local.cloud_args.auth_secret_arn, try(var.orchestration.auth.secrets_arn, ""))
-  create_auth_secret         = local.auth_enabled && length(keys(local.cloud_args.auth_secret_values)) > 0
-  auth_secret_arn            = local.create_auth_secret ? aws_secretsmanager_secret.zipline_auth[0].arn : local.configured_auth_secret_arn
+  auth_enabled = try(var.orchestration.auth.enabled, false)
+
+  auth_secret_arn = try(coalesce(
+    try(local.cloud_args.auth_secret_arn, ""),
+    try(var.orchestration.auth.secrets_arn, ""),
+  ), "")
 
   legacy_extra_secret_provider_objects = try(local.cloud_args.extra_secret_provider_objects, [])
   legacy_extra_secret_objects          = try(var.orchestration.secrets.extra_secret_objects, [])

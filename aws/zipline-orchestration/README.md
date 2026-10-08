@@ -147,7 +147,6 @@ Choose one of these secret sources:
 | --- | --- |
 | `aws.auth_secret_arn` | Auth secrets already exist in AWS Secrets Manager. |
 | `orchestration.auth.secrets_arn` | You want to use the shared auth secret ARN field instead of the AWS-specific alias. |
-| `aws.auth_secret_values` | Terraform should create the AWS Secrets Manager secret from supplied values. |
 
 The expected auth secret properties are:
 
@@ -158,21 +157,23 @@ The expected auth secret properties are:
 - `sso-client-secret`
 - `sso-saml-cert`, only when `orchestration.auth.sso_use_saml = true`
 
-When using `aws.auth_secret_values`, provide the same values with Terraform-safe
-map keys:
+Populate the secret in Secrets Manager outside Terraform, then reference its ARN
+in tfvars (alongside the other required AWS settings):
 
 ```hcl
 aws = {
-  auth_secret_values = {
-    auth_secret                         = "..."
-    google_oauth_client_secret          = "..."
-    github_oauth_client_secret          = "..."
-    microsoft_entra_oauth_client_secret = "..."
-    sso_client_secret                   = "..."
-    sso_saml_cert                       = "..."
-  }
+  auth_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:zipline-auth-AbCdEf"
 }
 ```
+
+`aws.auth_secret_values` is rejected, including empty maps. For existing installs,
+set the ARN of the previously created auth secret and remove `auth_secret_values`
+from tfvars before applying. Terraform relinquishes management of the existing
+auth secret and its version without deleting them. Historical Terraform state
+may still contain the old values.
+
+`orchestration.image_pull_secret.dockerhub_token` remains supported. Arbitrary
+Helm overrides remain unrestricted. Generated database credentials are unchanged.
 
 Set only the auth provider fields that the environment uses:
 

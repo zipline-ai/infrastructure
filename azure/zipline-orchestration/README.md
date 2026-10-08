@@ -140,6 +140,13 @@ Authentication is disabled unless `orchestration.auth.enabled = true`. When auth
 is enabled, the Azure wrapper expects auth secret values to exist in Key Vault
 with the names used by the shared chart.
 
+Put authentication values into Key Vault outside Terraform. In tfvars, configure
+`azure.keyvault_name` and, if needed, map chart keys to Key Vault secret names with
+`orchestration.secrets.auth_remote_refs` (for example,
+`auth-secret = { key = "my-auth-secret" }`). These references contain secret names,
+not secret values. `orchestration.image_pull_secret.dockerhub_token` remains a
+supported plaintext input, and arbitrary Helm overrides remain unrestricted.
+
 The expected Key Vault secret names are:
 
 - `auth-secret`
