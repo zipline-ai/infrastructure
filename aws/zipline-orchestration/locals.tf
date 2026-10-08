@@ -28,6 +28,8 @@ locals {
     logs_bucket                          = ""
     glue_schema_registry_name            = ""
     msk_cluster_arn                      = ""
+    databricks_client_id                 = ""
+    databricks_client_secret             = ""
     amp_workspace_arn                    = ""
     encryption_kms_key_arn               = ""
     encryption_kms_key_arns              = {}
@@ -606,6 +608,13 @@ locals {
       # CrucibleSubmitter.getJobUrl. Without it the per-step "open in
       # console" link on each job comes up empty.
       [{ name = "EKS_CLUSTER_NAME", value = local.cluster_name }],
+      # Databricks vault URI refs — giga tile / batch Iceberg jobs resolve these
+      # at startup; the hub fills {NAME} placeholders without holding the secrets.
+      try(trimspace(local.cloud_args.databricks_client_id), "") == "" ? [] : [
+        { name = "DATABRICKS_CLIENT_ID", value = local.cloud_args.databricks_client_id },
+        { name = "DATABRICKS_CLIENT_SECRET_VAULT_URI", value = aws_secretsmanager_secret.databricks_client_secret[0].arn },
+        { name = "DATABRICKS_CREDENTIAL_VAULT_URI", value = aws_secretsmanager_secret.databricks_credential[0].arn },
+      ],
       [
         {
           name = "OC_CREDENTIAL"
