@@ -23,7 +23,6 @@ secrets:
 
 compute:
   defaultNamespace: zipline-default
-  spotExecutors: false
   namespaceDefaults:
     labels: {}
     annotations: {}
@@ -65,7 +64,6 @@ compute:
     eventLogDir: ""
     imagePullPolicy: "Always"
     chrononJarPath: "/opt/chronon/chronon-spark.jar"
-    spotNodeSelector: {}
   flinkDefaults:
     serviceAccount: flink
     serviceAccountAnnotations: {}

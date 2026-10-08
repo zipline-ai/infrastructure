@@ -11,11 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 CHART = ROOT / "charts/zipline-orchestration"
 
 
-def render(compute=None, runtime_env=None, hub_env=None):
+def render(compute=None):
     values = {
         "global": {"customer_name": "test", "version": "test"},
         "database": {"host": "postgres.example.com"},
-        "runtime": {"env": runtime_env or []},
         "compute": {
             "objectStore": {"bucket": "test-bucket"},
             "sparkDefaults": {"eventLogDir": "test-bucket/spark-events"},
@@ -23,8 +22,7 @@ def render(compute=None, runtime_env=None, hub_env=None):
         },
         "polaris": {"bootstrap": {"rbac": {"catalog": {"storage": {"type": "S3"}}}}},
         "orchestration": {
-            "hub": {"image": "ziplineai/hub", "verticleClass": "com.zipline.OrchestrationVerticle",
-                    "env": hub_env or []},
+            "hub": {"image": "ziplineai/hub", "verticleClass": "com.zipline.OrchestrationVerticle"},
             "eval": {"image": "ziplineai/eval"},
         },
     }

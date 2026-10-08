@@ -237,8 +237,9 @@ for Zipline system services and two compute NodePools shared by all teams:
 | `flink` | `flink` |
 
 Compute nodes carry engine and workload labels and a
-`zipline.ai/workload=<engine>:NoSchedule` taint. Both pools offer on-demand and
-spot capacity; pods select their capacity type and hardware requirements.
+`zipline.ai/workload=<engine>:NoSchedule` taint. The Spark pool offers on-demand
+capacity for drivers and Spot capacity for executors. The Flink pool uses
+on-demand capacity for both JobManagers and TaskManagers.
 Team and role labels stay on pods. Adding a team namespace does not add NodePools.
 Namespace ResourceQuotas, including mode-scoped quotas, enforce team budgets.
 The pool limits below cap capacity across all teams using each pool; they do

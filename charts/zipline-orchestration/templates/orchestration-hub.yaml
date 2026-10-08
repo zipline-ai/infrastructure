@@ -90,10 +90,6 @@ spec:
               value: {{ include "zipline-orchestration.sparkEventLogDir" . | quote }}
             - name: LOKI_URL
               value: "http://{{ include "zipline-orchestration.fullname" . }}-loki.{{ include "zipline-orchestration.computeSystemNamespace" . }}.svc.cluster.local:3100"
-            {{- with .Values.compute.sparkDefaults.spotNodeSelector }}
-            - name: CRUCIBLE_SPOT_NODE_SELECTOR
-              value: {{ toJson . | quote }}
-            {{- end }}
             - name: CRUCIBLE_FLINK_IMAGE
               value: {{ include "zipline-orchestration.flinkImage" . | quote }}
             - name: CRUCIBLE_FLINK_SERVICE_ACCOUNT
@@ -115,10 +111,6 @@ spec:
             {{- if eq .name "CHRONON_METRICS_READER" }}
             {{- $configuredMetricsReader = .value | default "" }}
             {{- end }}
-            {{- end }}
-            {{- if not (has "CRUCIBLE_SPOT_EXECUTORS" $configuredEnvNames) }}
-            - name: CRUCIBLE_SPOT_EXECUTORS
-              value: {{ .Values.compute.spotExecutors | quote }}
             {{- end }}
             {{- $hasMetricsReaderEnv := has "CHRONON_METRICS_READER" $configuredEnvNames }}
             {{- $metricsReader := .Values.orchestration.hub.metricsReader | default "" }}

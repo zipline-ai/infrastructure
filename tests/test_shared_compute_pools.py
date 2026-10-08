@@ -94,7 +94,7 @@ class SharedComputePoolTest(unittest.TestCase):
             }])
             requirements = {r["key"]: r for r in template["spec"]["requirements"]}
             self.assertEqual(requirements["karpenter.sh/capacity-type"]["values"],
-                             ["on-demand", "spot"])
+                             ["on-demand", "spot"] if name == "spark" else ["on-demand"])
             self.assertEqual(requirements["kubernetes.io/arch"]["values"], ["arm64"])
             self.assertEqual(requirements["karpenter.k8s.aws/instance-category"]["values"], ["c", "m", "r"])
             self.assertEqual(requirements["karpenter.k8s.aws/instance-generation"]["values"], ["6"])
@@ -154,7 +154,8 @@ class SharedComputePoolTest(unittest.TestCase):
             self.assertNotIn("karpenter.k8s.aws/instance-category", requirements)
             self.assertNotIn("karpenter.k8s.aws/instance-generation", requirements)
             self.assertNotIn("karpenter.k8s.aws/instance-local-nvme", requirements)
-            self.assertEqual(requirements["karpenter.sh/capacity-type"]["values"], ["on-demand", "spot"])
+            self.assertEqual(requirements["karpenter.sh/capacity-type"]["values"],
+                             ["on-demand", "spot"] if name == "spark" else ["on-demand"])
             self.assertEqual(requirements["kubernetes.io/os"]["values"], ["linux"])
             self.assertEqual(requirements["kubernetes.io/arch"]["values"], ["arm64"])
         self.assertEqual(pools["system"]["limits"], {"cpu": "1000", "memory": "4000Gi"})
@@ -185,44 +186,6 @@ class SharedComputePoolTest(unittest.TestCase):
         self.assertEqual(values["pools"], {})
         self.assertEqual(values["compute"]["imagePrepull"], {"nodeSelector": {}, "tolerations": [], "affinity": {}})
         self.assertFalse(values["compute"]["warmPool"]["enabled"])
-
-
-class SpotExecutorsTest(unittest.TestCase):
-    @staticmethod
-    def spot_env(documents):
-        hub = next(doc for doc in documents if doc["kind"] == "Deployment"
-                   and doc["metadata"]["name"] == "zipline-orchestration-hub")
-        return [entry for entry in hub["spec"]["template"]["spec"]["containers"][0]["env"]
-                if entry["name"] == "CRUCIBLE_SPOT_EXECUTORS"]
-
-    def test_shared_chart_defaults_to_on_demand(self):
-        self.assertEqual(self.spot_env(render()), [{"name": "CRUCIBLE_SPOT_EXECUTORS", "value": "false"}])
-
-    def test_spot_chart_setting_preserves_explicit_false(self):
-        for enabled in (True, False):
-            with self.subTest(enabled=enabled):
-                self.assertEqual(self.spot_env(render({"spotExecutors": enabled})), [
-                    {"name": "CRUCIBLE_SPOT_EXECUTORS", "value": str(enabled).lower()},
-                ])
-
-    def test_aws_defaults_to_spot_with_explicit_on_demand_override(self):
-        compute = evaluate()["compute"]
-        self.assertEqual(self.spot_env(render(compute)), [{"name": "CRUCIBLE_SPOT_EXECUTORS", "value": "true"}])
-        self.assertEqual(self.spot_env(render({**compute, "spotExecutors": False})), [
-            {"name": "CRUCIBLE_SPOT_EXECUTORS", "value": "false"},
-        ])
-
-    def test_explicit_runtime_or_hub_environment_takes_precedence(self):
-        entries = [
-            {"name": "CRUCIBLE_SPOT_EXECUTORS", "value": "false"},
-            {"name": "CRUCIBLE_SPOT_EXECUTORS", "valueFrom": {
-                "configMapKeyRef": {"name": "compute", "key": "spot"},
-            }},
-        ]
-        for scope in ("runtime_env", "hub_env"):
-            for entry in entries:
-                with self.subTest(scope=scope, entry=entry):
-                    self.assertEqual(self.spot_env(render({"spotExecutors": True}, **{scope: [entry]})), [entry])
 
 
 if __name__ == "__main__":

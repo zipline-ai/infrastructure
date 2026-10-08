@@ -70,12 +70,11 @@ locals {
   # Each compute cap covers all roles and teams using that engine.
   karpenter_pool_limits    = merge({ cpu = "1000", memory = "4000Gi" }, try(local.karpenter.pool_limits, {}))
   karpenter_compute_limits = merge({ cpu = "1100", memory = "4400Gi" }, try(local.karpenter.compute_limits, {}))
-  # Pods select capacity type and any role-specific hardware, such as Spark
-  # executor NVMe. The shared pools offer both on-demand and spot capacity.
+  # Shared hardware requirements; pods add role-specific requirements such as
+  # Spark executor NVMe. Capacity types are set per engine below.
   karpenter_compute_requirements = [
     { key = "kubernetes.io/os", operator = "In", values = tolist(["linux"]) },
     { key = "kubernetes.io/arch", operator = "In", values = local.karpenter_compute_arch },
-    { key = "karpenter.sh/capacity-type", operator = "In", values = tolist(["on-demand", "spot"]) },
     { key = "karpenter.k8s.aws/instance-category", operator = "In", values = local.karpenter_compute_categories },
     { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = tolist([local.karpenter_min_generation]) },
   ]
@@ -125,6 +124,11 @@ locals {
         effect   = "NoSchedule"
       }]
       requirements = concat(
+        [{
+          key      = "karpenter.sh/capacity-type"
+          operator = "In"
+          values   = engine == "spark" ? ["on-demand", "spot"] : ["on-demand"]
+        }],
         # Pinning explicit instance types REPLACES the category/generation selector
         # (Karpenter ANDs requirements, so keeping both would narrow to empty and
         # never provision); os/arch/capacity-type still apply.

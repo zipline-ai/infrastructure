@@ -537,7 +537,6 @@ locals {
     }
 
     compute = {
-      spotExecutors = true
       historyServer = {
         nodeSelector = local.system_node_selector
         tolerations  = local.system_node_tolerations
