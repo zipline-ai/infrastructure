@@ -116,6 +116,10 @@ spec:
             {{- $configuredMetricsReader = .value | default "" }}
             {{- end }}
             {{- end }}
+            {{- if not (has "CRUCIBLE_SPOT_EXECUTORS" $configuredEnvNames) }}
+            - name: CRUCIBLE_SPOT_EXECUTORS
+              value: {{ .Values.compute.spotExecutors | quote }}
+            {{- end }}
             {{- $hasMetricsReaderEnv := has "CHRONON_METRICS_READER" $configuredEnvNames }}
             {{- $metricsReader := .Values.orchestration.hub.metricsReader | default "" }}
             {{- $effectiveMetricsReader := $metricsReader }}

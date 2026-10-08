@@ -11,10 +11,11 @@ ROOT = Path(__file__).resolve().parents[1]
 CHART = ROOT / "charts/zipline-orchestration"
 
 
-def render(compute=None):
+def render(compute=None, runtime_env=None, hub_env=None):
     values = {
         "global": {"customer_name": "test", "version": "test"},
         "database": {"host": "postgres.example.com"},
+        "runtime": {"env": runtime_env or []},
         "compute": {
             "objectStore": {"bucket": "test-bucket"},
             "sparkDefaults": {"eventLogDir": "test-bucket/spark-events"},
@@ -22,7 +23,8 @@ def render(compute=None):
         },
         "polaris": {"bootstrap": {"rbac": {"catalog": {"storage": {"type": "S3"}}}}},
         "orchestration": {
-            "hub": {"image": "ziplineai/hub", "verticleClass": "com.zipline.OrchestrationVerticle"},
+            "hub": {"image": "ziplineai/hub", "verticleClass": "com.zipline.OrchestrationVerticle",
+                    "env": hub_env or []},
             "eval": {"image": "ziplineai/eval"},
         },
     }
@@ -58,7 +60,7 @@ class ComputeQuotaTest(unittest.TestCase):
                 "values": [f"zipline-{mode}"],
             }])
 
-    def test_workload_priority_classes_are_non_preempting(self):
+    def test_workload_priority_classes_preempt_lower_priorities(self):
         classes = {
             document["metadata"]["name"]: document
             for document in render()
@@ -67,6 +69,18 @@ class ComputeQuotaTest(unittest.TestCase):
 
         self.assertEqual(classes["zipline-backfill"]["value"], 100)
         self.assertEqual(classes["zipline-deploy"]["value"], 200)
+        self.assertEqual(classes["zipline-backfill"]["preemptionPolicy"], "PreemptLowerPriority")
+        self.assertEqual(classes["zipline-deploy"]["preemptionPolicy"], "PreemptLowerPriority")
+
+    def test_workload_preemption_can_be_disabled_explicitly(self):
+        classes = {
+            document["metadata"]["name"]: document
+            for document in render({"workloadPriorityClasses": {
+                "backfill": {"preemptionPolicy": "Never"},
+                "deploy": {"preemptionPolicy": "Never"},
+            }})
+            if document["kind"] == "PriorityClass"
+        }
         self.assertEqual(classes["zipline-backfill"]["preemptionPolicy"], "Never")
         self.assertEqual(classes["zipline-deploy"]["preemptionPolicy"], "Never")
 

@@ -23,6 +23,7 @@ secrets:
 
 compute:
   defaultNamespace: zipline-default
+  spotExecutors: false
   namespaceDefaults:
     labels: {}
     annotations: {}
@@ -77,11 +78,11 @@ compute:
     backfill:
       name: "zipline-backfill"
       value: 100
-      preemptionPolicy: Never
+      preemptionPolicy: PreemptLowerPriority
     deploy:
       name: "zipline-deploy"
       value: 200
-      preemptionPolicy: Never
+      preemptionPolicy: PreemptLowerPriority
   # Mode quotas are enabled only for listed namespaces. An empty hard map
   # inherits that namespace's aggregate resourceQuota.hard values.
   modeResourceQuotas:
@@ -110,6 +111,7 @@ compute:
     images: []
     nodeSelector: {}
     tolerations: []
+    affinity: {}
   historyServer:
     proxyBase: "spark-history"
     daemonMemory: "5g"

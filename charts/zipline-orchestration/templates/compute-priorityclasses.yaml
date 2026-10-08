@@ -22,7 +22,7 @@ metadata:
     zipline.ai/mode: {{ $mode | quote }}
 value: {{ $class.value }}
 globalDefault: false
-preemptionPolicy: {{ $class.preemptionPolicy | default "Never" }}
+preemptionPolicy: {{ $class.preemptionPolicy | default "PreemptLowerPriority" }}
 description: "Zipline {{ $mode }} workload priority and quota class."
 {{- end }}
 {{- end }}

@@ -536,6 +536,7 @@ locals {
     }
 
     compute = {
+      spotExecutors = true
       historyServer = {
         nodeSelector = local.system_node_selector
         tolerations  = local.system_node_tolerations
@@ -553,6 +554,7 @@ locals {
       imagePrepull = {
         nodeSelector = local.image_prepull_node_selector
         tolerations  = local.image_prepull_node_tolerations
+        affinity     = local.image_prepull_affinity
       }
       warmPool = local.compute_warm_pool
     }
