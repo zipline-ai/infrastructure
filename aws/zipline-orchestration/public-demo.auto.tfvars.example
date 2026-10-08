@@ -94,7 +94,9 @@ aws = {
   ]
 
   karpenter = {
-    pool_limits    = { cpu = "200", memory = "800Gi" }
-    compute_limits = { cpu = "240", memory = "960Gi" }
+    pool_limits           = { cpu = "200", memory = "800Gi" }
+    spark_driver_limits   = { cpu = "40", memory = "160Gi" }
+    spark_executor_limits = { cpu = "200", memory = "800Gi" }
+    flink_limits          = { cpu = "240", memory = "960Gi" }
   }
 }

@@ -20,7 +20,7 @@ from test_compute_quotas import render
 ROOT = Path(__file__).resolve().parents[1]
 AWS = ROOT / "aws/zipline-orchestration"
 TERRAFORM = os.environ.get("TERRAFORM") or shutil.which("tofu") or shutil.which("terraform")
-SHARED_POOLS = {"spark", "flink"}
+SHARED_POOLS = {"spark-driver", "spark-executor", "flink"}
 
 
 def evaluate(teams=("default",), karpenter=None):
@@ -80,41 +80,62 @@ class SharedComputePoolTest(unittest.TestCase):
         self.assertEqual(set(single["pools"]), SHARED_POOLS | {"system"})
         self.assertEqual(evaluate(("analytics",))["pools"], single["pools"])
 
-    def test_rendered_pools_share_capacity_between_roles(self):
+    def test_rendered_pools_separate_spark_capacity_and_share_flink_capacity(self):
         pools = render_pools(evaluate()["pools"])
         self.assertEqual(set(pools), SHARED_POOLS | {"system"})
+        roles = {"spark-driver": ["driver"], "spark-executor": ["executor"],
+                 "flink": ["jobmanager", "taskmanager"]}
+        limits = {"spark-driver": {"cpu": "100", "memory": "400Gi"},
+                  "spark-executor": {"cpu": "1000", "memory": "4000Gi"},
+                  "flink": {"cpu": "1100", "memory": "4400Gi"}}
         for name in SHARED_POOLS:
+            engine = "flink" if name == "flink" else "spark"
             pool = pools[name]["spec"]
             template = pool["template"]
             self.assertEqual(template["metadata"]["labels"], {
-                "zipline.ai/engine": name, "zipline.ai/workload": name,
+                "zipline.ai/engine": engine, "zipline.ai/workload": engine,
+                **{f"zipline.ai/supports-{role}": "true" for role in roles[name]},
             })
             self.assertEqual(template["spec"]["taints"], [{
-                "key": "zipline.ai/workload", "operator": "Equal", "value": name, "effect": "NoSchedule",
+                "key": "zipline.ai/workload", "operator": "Equal", "value": engine, "effect": "NoSchedule",
             }])
             requirements = {r["key"]: r for r in template["spec"]["requirements"]}
             self.assertEqual(requirements["karpenter.sh/capacity-type"]["values"],
-                             ["on-demand", "spot"] if name == "spark" else ["on-demand"])
+                             ["spot"] if name == "spark-executor" else ["on-demand"])
             self.assertEqual(requirements["kubernetes.io/arch"]["values"], ["arm64"])
             self.assertEqual(requirements["karpenter.k8s.aws/instance-category"]["values"], ["c", "m", "r"])
             self.assertEqual(requirements["karpenter.k8s.aws/instance-generation"]["values"], ["6"])
-            self.assertNotIn("karpenter.k8s.aws/instance-local-nvme", requirements)
-            self.assertEqual(pool["limits"], {"cpu": "1100", "memory": "4400Gi"})
+            self.assertEqual(requirements.get("karpenter.k8s.aws/instance-local-nvme"),
+                             {"key": "karpenter.k8s.aws/instance-local-nvme", "operator": "Exists"}
+                             if name == "spark-executor" else None)
+            self.assertEqual(pool["limits"], limits[name])
         self.assertEqual(pools["system"]["spec"]["template"]["metadata"]["labels"]["zipline.ai/node-pool"], "system")
 
-    def test_image_prepull_requires_nvme_within_shared_spark_pool(self):
+    def test_role_selectors_route_all_teams_to_the_intended_pool(self):
+        for teams in (("default",), ("analytics", "data-science")):
+            pools = render_pools(evaluate(teams)["pools"])
+            for engine, role, expected in (("spark", "driver", "spark-driver"),
+                                           ("spark", "executor", "spark-executor"),
+                                           ("flink", "jobmanager", "flink"),
+                                           ("flink", "taskmanager", "flink")):
+                with self.subTest(teams=teams, engine=engine, role=role):
+                    selector = {"zipline.ai/engine": engine, f"zipline.ai/supports-{role}": "true"}
+                    matches = {name for name, pool in pools.items() if all(
+                        pool["spec"]["template"]["metadata"]["labels"].get(key) == value
+                        for key, value in selector.items())}
+                    self.assertEqual(matches, {expected})
+
+    def test_image_prepull_selects_only_spark_executor_nodes(self):
         values = evaluate(("analytics",))
         documents = render({"imagePrepull": {"enabled": True, **values["compute"]["imagePrepull"]}})
         prepull = next(doc for doc in documents if doc["kind"] == "DaemonSet" and doc["metadata"]["name"].endswith("-image-prepull"))
         spec = prepull["spec"]["template"]["spec"]
-        self.assertEqual(spec["nodeSelector"], {"zipline.ai/engine": "spark"})
+        self.assertEqual(spec["nodeSelector"], {
+            "zipline.ai/engine": "spark", "zipline.ai/supports-executor": "true",
+        })
         self.assertIn({"key": "zipline.ai/workload", "operator": "Equal", "value": "spark",
                        "effect": "NoSchedule"}, spec["tolerations"])
-        self.assertEqual(spec.get("affinity"), {"nodeAffinity": {
-            "requiredDuringSchedulingIgnoredDuringExecution": {"nodeSelectorTerms": [{
-                "matchExpressions": [{"key": "karpenter.k8s.aws/instance-local-nvme", "operator": "Exists"}],
-            }]},
-        }})
+        self.assertNotIn("affinity", spec)
 
     def test_warm_pool_requires_on_demand_without_requiring_nvme(self):
         values = evaluate(("analytics",))
@@ -123,9 +144,9 @@ class SharedComputePoolTest(unittest.TestCase):
                     and doc["metadata"]["name"].endswith("-warm-pool"))
         spec = warm["spec"]["template"]["spec"]
         self.assertEqual(spec["nodeSelector"], {
-            "zipline.ai/engine": "spark", "karpenter.sh/capacity-type": "on-demand",
+            "zipline.ai/engine": "spark", "zipline.ai/supports-driver": "true",
         })
-        self.assertEqual(spec["tolerations"], values["pools"]["spark"]["taints"])
+        self.assertEqual(spec["tolerations"], values["pools"]["spark-driver"]["taints"])
         self.assertNotIn("affinity", spec)
         self.assertEqual(spec["terminationGracePeriodSeconds"], 0)
         self.assertEqual(spec["containers"][0]["resources"], {
@@ -141,21 +162,26 @@ class SharedComputePoolTest(unittest.TestCase):
 
     def test_shared_limits_and_explicit_instance_types(self):
         pools = evaluate(karpenter={
-            "compute_limits": {"cpu": "200"}, "spark_limits": {"memory": "8000Gi"},
+            "compute_limits": {"cpu": "200"},
+            "spark_driver_limits": {"memory": "800Gi"}, "spark_executor_limits": {"memory": "8000Gi"},
             "flink_limits": {"cpu": "300"},
             "compute_instance_types": ["m8g.xlarge", "r8gd.8xlarge"],
         })["pools"]
+        limits = {"spark-driver": {"cpu": "200", "memory": "800Gi"},
+                  "spark-executor": {"cpu": "200", "memory": "8000Gi"},
+                  "flink": {"cpu": "300", "memory": "4400Gi"}}
         for name in SHARED_POOLS:
-            self.assertEqual(pools[name]["limits"], {"cpu": "200", "memory": "8000Gi"} if name == "spark"
-                             else {"cpu": "300", "memory": "4400Gi"})
+            self.assertEqual(pools[name]["limits"], limits[name])
             requirements = {r["key"]: r for r in pools[name]["requirements"]}
             self.assertEqual(requirements["node.kubernetes.io/instance-type"]["values"],
                              ["m8g.xlarge", "r8gd.8xlarge"])
             self.assertNotIn("karpenter.k8s.aws/instance-category", requirements)
             self.assertNotIn("karpenter.k8s.aws/instance-generation", requirements)
-            self.assertNotIn("karpenter.k8s.aws/instance-local-nvme", requirements)
+            self.assertEqual(requirements.get("karpenter.k8s.aws/instance-local-nvme"),
+                             {"key": "karpenter.k8s.aws/instance-local-nvme", "operator": "Exists"}
+                             if name == "spark-executor" else None)
             self.assertEqual(requirements["karpenter.sh/capacity-type"]["values"],
-                             ["on-demand", "spot"] if name == "spark" else ["on-demand"])
+                             ["spot"] if name == "spark-executor" else ["on-demand"])
             self.assertEqual(requirements["kubernetes.io/os"]["values"], ["linux"])
             self.assertEqual(requirements["kubernetes.io/arch"]["values"], ["arm64"])
         self.assertEqual(pools["system"]["limits"], {"cpu": "1000", "memory": "4000Gi"})
@@ -173,18 +199,18 @@ class SharedComputePoolTest(unittest.TestCase):
     def test_advanced_overrides_replace_fields_and_disable_pools(self):
         requirements = [{"key": "node.kubernetes.io/instance-type", "operator": "In", "values": ["m8g.xlarge"]}]
         pools = render_pools(evaluate(karpenter={"node_pools": {
-            "spark": {"limits": {"cpu": "20"}, "requirements": requirements},
+            "spark-driver": {"limits": {"cpu": "20"}, "requirements": requirements},
             "flink": {"enabled": False},
         }})["pools"])
-        self.assertEqual(set(pools), {"system", "spark"})
-        self.assertEqual(pools["spark"]["spec"]["limits"], {"cpu": "20"})
-        self.assertEqual(pools["spark"]["spec"]["template"]["spec"]["requirements"], requirements)
-        self.assertEqual(pools["spark"]["spec"]["template"]["metadata"]["labels"]["zipline.ai/engine"], "spark")
+        self.assertEqual(set(pools), {"system", "spark-driver", "spark-executor"})
+        self.assertEqual(pools["spark-driver"]["spec"]["limits"], {"cpu": "20"})
+        self.assertEqual(pools["spark-driver"]["spec"]["template"]["spec"]["requirements"], requirements)
+        self.assertEqual(pools["spark-driver"]["spec"]["template"]["metadata"]["labels"]["zipline.ai/engine"], "spark")
 
     def test_disabled_karpenter_does_not_enable_auxiliary_placement(self):
         values = evaluate(karpenter={"enabled": False})
         self.assertEqual(values["pools"], {})
-        self.assertEqual(values["compute"]["imagePrepull"], {"nodeSelector": {}, "tolerations": [], "affinity": {}})
+        self.assertEqual(values["compute"]["imagePrepull"], {"nodeSelector": {}, "tolerations": []})
         self.assertFalse(values["compute"]["warmPool"]["enabled"])
 
 

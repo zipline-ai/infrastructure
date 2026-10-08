@@ -6,19 +6,8 @@ locals {
     "zipline.ai/node-pool" = local.system_node_pool
   } : {}
   image_prepull_node_selector = local.karpenter.enabled ? {
-    "zipline.ai/engine" = "spark"
-  } : {}
-  image_prepull_affinity = local.karpenter.enabled ? {
-    nodeAffinity = {
-      requiredDuringSchedulingIgnoredDuringExecution = {
-        nodeSelectorTerms = [{
-          matchExpressions = [{
-            key      = "karpenter.k8s.aws/instance-local-nvme"
-            operator = "Exists"
-          }]
-        }]
-      }
-    }
+    "zipline.ai/engine"            = "spark"
+    "zipline.ai/supports-executor" = "true"
   } : {}
   system_node_tolerations = local.karpenter.enabled ? [
     {
@@ -67,11 +56,30 @@ locals {
   karpenter_compute_categories     = tolist(try(local.karpenter.compute_categories, ["c", "m", "r"]))
   karpenter_compute_instance_types = tolist(try(local.karpenter.compute_instance_types, []))
   karpenter_min_generation         = try(local.karpenter.min_instance_generation, "6")
-  # Each compute cap covers all roles and teams using that engine.
+  # Optional common limits override each pool's defaults; per-pool limits win.
   karpenter_pool_limits    = merge({ cpu = "1000", memory = "4000Gi" }, try(local.karpenter.pool_limits, {}))
-  karpenter_compute_limits = merge({ cpu = "1100", memory = "4400Gi" }, try(local.karpenter.compute_limits, {}))
-  # Shared hardware requirements; pods add role-specific requirements such as
-  # Spark executor NVMe. Capacity types are set per engine below.
+  karpenter_compute_limits = try(local.karpenter.compute_limits, {})
+  karpenter_compute_pool_defaults = {
+    spark-driver = {
+      engine        = "spark"
+      roles         = ["driver"]
+      capacity_type = "on-demand"
+      limits        = { cpu = "100", memory = "400Gi" }
+    }
+    spark-executor = {
+      engine        = "spark"
+      roles         = ["executor"]
+      capacity_type = "spot"
+      limits        = { cpu = "1000", memory = "4000Gi" }
+    }
+    flink = {
+      engine        = "flink"
+      roles         = ["jobmanager", "taskmanager"]
+      capacity_type = "on-demand"
+      limits        = { cpu = "1100", memory = "4400Gi" }
+    }
+  }
+  # Pools own hardware and capacity requirements; pods select supported roles.
   karpenter_compute_requirements = [
     { key = "kubernetes.io/os", operator = "In", values = tolist(["linux"]) },
     { key = "kubernetes.io/arch", operator = "In", values = local.karpenter_compute_arch },
@@ -109,25 +117,25 @@ locals {
     }
   }
   karpenter_compute_node_pools = {
-    for engine in ["spark", "flink"] :
-    engine => {
+    for name, pool in local.karpenter_compute_pool_defaults :
+    name => {
       enabled = true
-      name    = engine
-      labels = {
-        "zipline.ai/engine"   = engine
-        "zipline.ai/workload" = engine
-      }
+      name    = name
+      labels = merge({
+        "zipline.ai/engine"   = pool.engine
+        "zipline.ai/workload" = pool.engine
+      }, { for role in pool.roles : "zipline.ai/supports-${role}" => "true" })
       taints = [{
         key      = "zipline.ai/workload"
         operator = "Equal"
-        value    = engine
+        value    = pool.engine
         effect   = "NoSchedule"
       }]
       requirements = concat(
         [{
           key      = "karpenter.sh/capacity-type"
           operator = "In"
-          values   = engine == "spark" ? ["on-demand", "spot"] : ["on-demand"]
+          values   = [pool.capacity_type]
         }],
         # Pinning explicit instance types REPLACES the category/generation selector
         # (Karpenter ANDs requirements, so keeping both would narrow to empty and
@@ -135,9 +143,10 @@ locals {
         [for r in local.karpenter_compute_requirements :
         r if length(local.karpenter_compute_instance_types) == 0 || !contains(["karpenter.k8s.aws/instance-category", "karpenter.k8s.aws/instance-generation"], r.key)],
         length(local.karpenter_compute_instance_types) > 0 ? [{ key = "node.kubernetes.io/instance-type", operator = "In", values = local.karpenter_compute_instance_types }] : [],
+        name == "spark-executor" ? [{ key = "karpenter.k8s.aws/instance-local-nvme", operator = "Exists" }] : [],
       )
       expireAfter = local.karpenter_compute_expire_after
-      limits      = merge(local.karpenter_compute_limits, try(local.karpenter["${engine}_limits"], {}))
+      limits      = merge(pool.limits, local.karpenter_compute_limits, try(local.karpenter["${replace(name, "-", "_")}_limits"], {}))
       disruption = {
         # Only reclaim genuinely-empty nodes. WhenEmptyOrUnderutilized would
         # drain still-in-use nodes, disrupting running Spark executors / Flink
@@ -167,8 +176,8 @@ locals {
     enabled = local.karpenter.enabled
     nodeSelector = {
       "zipline.ai/engine"          = "spark"
-      "karpenter.sh/capacity-type" = "on-demand"
+      "zipline.ai/supports-driver" = "true"
     }
-    tolerations = local.karpenter_compute_node_pools["spark"].taints
+    tolerations = local.karpenter_compute_node_pools["spark-driver"].taints
   }
 }

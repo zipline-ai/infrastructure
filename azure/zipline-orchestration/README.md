@@ -215,9 +215,10 @@ The wrapper creates an AKS cluster with workload identity enabled. The default
 node pool is intended to be a general-purpose starting point, and optional user
 node pools can be added through `azure.node_pools`.
 
-Crucible Spark and Flink placement uses shared engine pools. Configure
-compute node labels `zipline.ai/engine`, with the
-`zipline.ai/workload=<engine>:NoSchedule` taint, using `spark` or `flink`.
+Crucible Spark and Flink placement uses pools shared by all teams. Configure
+the `zipline.ai/engine` label and `zipline.ai/workload=<engine>:NoSchedule`
+taint using `spark` or `flink`. Set `zipline.ai/supports-<role>="true"` for
+each role a pool supports: `driver`, `executor`, `jobmanager`, or `taskmanager`.
 Team and role labels remain on pods; namespace quotas enforce team
 budgets. This wrapper does not generate those pools automatically.
 

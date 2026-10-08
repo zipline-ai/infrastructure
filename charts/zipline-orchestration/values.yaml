@@ -109,7 +109,6 @@ compute:
     images: []
     nodeSelector: {}
     tolerations: []
-    affinity: {}
   historyServer:
     proxyBase: "spark-history"
     daemonMemory: "5g"
