@@ -622,6 +622,17 @@ resource "aws_iam_role_policy_attachment" "flink_compute_databricks_secrets" {
   policy_arn = aws_iam_policy.databricks_secrets_policy[0].arn
 }
 
+# Spark compute pods resolve the same refs. A batch Iceberg job reads its catalog
+# OAuth config from DATABRICKS_CLIENT_SECRET_VAULT_URI at startup, so without this
+# the driver is denied on GetSecretValue and the write fails as
+# "Not authorized: invalid_client: Missing client authentication" — which reads
+# like bad credentials rather than a missing grant.
+resource "aws_iam_role_policy_attachment" "spark_compute_databricks_secrets" {
+  count      = try(trimspace(local.cloud_args.databricks_client_id), "") != "" ? 1 : 0
+  role       = aws_iam_role.spark_compute_execution.name
+  policy_arn = aws_iam_policy.databricks_secrets_policy[0].arn
+}
+
 # Orchestration IRSA covers hub + eval pods.
 resource "aws_iam_role_policy_attachment" "orchestration_irsa_databricks_secrets" {
   count      = try(trimspace(local.cloud_args.databricks_client_id), "") != "" ? 1 : 0
