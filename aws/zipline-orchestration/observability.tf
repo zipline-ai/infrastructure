@@ -72,6 +72,26 @@ scrape_configs:
       - source_labels: [__meta_kubernetes_pod_name]
         action: replace
         target_label: kubernetes_pod_name
+  # Karpenter exposes /metrics on 8080 but isn't annotated for scrape; target
+  # it by well-known labels so the AMP scraper picks up nodepool / nodeclaim
+  # provisioning metrics for the Crucible Monitor dashboard.
+  - job_name: karpenter
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [kube-system]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name, __meta_kubernetes_pod_container_port_name]
+        action: keep
+        regex: karpenter;http-metrics
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        action: replace
+        target_label: kubernetes_pod_name
   - job_name: cadvisor
     scheme: https
     authorization:

@@ -540,6 +540,26 @@ spark-operator:
     rbac:
       create: false
 
+kube-state-metrics:
+  enabled: true
+  # Scraped by the existing pod_exporter AMP job via these annotations.
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+  # Expose Zipline / Karpenter pod and node labels on kube_{pod,node}_labels so
+  # Hub Monitor queries can group by team / engine / role / nodepool.
+  metricLabelsAllowlist:
+    - "pods=[zipline.ai/team,zipline.ai/engine,zipline.ai/role,zipline.ai/workload,zipline.ai/mode,crucible.ai/type]"
+    - "nodes=[karpenter.sh/nodepool,karpenter.sh/capacity-type,zipline.ai/team,zipline.ai/node-pool]"
+    - "namespaces=[zipline.ai/team,zipline.ai/namespace-type]"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
 promtail:
   enabled: true
   config:
