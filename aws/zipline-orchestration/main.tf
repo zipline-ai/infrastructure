@@ -17,6 +17,11 @@ variable "aws" {
     error_message = "aws must include non-empty warehouse_bucket and region."
   }
 
+  validation {
+    condition     = !contains(keys(var.aws), "auth_secret_values")
+    error_message = "aws.auth_secret_values is no longer supported. Store authentication values in AWS Secrets Manager and set aws.auth_secret_arn or orchestration.auth.secrets_arn."
+  }
+
   # vpc_id/primary_subnet_id/secondary_subnet_id are provisioned on the fly when
   # omitted (see network.tf); supply all three together to bring your own network.
   validation {
@@ -39,16 +44,15 @@ variable "aws" {
 resource "terraform_data" "configuration_validation" {
   input = {
     auth_enabled       = local.auth_enabled
-    auth_secret_arn    = local.configured_auth_secret_arn
-    create_auth_secret = local.create_auth_secret
+    auth_secret_arn    = local.auth_secret_arn
     redis_enabled      = local.redis.enabled
     redis_managed      = local.redis_managed
   }
 
   lifecycle {
     precondition {
-      condition     = !local.auth_enabled || local.create_auth_secret || trimspace(local.configured_auth_secret_arn) != ""
-      error_message = "When auth.enabled is true, set aws.auth_secret_arn, orchestration.auth.secrets_arn, or aws.auth_secret_values so the AWS wrapper can provide the auth secret."
+      condition     = !local.auth_enabled || can(regex("^arn:[a-z0-9-]+:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+$", local.auth_secret_arn))
+      error_message = "When auth.enabled is true, set aws.auth_secret_arn or orchestration.auth.secrets_arn to a valid AWS Secrets Manager secret ARN."
     }
 
     precondition {
