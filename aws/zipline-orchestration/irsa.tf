@@ -615,6 +615,13 @@ resource "aws_iam_policy" "databricks_secrets_policy" {
   })
 }
 
+# Spark compute pods (batch backfills, giga tiles) resolve the vault URI refs at job startup.
+resource "aws_iam_role_policy_attachment" "spark_compute_databricks_secrets" {
+  count      = try(trimspace(local.cloud_args.databricks_client_id), "") != "" ? 1 : 0
+  role       = aws_iam_role.spark_compute_execution.name
+  policy_arn = aws_iam_policy.databricks_secrets_policy[0].arn
+}
+
 # Flink compute pods need to resolve the vault URI refs at job startup.
 resource "aws_iam_role_policy_attachment" "flink_compute_databricks_secrets" {
   count      = try(trimspace(local.cloud_args.databricks_client_id), "") != "" ? 1 : 0
