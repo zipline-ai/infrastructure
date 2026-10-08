@@ -22,6 +22,9 @@ class AuthInputsTest(unittest.TestCase):
         arn_expression = locals_source.split("  auth_secret_arn =", 1)[1].split("\n\n", 1)[0]
         source += ('\nlocals {\n'
                    '  cloud_args = merge({ auth_secret_arn = "" }, var.aws)\n'
+                   # Shared configuration validation also reads Redis settings.
+                   '  redis = { enabled = false, password_secret_arn = "", shards = 1, replicas_per_shard = 0 }\n'
+                   '  redis_managed = false\n'
                    '  auth_enabled = try(var.orchestration.auth.enabled, false)\n'
                    '  auth_secret_arn =' + arn_expression + '\n}\n'
                    'output "auth_secret_arn" { value = local.auth_secret_arn }\n')
