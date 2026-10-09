@@ -58,8 +58,12 @@ At minimum, each Terraform module should provide:
 
 ## Data Explorer
 
-The chart always deploys StarRocks for the Data Explorer at
-`starrocks-service:9030` and passes that endpoint to the web UI. Its
+Data Explorer is disabled by default. Set `dataExplorer.enabled: true` to
+enable the UI feature and catalog initialization job. The Terraform setting
+`orchestration.data_explorer.enabled` controls this value and installation of
+the separate StarRocks operator and cluster Helm release on both AWS and Azure.
+When using Helm directly, provision that release separately before enabling
+this feature. The UI connects to `<starrocks.clusterName>-fe-service:9030`. Its
 `zipline_catalog` external catalog is recreated after every install or upgrade
 using the runtime credential created by Polaris. It connects to the
 `polaris_<realm>` Polaris warehouse. The catalog uses the Iceberg

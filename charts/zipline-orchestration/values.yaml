@@ -271,8 +271,13 @@ polaris:
       cpu: "2"
       memory: "4Gi"
 
-# StarRocks is the query engine behind the Data Explorer. It is always
-# deployed and is initialized against the Polaris Iceberg REST catalog below.
+# Opt in to the Data Explorer UI and StarRocks catalog initialization.
+# Terraform uses this same flag to control the StarRocks Helm release.
+dataExplorer:
+  enabled: false
+
+# StarRocks is the query engine behind the Data Explorer. When enabled, it is
+# deployed and initialized against the Polaris Iceberg REST catalog below.
 # Polaris vends the storage credentials, keeping this configuration independent
 # of the cloud object-store provider.
 starrocks:

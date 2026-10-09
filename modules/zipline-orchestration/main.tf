@@ -108,7 +108,8 @@ locals {
   }
   install = merge(local.install_defaults, try(local.orchestration.install, {}))
 
-  starrocks_input = try(local.orchestration.values.starrocks, {})
+  data_explorer_enabled = try(local.orchestration.data_explorer.enabled, false)
+  starrocks_input       = try(local.orchestration.values.starrocks, {})
   starrocks_defaults = {
     chartVersion = "1.11.7"
     clusterName  = "starrocks"
@@ -794,7 +795,7 @@ resource "terraform_data" "configuration_validation" {
     }
 
     precondition {
-      condition     = length(local.starrocks.feConfig) > 0
+      condition     = !local.data_explorer_enabled || length(local.starrocks.feConfig) > 0
       error_message = "orchestration.values.starrocks.feConfig must configure cloud-native storage for the shared-data StarRocks cluster."
     }
 
@@ -868,6 +869,12 @@ module "addons" {
   depends_on = [kubernetes_namespace_v1.this]
 }
 
+# Preserve the existing release address when Data Explorer remains enabled.
+moved {
+  from = helm_release.starrocks
+  to   = helm_release.starrocks[0]
+}
+
 # The upstream chart installs both the StarRocksCluster CRD/operator and the
 # StarRocksCluster custom resource. Keeping it outside the application chart
 # makes the operator lifecycle explicit and lets all cloud wrappers share it.
@@ -879,6 +886,8 @@ module "addons" {
 # latest makes plan == apply. Bump chartVersion when StarRocks publishes a new
 # kube-starrocks release.
 resource "helm_release" "starrocks" {
+  count = local.data_explorer_enabled ? 1 : 0
+
   name       = local.starrocks.clusterName
   repository = "https://starrocks.github.io/starrocks-kubernetes-operator"
   chart      = "kube-starrocks"
@@ -967,6 +976,9 @@ resource "helm_release" "this" {
     [yamlencode(try(local.orchestration.values, {}))],
     [for value in try(local.orchestration.extra_values, []) : yamlencode(value)],
     try(local.orchestration.extra_values_yaml, []),
+    # Keep the UI and catalog job consistent with the Terraform-managed release,
+    # including when callers supply additional Helm values.
+    [yamlencode({ dataExplorer = { enabled = local.data_explorer_enabled } })],
   )
 
   depends_on = [
