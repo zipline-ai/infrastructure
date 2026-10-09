@@ -217,8 +217,8 @@ node pools can be added through `azure.node_pools`.
 
 Crucible Spark and Flink placement uses pools shared by all teams. Configure
 the `zipline.ai/engine` label and `zipline.ai/workload=<engine>:NoSchedule`
-taint using `spark` or `flink`. Set `zipline.ai/supports-<role>="true"` for
-each role a pool supports: `driver`, `executor`, `jobmanager`, or `taskmanager`.
+taint using `spark` or `flink`. Spark nodes also use `zipline.ai/role` set to
+`driver` or `executor`. Flink selects by engine so both roles share nodes.
 Team and role labels remain on pods; namespace quotas enforce team
 budgets. This wrapper does not generate those pools automatically.
 

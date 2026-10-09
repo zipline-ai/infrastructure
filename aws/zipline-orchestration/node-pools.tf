@@ -6,8 +6,8 @@ locals {
     "zipline.ai/node-pool" = local.system_node_pool
   } : {}
   image_prepull_node_selector = local.karpenter.enabled ? {
-    "zipline.ai/engine"            = "spark"
-    "zipline.ai/supports-executor" = "true"
+    "zipline.ai/engine" = "spark"
+    "zipline.ai/role"   = "executor"
   } : {}
   system_node_tolerations = local.karpenter.enabled ? [
     {
@@ -62,24 +62,24 @@ locals {
   karpenter_compute_pool_defaults = {
     spark-driver = {
       engine        = "spark"
-      roles         = ["driver"]
+      role          = "driver"
       capacity_type = "on-demand"
       limits        = { cpu = "100", memory = "400Gi" }
     }
     spark-executor = {
       engine        = "spark"
-      roles         = ["executor"]
+      role          = "executor"
       capacity_type = "spot"
       limits        = { cpu = "1000", memory = "4000Gi" }
     }
     flink = {
       engine        = "flink"
-      roles         = ["jobmanager", "taskmanager"]
+      role          = null
       capacity_type = "on-demand"
       limits        = { cpu = "1100", memory = "4400Gi" }
     }
   }
-  # Pools own hardware and capacity requirements; pods select supported roles.
+  # Pools own hardware and capacity requirements; Spark pods select their role.
   karpenter_compute_requirements = [
     { key = "kubernetes.io/os", operator = "In", values = tolist(["linux"]) },
     { key = "kubernetes.io/arch", operator = "In", values = local.karpenter_compute_arch },
@@ -124,7 +124,7 @@ locals {
       labels = merge({
         "zipline.ai/engine"   = pool.engine
         "zipline.ai/workload" = pool.engine
-      }, { for role in pool.roles : "zipline.ai/supports-${role}" => "true" })
+      }, pool.role == null ? {} : { "zipline.ai/role" = pool.role })
       taints = [{
         key      = "zipline.ai/workload"
         operator = "Equal"
@@ -175,8 +175,8 @@ locals {
   compute_warm_pool = {
     enabled = local.karpenter.enabled
     nodeSelector = {
-      "zipline.ai/engine"          = "spark"
-      "zipline.ai/supports-driver" = "true"
+      "zipline.ai/engine" = "spark"
+      "zipline.ai/role"   = "driver"
     }
     tolerations = local.karpenter_compute_node_pools["spark-driver"].taints
   }

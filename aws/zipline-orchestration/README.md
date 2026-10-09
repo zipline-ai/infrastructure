@@ -231,11 +231,11 @@ wrapper supplies the warehouse bucket and region from `aws.warehouse_bucket` and
 Karpenter is enabled by default. The wrapper creates a tainted `system` NodePool
 for Zipline system services and three compute NodePools shared by all teams:
 
-| NodePool | Engine / workload taint value | Role support labels set to `"true"` |
+| NodePool | Engine / workload taint value | `zipline.ai/role` label |
 | --- | --- | --- |
-| `spark-driver` | `spark` | `zipline.ai/supports-driver` |
-| `spark-executor` | `spark` | `zipline.ai/supports-executor` |
-| `flink` | `flink` | `zipline.ai/supports-jobmanager`, `zipline.ai/supports-taskmanager` |
+| `spark-driver` | `spark` | `driver` |
+| `spark-executor` | `spark` | `executor` |
+| `flink` | `flink` | Unset (shared by both roles) |
 
 Compute nodes carry engine and workload labels and a
 `zipline.ai/workload=<engine>:NoSchedule` taint. Spark drivers use the on-demand

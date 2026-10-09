@@ -187,8 +187,7 @@ class SharedComputePoolTest(unittest.TestCase):
     def test_rendered_pools_separate_spark_capacity_and_share_flink_capacity(self):
         pools = render_pools(evaluate()["pools"])
         self.assertEqual(set(pools), SHARED_POOLS | {"system"})
-        roles = {"spark-driver": ["driver"], "spark-executor": ["executor"],
-                 "flink": ["jobmanager", "taskmanager"]}
+        roles = {"spark-driver": "driver", "spark-executor": "executor"}
         limits = {"spark-driver": {"cpu": "100", "memory": "400Gi"},
                   "spark-executor": {"cpu": "1000", "memory": "4000Gi"},
                   "flink": {"cpu": "1100", "memory": "4400Gi"}}
@@ -198,7 +197,7 @@ class SharedComputePoolTest(unittest.TestCase):
             template = pool["template"]
             self.assertEqual(template["metadata"]["labels"], {
                 "zipline.ai/engine": engine, "zipline.ai/workload": engine,
-                **{f"zipline.ai/supports-{role}": "true" for role in roles[name]},
+                **({"zipline.ai/role": roles[name]} if name in roles else {}),
             })
             self.assertEqual(template["spec"]["taints"], [{
                 "key": "zipline.ai/workload", "operator": "Equal", "value": engine, "effect": "NoSchedule",
@@ -223,7 +222,9 @@ class SharedComputePoolTest(unittest.TestCase):
                                            ("flink", "jobmanager", "flink"),
                                            ("flink", "taskmanager", "flink")):
                 with self.subTest(teams=teams, engine=engine, role=role):
-                    selector = {"zipline.ai/engine": engine, f"zipline.ai/supports-{role}": "true"}
+                    selector = {"zipline.ai/engine": engine}
+                    if engine == "spark":
+                        selector["zipline.ai/role"] = role
                     matches = {name for name, pool in pools.items() if all(
                         pool["spec"]["template"]["metadata"]["labels"].get(key) == value
                         for key, value in selector.items())}
@@ -235,7 +236,7 @@ class SharedComputePoolTest(unittest.TestCase):
         prepull = next(doc for doc in documents if doc["kind"] == "DaemonSet" and doc["metadata"]["name"].endswith("-image-prepull"))
         spec = prepull["spec"]["template"]["spec"]
         self.assertEqual(spec["nodeSelector"], {
-            "zipline.ai/engine": "spark", "zipline.ai/supports-executor": "true",
+            "zipline.ai/engine": "spark", "zipline.ai/role": "executor",
         })
         self.assertIn({"key": "zipline.ai/workload", "operator": "Equal", "value": "spark",
                        "effect": "NoSchedule"}, spec["tolerations"])
@@ -248,7 +249,7 @@ class SharedComputePoolTest(unittest.TestCase):
                     and doc["metadata"]["name"].endswith("-warm-pool"))
         spec = warm["spec"]["template"]["spec"]
         self.assertEqual(spec["nodeSelector"], {
-            "zipline.ai/engine": "spark", "zipline.ai/supports-driver": "true",
+            "zipline.ai/engine": "spark", "zipline.ai/role": "driver",
         })
         self.assertEqual(spec["tolerations"], values["pools"]["spark-driver"]["taints"])
         self.assertNotIn("affinity", spec)
