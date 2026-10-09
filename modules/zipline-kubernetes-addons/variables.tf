@@ -1,3 +1,13 @@
+variable "namespace" {
+  description = "Existing namespace where Zipline-managed operators are installed."
+  type        = string
+
+  validation {
+    condition     = trimspace(var.namespace) != ""
+    error_message = "namespace must not be empty."
+  }
+}
+
 variable "install_external_secrets_operator" {
   description = "Install External Secrets Operator."
   type        = bool

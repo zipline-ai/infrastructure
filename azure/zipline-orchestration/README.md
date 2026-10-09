@@ -138,6 +138,13 @@ Authentication is disabled unless `orchestration.auth.enabled = true`. When auth
 is enabled, the Azure wrapper expects auth secret values to exist in Key Vault
 with the names used by the shared chart.
 
+Put authentication values into Key Vault outside Terraform. In tfvars, configure
+`azure.keyvault_name` and, if needed, map chart keys to Key Vault secret names with
+`orchestration.secrets.auth_remote_refs` (for example,
+`auth-secret = { key = "my-auth-secret" }`). These references contain secret names,
+not secret values. `orchestration.image_pull_secret.dockerhub_token` remains a
+supported plaintext input, and arbitrary Helm overrides remain unrestricted.
+
 The expected Key Vault secret names are:
 
 - `auth-secret`
@@ -207,6 +214,15 @@ Azure wrapper supplies the warehouse container and region from
 The wrapper creates an AKS cluster with workload identity enabled. The default
 node pool is intended to be a general-purpose starting point, and optional user
 node pools can be added through `azure.node_pools`.
+
+Crucible Spark and Flink placement uses pools shared by all teams. Configure
+the `zipline.ai/engine` label and `zipline.ai/workload=<engine>:NoSchedule`
+taint using `spark` or `flink`. Spark nodes also use `zipline.ai/role` set to
+`driver` or `executor`. Flink selects by engine so both roles share nodes.
+Team and role labels remain on pods; namespace quotas enforce team
+budgets. This wrapper does not generate those pools automatically.
+
+Ray uses its configured selectors and tolerations.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -569,3 +585,26 @@ principal, grants it access to the seeded catalog role, writes its
 `client_id:client_secret` value into the `polaris-client-credentials`
 Kubernetes Secret as `OC_CREDENTIAL`, and restarts Hub so Spark catalog
 placeholders can be resolved without customer-supplied Polaris credentials.
+
+## Data Explorer
+
+Data Explorer is disabled by default. Add this field to the existing
+`orchestration` object in each environment's tfvars to enable it:
+
+```hcl
+orchestration = {
+  # Existing deployment and other settings...
+  data_explorer = {
+    enabled = true
+  }
+}
+```
+
+Set `enabled = false` or omit `data_explorer` to disable the UI feature,
+StarRocks Helm release (operator and cluster), and catalog initialization job.
+This setting takes precedence over additional Helm values so the UI and
+StarRocks deployment stay consistent. Polaris remains available for other services.
+
+For existing deployments, set `enabled = true` before applying to retain
+Data Explorer. Applying with the default `false` removes the existing StarRocks
+release. A Terraform state migration preserves the release when enabled.

@@ -68,7 +68,6 @@ compute:
     eventLogDir: ""
     imagePullPolicy: "Always"
     chrononJarPath: "/opt/chronon/chronon-spark.jar"
-    spotNodeSelector: {}
   flinkDefaults:
     serviceAccount: flink
     serviceAccountAnnotations: {}
@@ -76,6 +75,26 @@ compute:
     enabled: true
     name: "zipline-compute-system"
     value: 1000
+  workloadPriorityClasses:
+    enabled: true
+    backfill:
+      name: "zipline-backfill"
+      value: 100
+      preemptionPolicy: PreemptLowerPriority
+    deploy:
+      name: "zipline-deploy"
+      value: 200
+      preemptionPolicy: PreemptLowerPriority
+  # Mode quotas are enabled only for listed namespaces. An empty hard map
+  # inherits that namespace's aggregate resourceQuota.hard values.
+  modeResourceQuotas:
+    zipline-default:
+      backfill:
+        priorityClassName: "zipline-backfill"
+        hard: {}
+      deploy:
+        priorityClassName: "zipline-deploy"
+        hard: {}
   warmPool:
     enabled: false
     replicas: 2
@@ -256,8 +275,13 @@ polaris:
       cpu: "2"
       memory: "4Gi"
 
-# StarRocks is the query engine behind the Data Explorer. It is always
-# deployed and is initialized against the Polaris Iceberg REST catalog below.
+# Opt in to the Data Explorer UI and StarRocks catalog initialization.
+# Terraform uses this same flag to control the StarRocks Helm release.
+dataExplorer:
+  enabled: false
+
+# StarRocks is the query engine behind the Data Explorer. When enabled, it is
+# deployed and initialized against the Polaris Iceberg REST catalog below.
 # Polaris vends the storage credentials, keeping this configuration independent
 # of the cloud object-store provider.
 starrocks:
@@ -523,6 +547,26 @@ spark-operator:
       name: spark-operator-spark
     rbac:
       create: false
+
+kube-state-metrics:
+  enabled: true
+  # Scraped by the existing pod_exporter AMP job via these annotations.
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+  # Expose Zipline / Karpenter pod and node labels on kube_{pod,node}_labels so
+  # Hub Monitor queries can group by team / engine / role / nodepool.
+  metricLabelsAllowlist:
+    - "pods=[zipline.ai/team,zipline.ai/engine,zipline.ai/role,zipline.ai/workload,zipline.ai/mode,crucible.ai/type]"
+    - "nodes=[karpenter.sh/nodepool,karpenter.sh/capacity-type,zipline.ai/team,zipline.ai/node-pool]"
+    - "namespaces=[zipline.ai/team,zipline.ai/namespace-type]"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
 
 promtail:
   enabled: true

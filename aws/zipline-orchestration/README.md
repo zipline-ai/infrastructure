@@ -153,32 +153,8 @@ Choose one of these secret sources:
 
 | Field | Use when |
 | --- | --- |
-| `aws.auth_secret_arn` | The environment keeps AWS resource references in the `aws` object. |
-| `orchestration.auth.secrets_arn` | Shared configuration tooling keeps all authentication settings together in the `orchestration.auth` object. |
-| `aws.auth_secret_values` | Terraform should create the AWS Secrets Manager secret from supplied values. |
-
-To keep secret values out of tfvars, create the secret in AWS Secrets Manager
-and pass its ARN to the wrapper:
-
-```hcl
-orchestration = {
-  auth = {
-    enabled = true
-  }
-}
-
-aws = {
-  auth_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:zipline-auth-AbCdEf"
-}
-```
-
-Both ARN fields configure the same AWS Secrets Manager integration. Prefer
-`aws.auth_secret_arn` for AWS-specific tfvars. Prefer
-`orchestration.auth.secrets_arn` when a shared configuration generator or
-reusable orchestration configuration keeps authentication settings together
-under `orchestration.auth`. The shared field does not make the AWS Secrets
-Manager ARN portable to another cloud. If both fields are set,
-`aws.auth_secret_arn` takes precedence.
+| `aws.auth_secret_arn` | Auth secrets already exist in AWS Secrets Manager. |
+| `orchestration.auth.secrets_arn` | You want to use the shared auth secret ARN field instead of the AWS-specific alias. |
 
 The expected auth secret properties are:
 
@@ -189,21 +165,23 @@ The expected auth secret properties are:
 - `sso-client-secret`
 - `sso-saml-cert`, only when `orchestration.auth.sso_use_saml = true`
 
-When using `aws.auth_secret_values`, provide the same values with Terraform-safe
-map keys:
+Populate the secret in Secrets Manager outside Terraform, then reference its ARN
+in tfvars (alongside the other required AWS settings):
 
 ```hcl
 aws = {
-  auth_secret_values = {
-    auth_secret                         = "..."
-    google_oauth_client_secret          = "..."
-    github_oauth_client_secret          = "..."
-    microsoft_entra_oauth_client_secret = "..."
-    sso_client_secret                   = "..."
-    sso_saml_cert                       = "..."
-  }
+  auth_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:zipline-auth-AbCdEf"
 }
 ```
+
+`aws.auth_secret_values` is rejected, including empty maps. For existing installs,
+set the ARN of the previously created auth secret and remove `auth_secret_values`
+from tfvars before applying. Terraform relinquishes management of the existing
+auth secret and its version without deleting them. Historical Terraform state
+may still contain the old values.
+
+`orchestration.image_pull_secret.dockerhub_token` remains supported. Arbitrary
+Helm overrides remain unrestricted. Generated database credentials are unchanged.
 
 Set only the auth provider fields that the environment uses:
 
@@ -251,8 +229,22 @@ wrapper supplies the warehouse bucket and region from `aws.warehouse_bucket` and
 ### Karpenter and EKS Capacity
 
 Karpenter is enabled by default. The wrapper creates a tainted `system` NodePool
-for Zipline system services and tainted compute NodePools for Spark drivers,
-Spark executors, Flink job managers, and Flink task managers.
+for Zipline system services and three compute NodePools shared by all teams:
+
+| NodePool | Engine / workload taint value | `zipline.ai/role` label |
+| --- | --- | --- |
+| `spark-driver` | `spark` | `driver` |
+| `spark-executor` | `spark` | `executor` |
+| `flink` | `flink` | Unset (shared by both roles) |
+
+Compute nodes carry engine and workload labels and a
+`zipline.ai/workload=<engine>:NoSchedule` taint. Spark drivers use the on-demand
+driver pool, and executors use the Spot executor pool. The Flink pool uses
+on-demand capacity for both JobManagers and TaskManagers.
+Team and role labels stay on pods. Adding a team namespace does not add NodePools.
+Namespace ResourceQuotas, including mode-scoped quotas, enforce team budgets.
+The pool limits below cap capacity across all teams using each pool; they do
+not reserve capacity for a team.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -279,24 +271,36 @@ Common Karpenter sizing knobs:
 
 | Field | Default | Use when |
 | --- | --- | --- |
-| `aws.karpenter.driver_arch` | `["arm64"]` | Driver nodes must use another architecture. |
-| `aws.karpenter.driver_categories` | `["m"]` | Driver nodes need other EC2 instance families. |
-| `aws.karpenter.executor_arch` | `["arm64"]` | Executor nodes must use another architecture. |
-| `aws.karpenter.executor_categories` | `["c", "m", "r"]` | Executor nodes need other EC2 instance families. |
-| `aws.karpenter.executor_capacity_type` | `["spot"]` | Executors should run on on-demand, spot, or both. |
-| `aws.karpenter.executor_min_categories` | `2` | Spot diversification requirements need tuning. |
+| `aws.karpenter.compute_arch` | `["arm64"]` | Compute nodes must use another architecture. |
+| `aws.karpenter.compute_categories` | `["c", "m", "r"]` | Compute nodes need other EC2 instance families. |
+| `aws.karpenter.compute_instance_types` | `[]` | Pin compute pools to explicit EC2 instance types instead of category/generation selectors. |
 | `aws.karpenter.min_instance_generation` | `"6"` | Pools should allow older or require newer instance generations. |
-| `aws.karpenter.pool_limits` | `{ cpu = "1000", memory = "4000Gi" }` | You want a global pool launch cap. |
-| `aws.karpenter.driver_limits` | `{ cpu = "100", memory = "400Gi" }` | Driver pools need a different launch cap. |
-| `aws.karpenter.executor_limits` | `{ cpu = "1000", memory = "4000Gi" }` | Executor pools need a different launch cap. |
+| `aws.karpenter.pool_limits` | `{ cpu = "1000", memory = "4000Gi" }` | The system pool needs a different launch cap. |
+| `aws.karpenter.compute_limits` | `{}` | Apply common CPU or memory overrides to each compute pool. |
+| `aws.karpenter.spark_driver_limits` | `{ cpu = "100", memory = "400Gi" }` | Spark drivers need a different launch cap; overrides common limits. |
+| `aws.karpenter.spark_executor_limits` | `{ cpu = "1000", memory = "4000Gi" }` | Spark executors need a different launch cap; overrides common limits. |
+| `aws.karpenter.flink_limits` | `{ cpu = "1100", memory = "4400Gi" }` | Flink needs a different launch cap; overrides common limits. |
 | `aws.karpenter.system_expire_after` | `Never` | System nodes should be periodically recycled. |
 | `aws.karpenter.compute_expire_after` | `720h` | Compute nodes should recycle more or less often. |
 | `aws.karpenter.system_termination_grace_period` | `5m` | System nodes need a different drain grace period. |
 
-Spark executor pools require EC2 instance types with local NVMe. Karpenter
+The Spark executor pool requires EC2 instance types with local NVMe. Karpenter
 combines all instance-store disks into RAID0 and exposes the result as standard
 Kubernetes ephemeral storage, so Spark can use its default `emptyDir` local
-directories without provider-specific mounts or node labels.
+directories without provider-specific mounts. Drivers and the on-demand warm
+pool do not require NVMe; image prepull selects nodes supporting Spark executors.
+
+Ray uses its configured
+`CRUCIBLE_RAY_{HEAD,WORKER,SUBMITTER}_NODE_SELECTOR` and
+`CRUCIBLE_RAY_{HEAD,WORKER,SUBMITTER}_TOLERATIONS`. No Ray pools are generated
+by this wrapper.
+
+Run the placement and chart tests without cloud credentials:
+
+```bash
+# Terraform or OpenTofu and Helm must be on PATH; TERRAFORM can override the binary.
+uv run --with PyYAML python -m unittest discover -s tests -v
+```
 
 ### Storage, Logs, and IAM Grants
 
@@ -480,3 +484,26 @@ principal, grants it access to the seeded catalog role, writes its
 `client_id:client_secret` value into the `polaris-client-credentials`
 Kubernetes Secret as `OC_CREDENTIAL`, and restarts Hub so Spark catalog
 placeholders can be resolved without customer-supplied Polaris credentials.
+
+## Data Explorer
+
+Data Explorer is disabled by default. Add this field to the existing
+`orchestration` object in each environment's tfvars to enable it:
+
+```hcl
+orchestration = {
+  # Existing deployment and other settings...
+  data_explorer = {
+    enabled = true
+  }
+}
+```
+
+Set `enabled = false` or omit `data_explorer` to disable the UI feature,
+StarRocks Helm release (operator and cluster), and catalog initialization job.
+This setting takes precedence over additional Helm values so the UI and
+StarRocks deployment stay consistent. Polaris remains available for other services.
+
+For existing deployments, set `enabled = true` before applying to retain
+Data Explorer. Applying with the default `false` removes the existing StarRocks
+release. A Terraform state migration preserves the release when enabled.

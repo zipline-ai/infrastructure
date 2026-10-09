@@ -108,7 +108,8 @@ locals {
   }
   install = merge(local.install_defaults, try(local.orchestration.install, {}))
 
-  starrocks_input = try(local.orchestration.values.starrocks, {})
+  data_explorer_enabled = try(local.orchestration.data_explorer.enabled, false)
+  starrocks_input       = try(local.orchestration.values.starrocks, {})
   starrocks_defaults = {
     chartVersion = "1.11.7"
     clusterName  = "starrocks"
@@ -512,6 +513,31 @@ locals {
     spark_defaults         = {}
     flink_defaults         = {}
     namespace_defaults     = {}
+    workload_priority_classes = {
+      enabled = true
+      backfill = {
+        name             = "zipline-backfill"
+        value            = 100
+        preemptionPolicy = "PreemptLowerPriority"
+      }
+      deploy = {
+        name             = "zipline-deploy"
+        value            = 200
+        preemptionPolicy = "PreemptLowerPriority"
+      }
+    }
+    mode_resource_quotas = {
+      "zipline-default" = {
+        backfill = {
+          priorityClassName = "zipline-backfill"
+          hard              = {}
+        }
+        deploy = {
+          priorityClassName = "zipline-deploy"
+          hard              = {}
+        }
+      }
+    }
     object_store = {
       bucket = ""
       region = ""
@@ -551,7 +577,7 @@ locals {
     local.compute.image_prepull_overrides,
   )
   # Crucible warm pool pause pods + compute priority classes.
-  # Disabled by default; enable + target a driver pool via compute.warm_pool.
+  # Disabled by default; enable + target Spark capacity via compute.warm_pool.
   # do-not-disrupt keeps Karpenter from consolidating the pre-warmed nodes away.
   compute_warm_pool = merge(
     {
@@ -647,13 +673,15 @@ locals {
       rbac = {
         create = local.compute.rbac_create
       }
-      sparkDefaults       = local.compute_spark_defaults
-      flinkDefaults       = local.compute_flink_defaults
-      namespaceDefaults   = local.compute.namespace_defaults
-      imagePrepull        = local.compute_image_prepull
-      historyServer       = local.compute_history_server
-      warmPool            = local.compute_warm_pool
-      systemPriorityClass = local.compute_system_priority_class
+      sparkDefaults           = local.compute_spark_defaults
+      flinkDefaults           = local.compute_flink_defaults
+      namespaceDefaults       = local.compute.namespace_defaults
+      workloadPriorityClasses = local.compute.workload_priority_classes
+      modeResourceQuotas      = local.compute.mode_resource_quotas
+      imagePrepull            = local.compute_image_prepull
+      historyServer           = local.compute_history_server
+      warmPool                = local.compute_warm_pool
+      systemPriorityClass     = local.compute_system_priority_class
     }
 
     ingress = {
@@ -774,7 +802,7 @@ resource "terraform_data" "configuration_validation" {
     }
 
     precondition {
-      condition     = length(local.starrocks.feConfig) > 0
+      condition     = !local.data_explorer_enabled || length(local.starrocks.feConfig) > 0
       error_message = "orchestration.values.starrocks.feConfig must configure cloud-native storage for the shared-data StarRocks cluster."
     }
 
@@ -833,6 +861,7 @@ resource "kubernetes_secret_v1" "docker_hub_creds" {
 module "addons" {
   source = "../zipline-kubernetes-addons"
 
+  namespace                         = local.install.namespace
   install_external_secrets_operator = local.addons.install_external_secrets_operator
   external_secrets_operator_values  = local.addons.external_secrets_operator_values
   install_cert_manager              = local.addons.install_cert_manager
@@ -843,6 +872,14 @@ module "addons" {
   kuberay_operator_values           = local.addons.kuberay_operator_values
   install_opentelemetry_operator    = local.addons.install_opentelemetry_operator
   install_metrics_server            = local.addons.install_metrics_server
+
+  depends_on = [kubernetes_namespace_v1.this]
+}
+
+# Preserve the existing release address when Data Explorer remains enabled.
+moved {
+  from = helm_release.starrocks
+  to   = helm_release.starrocks[0]
 }
 
 # The upstream chart installs both the StarRocksCluster CRD/operator and the
@@ -856,6 +893,8 @@ module "addons" {
 # latest makes plan == apply. Bump chartVersion when StarRocks publishes a new
 # kube-starrocks release.
 resource "helm_release" "starrocks" {
+  count = local.data_explorer_enabled ? 1 : 0
+
   name       = local.starrocks.clusterName
   repository = "https://starrocks.github.io/starrocks-kubernetes-operator"
   chart      = "kube-starrocks"
@@ -944,6 +983,9 @@ resource "helm_release" "this" {
     [yamlencode(try(local.orchestration.values, {}))],
     [for value in try(local.orchestration.extra_values, []) : yamlencode(value)],
     try(local.orchestration.extra_values_yaml, []),
+    # Keep the UI and catalog job consistent with the Terraform-managed release,
+    # including when callers supply additional Helm values.
+    [yamlencode({ dataExplorer = { enabled = local.data_explorer_enabled } })],
   )
 
   depends_on = [
