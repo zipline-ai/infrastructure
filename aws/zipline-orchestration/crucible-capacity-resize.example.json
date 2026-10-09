@@ -1,87 +1,73 @@
 {
-  "instructions": "These are partial edits to the existing S3-backed configuration, not standalone tfvars. Merge aws fields; append the Helm override without replacing existing extra_values. Apply stages only after the preceding rollout checks pass.",
-  "phase_1_create_capacity": {
-    "merge_aws": {
-      "additional_node_groups": {
-        "default-small": {
-          "instance_type": "m5a.xlarge",
-          "min_size": 3,
-          "desired_size": 3,
-          "max_size": 8
+  "instructions": "Partial edits to the existing S3-backed configuration, not standalone tfvars. Merge aws fields and append the Helm override without replacing existing extra_values. Direct node-group replacement causes accepted workload downtime. Review before uploading or applying.",
+  "merge_aws": {
+    "eks_instance_type": "m5a.xlarge",
+    "eks_min_size": 3,
+    "eks_desired_size": 3,
+    "eks_max_size": 8,
+    "karpenter": {
+      "node_pools": {
+        "system": {
+          "requirements": [
+            {
+              "key": "kubernetes.io/os",
+              "operator": "In",
+              "values": [
+                "linux"
+              ]
+            },
+            {
+              "key": "kubernetes.io/arch",
+              "operator": "In",
+              "values": [
+                "amd64"
+              ]
+            },
+            {
+              "key": "karpenter.sh/capacity-type",
+              "operator": "In",
+              "values": [
+                "on-demand"
+              ]
+            },
+            {
+              "key": "karpenter.k8s.aws/instance-category",
+              "operator": "In",
+              "values": [
+                "c",
+                "m",
+                "r"
+              ]
+            },
+            {
+              "key": "karpenter.k8s.aws/instance-generation",
+              "operator": "Gt",
+              "values": [
+                "2"
+              ]
+            },
+            {
+              "key": "karpenter.k8s.aws/instance-size",
+              "operator": "In",
+              "values": [
+                "large",
+                "xlarge",
+                "2xlarge"
+              ]
+            }
+          ]
         }
       }
     }
   },
-  "phase_2_after_draining_old_nodes": {
-    "merge_aws": {
-      "eks_instance_type": "m8a.4xlarge",
-      "eks_min_size": 0,
-      "eks_desired_size": 0,
-      "eks_max_size": 8
-    }
-  },
-  "phase_3_system_and_warm_pool": {
-    "merge_aws_karpenter_node_pools": {
-      "system": {
-        "requirements": [
-          {
-            "key": "kubernetes.io/os",
-            "operator": "In",
-            "values": [
-              "linux"
-            ]
-          },
-          {
-            "key": "kubernetes.io/arch",
-            "operator": "In",
-            "values": [
-              "amd64"
-            ]
-          },
-          {
-            "key": "karpenter.sh/capacity-type",
-            "operator": "In",
-            "values": [
-              "on-demand"
-            ]
-          },
-          {
-            "key": "karpenter.k8s.aws/instance-category",
-            "operator": "In",
-            "values": [
-              "c",
-              "m",
-              "r"
-            ]
-          },
-          {
-            "key": "karpenter.k8s.aws/instance-generation",
-            "operator": "Gt",
-            "values": [
-              "2"
-            ]
-          },
-          {
-            "key": "karpenter.k8s.aws/instance-size",
-            "operator": "In",
-            "values": [
-              "large",
-              "xlarge",
-              "2xlarge"
-            ]
-          }
-        ]
-      }
-    },
-    "append_to_orchestration_extra_values": {
-      "compute": {
-        "warmPool": {
-          "enabled": true,
-          "replicas": 2,
-          "resources": {
-            "cpu": "1",
-            "memory": "1408Mi"
-          }
+  "append_to_orchestration_extra_values": {
+    "compute": {
+      "warmPool": {
+        "enabled": true,
+        "replicas": 2,
+        "resources": {
+          "cpu": "1",
+          "memory": "1408Mi"
         }
       }
     }

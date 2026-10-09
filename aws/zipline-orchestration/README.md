@@ -63,76 +63,33 @@ cp public-demo.auto.tfvars.example public-demo.auto.tfvars
 The public demo should keep datasource buckets in
 `../public-demo-datasources` and reset only this orchestration layer weekly.
 
-## Resize Managed Nodes in Stages
+## Crucible Capacity Reduction
 
-Changing `aws.eks_instance_type` replaces the existing default node group.
-Use `aws.additional_node_groups` to create replacement capacity first. Its
-default is an empty map, so existing environments keep their current topology.
-Additional groups use the default group's role, launch template, subnets,
-Kubernetes version, and workload labels. Keys must be unique group suffixes
-other than `default`.
+The credential-free settings in
+[`crucible-capacity-resize.example.json`](crucible-capacity-resize.example.json)
+are partial edits to the S3-backed configuration. Merge the AWS fields and
+append the Helm override without replacing existing `orchestration.extra_values`.
 
-The complete, credential-free edits for each Crucible stage are in
-[`crucible-capacity-resize.example.json`](crucible-capacity-resize.example.json).
-They are partial edits to the existing settings, not standalone variable files.
-Re-plan after each completed stage; plans prepared against the original state
-are preflight checks, not a sequence of plans ready to apply.
+Set the existing default group to three `m5a.xlarge` nodes (minimum/desired 3,
+maximum 8). Terraform replaces `crucible-default` because its instance type
+changes. The existing group is deleted before its replacement is created;
+workload interruption and restarts are accepted for this Crucible resize.
 
-For Crucible, add this field to the S3-backed `aws` settings while retaining
-the existing default group's type and three-node scaling configuration:
+Limit the Karpenter system pool to `large`, `xlarge`, and `2xlarge`, preserving
+its other requirements. Retain two warm placeholders, each requesting 1 CPU and
+1408Mi. Spark and Flink pools remain elastic, including support for larger test
+jobs. The system size ceiling does not guarantee a particular replacement type
+or node count. Smaller placeholder requests do not resize existing driver nodes
+by themselves; recycle oversized capacity as part of the rollout.
 
-```json
-"additional_node_groups": {
-  "default-small": {
-    "instance_type": "m5a.xlarge",
-    "min_size": 3,
-    "desired_size": 3,
-    "max_size": 8
-  }
-}
-```
-
-1. Plan creation of the additional group. The capacity change must add
-   `crucible-default-small` without deleting or changing the existing group.
-   Review unrelated changes separately. Expect temporary charges for both groups.
-2. Once the three new nodes are Ready across both availability zones, check
-   networking, DNS, volume attachment, and workload scheduling. Cordon and drain
-   one old node at a time, respecting disruption budgets. Wait for displaced
-   workloads to become ready before continuing; do not force eviction of a
-   blocked or unmanaged pod. Stop on new pending pods, errors, or memory pressure.
-3. After all old nodes are drained, set `aws.eks_min_size` and
-   `aws.eks_desired_size` to `0`. Retain the old instance type and node-group
-   resource. This preserves dependencies and lets the group be restored for
-   rollback. Do not directly resize the underlying Auto Scaling Group.
-4. Apply system-pool size restrictions and smaller warm-pool reservations in a
-   separate stage. NodePool requirements can trigger Karpenter drift replacement
-   even with `WhenEmpty` consolidation. Check stateful workload readiness and
-   same-AZ replacement capacity for their persistent volumes before proceeding.
-
-For the Crucible cost reduction, append this Helm override to the existing
-`orchestration.extra_values` list (preserving its existing entries):
-
-```json
-{"compute":{"warmPool":{"enabled":true,"replicas":2,"resources":{"cpu":"1","memory":"1408Mi"}}}}
-```
-
-Keep the system pool's existing Linux, amd64, on-demand, category, and generation
-requirements when adding an `instance-size` requirement allowing `large`,
-`xlarge`, and `2xlarge`. This is a size ceiling, not a guarantee of a particular
-replacement type or node count. Keep Spark and Flink compute pools elastic.
-Smaller warm reservations do not resize existing nodes by themselves. Recycle
-idle driver capacity only after checking for active jobs; retain two placeholders
-and their existing priority, selectors, tolerations, and disruption annotation.
-
-Before the old group is scaled down, rollback means uncordoning its nodes and
-moving displaced workloads back. After scale-down, restore its minimum/desired
-counts to three, wait for healthy nodes, then migrate workloads back. Revert the
-system requirements and warm-pool override if those stages fail. Restoring a
-configuration does not undo workload restarts.
+Before applying, review a fresh plan and retain the previous S3 configuration
+for rollback. After replacement, check node readiness, pod scheduling, PVC
+attachment, application readiness, and the two warm placeholders. Respect PVC
+availability-zone constraints when rebuilding system capacity. Rollback restores
+the previous settings and rebuilds capacity; it does not restore interrupted jobs.
 
 Keep downloaded credentials, complete variable files, state, and saved plans
-out of git. Upload the reviewed S3 settings only after approval and retain the
-previous object/version for rollback.
+out of git. Upload the reviewed S3 settings and apply only after approval.
 
 ## Required Inputs
 
