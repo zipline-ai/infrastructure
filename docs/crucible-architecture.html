@@ -1,0 +1,4015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Explore Crucible on AWS, from a Zipline configuration to Kubernetes workloads, feature data, and monitoring.">
+  <title>Crucible architecture · From configuration to compute</title>
+  <style>
+    :root { color-scheme: dark; --bg:#091210; --panel:#101e1a; --raised:#152720; --line:#2b4138; --text:#ecf3ee; --muted:#a3b5aa; --green:#9cedbd; --blue:#97c9f5; --amber:#efc27a; --violet:#c5b1eb; --radius:14px; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; scroll-padding-top:80px; background:var(--bg); }
+    body { margin:0; color:var(--text); font:15px/1.6 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:radial-gradient(ellipse at 80% 0, #173126 0, transparent 36rem),var(--bg); }
+    a { color:var(--blue); text-underline-offset:3px; }
+    a:hover { color:var(--text); }
+    button,select { font:inherit; }
+    button { cursor:pointer; }
+    button:disabled { cursor:default; opacity:.4; }
+    :focus-visible { outline:2px solid var(--green); outline-offset:4px; }
+    h1,h2,h3,p { margin:0; }
+    h1,h2,h3 { line-height:1.15; }
+    h1 { font-size:clamp(40px,5.8vw,76px); font-weight:600; letter-spacing:-.055em; max-width:900px; }
+    h2 { font-size:clamp(26px,3.2vw,40px); font-weight:580; letter-spacing:-.035em; }
+    h3 { font-size:19px; letter-spacing:-.015em; }
+    code { font: .89em ui-monospace,SFMono-Regular,Consolas,monospace; color:#d1e7d8; overflow-wrap:anywhere; }
+    .shell { max-width:1480px; width:calc(100% - 64px); margin:auto; }
+    .topbar { position:sticky; top:0; z-index:30; background:rgb(9 18 16 / .96); border-bottom:1px solid var(--line); }
+    .topbar .shell { min-height:64px; display:flex; align-items:center; justify-content:space-between; gap:24px; }
+    .brand { display:flex; align-items:center; gap:12px; color:var(--text); text-decoration:none; font-weight:650; letter-spacing:-.02em; white-space:nowrap; }
+    .brand-mark { display:grid; place-items:center; width:28px; height:28px; border:1px solid var(--green); border-radius:7px; color:var(--green); font:700 15px ui-monospace,monospace; }
+    .brand small { font-weight:400; color:var(--muted); margin-left:6px; }
+    nav { display:flex; align-items:center; gap:24px; overflow:auto; white-space:nowrap; }
+    nav a { color:var(--muted); text-decoration:none; font-size:13px; }
+    .hero { padding:64px 0 44px; }
+    .eyebrow { color:var(--green); font-size:11px; font-weight:750; letter-spacing:.14em; text-transform:uppercase; margin-bottom:18px; }
+    .hero h1 span { color:var(--green); }
+    .lede { max-width:770px; margin-top:22px; font-size:18px; color:var(--muted); }
+    .meta { display:flex; flex-wrap:wrap; align-items:center; gap:10px 20px; margin-top:26px; color:var(--muted); font-size:12px; }
+    .meta .dot { width:6px; height:6px; display:inline-block; background:var(--green); border-radius:50%; margin-right:7px; }
+    .meta a { color:var(--muted); }
+    .principles { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-top:38px; }
+    .principle { border-top:1px solid var(--line); padding-top:18px; }
+    .principle b { display:block; font-size:14px; margin-bottom:5px; font-weight:600; }
+    .principle p { color:var(--muted); font-size:13px; max-width:370px; }
+    section { padding:40px 0; }
+    .section-heading { display:flex; justify-content:space-between; align-items:end; gap:30px; margin-bottom:24px; }
+    .section-heading .eyebrow { margin-bottom:10px; }
+    .section-heading > p { max-width:440px; color:var(--muted); font-size:14px; }
+    .explorer { border:1px solid var(--line); border-radius:var(--radius); background:var(--panel); overflow:hidden; }
+    .flow-tabs { display:flex; flex-wrap:wrap; gap:7px; padding:17px; border-bottom:1px solid var(--line); background:rgb(5 13 9 / .25); }
+    .flow-tabs button { padding:8px 12px; border:1px solid transparent; border-radius:7px; font-size:12px; font-weight:600; background:transparent; color:var(--muted); }
+    .flow-tabs button:hover { background:var(--raised); color:var(--text); }
+    .flow-tabs button[aria-selected="true"] { color:var(--bg); background:var(--green); }
+    .flow-header { display:flex; align-items:start; justify-content:space-between; gap:18px; padding:24px 24px 0; }
+    .flow-header h3 { font-size:23px; }
+    .flow-header p { color:var(--muted); font-size:13px; margin-top:7px; max-width:810px; }
+    .count-tag { color:var(--green); border:1px solid var(--line); border-radius:5px; padding:4px 8px; white-space:nowrap; font:12px ui-monospace,monospace; }
+    .explorer-body { display:grid; grid-template-columns:minmax(0,1fr) 310px; align-items:stretch; }
+    .map-area { min-width:0; padding:18px 24px 22px; }
+    .map-legend { display:flex; flex-wrap:wrap; gap:9px 18px; color:var(--muted); font-size:10px; letter-spacing:.02em; margin-bottom:12px; }
+    .map-legend span::before { display:inline-block; content:""; width:6px; height:6px; border-radius:2px; background:var(--green); margin-right:6px; }
+    .map-legend .external::before { background:var(--blue); }
+    .map-legend .compute::before { background:var(--amber); }
+    .map-legend .store::before { background:var(--violet); }
+    .map-legend .infra::before { background:#b5beb8; }
+    .diagram-scroll { overflow:auto; border:1px solid #20392e; border-radius:10px; background-color:#0c1712; background-image:radial-gradient(#274031 1px,transparent 1px); background-size:18px 18px; }
+    #architecture { display:block; width:100%; min-width:690px; }
+    .lane-title { fill:#95aa9c; font-size:11px; font-weight:650; letter-spacing:1px; text-transform:uppercase; }
+    .map-edge { fill:none; stroke:#506b5c; stroke-width:1.8; opacity:.6; marker-end:url(#arrow); }
+    .map-edge.active { stroke:var(--green); stroke-width:2.8; opacity:1; marker-end:url(#arrow-active); stroke-dasharray:8 5; animation:travel 1s linear infinite; }
+    @keyframes travel { to { stroke-dashoffset:-26; } }
+    .map-node { cursor:pointer; outline:none; }
+    .map-node .node-box { fill:#15231c; stroke:#355041; stroke-width:1.3; transition:stroke .15s,fill .15s; }
+    .map-node .node-accent { fill:var(--green); }
+    .map-node.external .node-accent { fill:var(--blue); }
+    .map-node.compute .node-accent { fill:var(--amber); }
+    .map-node.store .node-accent { fill:var(--violet); }
+    .map-node.infra .node-accent { fill:#b5beb8; }
+    .map-node.active .node-box { fill:#1e3828; stroke:var(--green); stroke-width:2; }
+    .map-node.selected .node-box,.map-node:focus-visible .node-box { stroke:white; stroke-width:2; }
+    .map-node:hover .node-box { stroke:#c9e8d4; }
+    .node-title { fill:#edf5ef; font-size:13px; font-weight:600; }
+    .node-sub { fill:#a8bcae; font-size:11px; }
+    .node-hint { fill:#8da896; font:11px ui-monospace,monospace; }
+    .inspector { margin-top:13px; min-height:90px; padding:13px 15px; border-left:2px solid var(--line); font-size:12px; color:var(--muted); }
+    .inspector b { display:block; color:var(--text); font-size:13px; margin-bottom:4px; }
+    .inspector a { display:inline-block; margin-top:6px; }
+    .step-panel { padding:20px 22px 24px; border-left:1px solid var(--line); min-width:0; background:rgb(5 13 9 / .23); }
+    .step-nav { list-style:none; margin:0 0 24px; padding:0; display:grid; gap:5px; }
+    .step-nav button { display:flex; align-items:center; text-align:left; gap:10px; width:100%; border:1px solid transparent; background:transparent; color:var(--muted); border-radius:6px; padding:8px; font-size:12px; line-height:1.35; }
+    .step-nav button span { display:grid; place-items:center; flex:none; width:23px; height:23px; border:1px solid var(--line); border-radius:50%; font:10px ui-monospace,monospace; }
+    .step-nav button[aria-current="step"] { color:var(--text); background:#1a3224; border-color:#35583f; }
+    .step-nav button[aria-current="step"] span { color:#091210; background:var(--green); border-color:var(--green); }
+    .step-panel h4 { font-size:17px; line-height:1.3; margin:0 0 10px; font-weight:600; }
+    #step-body { font-size:13px; color:#c0d0c4; }
+    .step-output { border-top:1px solid var(--line); margin-top:16px; padding-top:13px; font-size:12px; color:var(--amber); }
+    .step-sources { display:flex; flex-wrap:wrap; gap:6px 13px; margin-top:13px; font-size:11px; }
+    .flow-controls { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:15px 22px; border-top:1px solid var(--line); }
+    .button { border:1px solid #385344; background:#14251b; color:var(--text); padding:7px 11px; border-radius:6px; font-size:12px; }
+    .button.primary { background:var(--green); color:var(--bg); border-color:var(--green); min-width:65px; }
+    .progress { height:3px; flex:1; min-width:70px; max-width:210px; background:#294033; margin-left:12px; }
+    .progress span { height:100%; display:block; width:0; background:var(--green); transition:width .2s; }
+    .flow-controls small { margin-left:auto; color:var(--muted); font-size:11px; }
+    .takeaway { display:flex; gap:12px; align-items:baseline; margin-top:18px; padding:16px 20px; border:1px solid var(--line); border-radius:9px; font-size:13px; background:#102018; }
+    .takeaway strong { color:var(--green); white-space:nowrap; }
+    .takeaway p { color:#c0d1c5; }
+    .detail-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+    .detail-card { min-width:0; border:1px solid var(--line); border-radius:var(--radius); background:var(--panel); overflow:hidden; }
+    .detail-card summary { cursor:pointer; display:flex; list-style:none; justify-content:space-between; align-items:center; gap:15px; padding:22px; }
+    .detail-card summary::-webkit-details-marker { display:none; }
+    .detail-card summary::after { content:"+"; flex:none; color:var(--green); font:22px ui-monospace,monospace; }
+    .detail-card[open] summary::after { content:"−"; }
+    .detail-card summary strong { display:block; font-size:17px; font-weight:600; line-height:1.2; margin-bottom:7px; }
+    .summary-copy > span { display:block; color:var(--muted); font-size:12px; }
+    .detail-content { padding:0 22px 22px; color:#bfcec3; font-size:13px; }
+    .detail-content > * + * { margin-top:15px; }
+    .detail-content h4 { color:var(--text); font-size:13px; margin-bottom:5px; }
+    .detail-content ul { padding-left:18px; }
+    .detail-content li + li { margin-top:7px; }
+    .detail-content pre { white-space:pre-wrap; overflow-wrap:anywhere; border:1px solid var(--line); padding:15px; background:#0a1610; border-radius:8px; font-size:12px; line-height:1.6; }
+    .full-width { grid-column:1 / -1; }
+    .table-scroll { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    th,td { border-bottom:1px solid var(--line); padding:11px 12px; text-align:left; vertical-align:top; }
+    th { font-size:10px; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+    td:first-child { color:var(--text); font-weight:500; }
+    tbody tr:last-child td { border-bottom:none; }
+    .note { color:var(--muted); font-size:12px; }
+    .inline-chain { display:flex; align-items:center; flex-wrap:wrap; gap:7px; }
+    .inline-chain span { border:1px solid var(--line); padding:5px 8px; border-radius:5px; color:var(--text); background:#12291b; font-size:12px; }
+    .inline-chain i { color:var(--green); font-style:normal; }
+    .ownership { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:20px; }
+    .ownership article { border-top:1px solid var(--line); padding-top:22px; }
+    .ownership h3 { font:15px ui-monospace,monospace; color:var(--green); margin-bottom:12px; }
+    .ownership p { color:var(--muted); font-size:13px; }
+    .source-list { margin:0; padding-left:18px; columns:2; column-gap:38px; }
+    .source-list li { break-inside:avoid; padding:5px 0; font-size:12px; }
+    .source-list small { color:var(--muted); display:block; }
+    footer { border-top:1px solid var(--line); margin-top:30px; padding:26px 0 40px; color:var(--muted); font-size:12px; }
+    footer .shell { display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; }
+    .skip-link { position:absolute; top:-80px; left:16px; padding:12px; color:var(--bg); background:var(--green); z-index:50; }
+    .skip-link:focus { top:10px; }
+    @media(min-width:1600px) { .explorer-body { grid-template-columns:minmax(0,1fr) 345px; } }
+    @media(max-width:1100px) { .shell { width:calc(100% - 36px); } .explorer-body { grid-template-columns:minmax(0,1fr) 270px; } .map-area { padding:18px 16px; } .step-panel { padding:20px 16px; } .brand small { display:none; } nav { gap:15px; } }
+    @media(max-width:850px) { .explorer-body { grid-template-columns:1fr; } .step-panel { border-left:0; border-top:1px solid var(--line); } .step-nav { grid-template-columns:repeat(2,minmax(0,1fr)); margin-bottom:18px; } .detail-grid { grid-template-columns:1fr; } .section-heading { display:block; } .section-heading > p { margin-top:14px; } .flow-header { padding:20px 18px 0; } .hero { padding-top:42px; } }
+    @media(max-width:560px) { .shell { width:calc(100% - 28px); } .topbar .shell { min-height:58px; gap:16px; } .brand { font-size:13px; gap:8px; } nav { gap:14px; } nav a { font-size:11px; } nav a:nth-child(n+3) { display:none; } .principles,.ownership { grid-template-columns:1fr; gap:20px; } .hero { padding-bottom:20px; } .lede { font-size:16px; } section { padding:30px 0; } .flow-tabs { flex-wrap:nowrap; overflow:auto; padding:12px; } .flow-tabs button { white-space:nowrap; } .map-area { padding:16px 12px; } .flow-header h3 { font-size:20px; } .count-tag { font-size:10px; } .step-nav { grid-template-columns:1fr; } .step-nav button { padding:6px 8px; } .inspector { min-height:0; } .flow-controls { padding:13px 12px; } .flow-controls small { width:100%; margin:3px 0 0; } .takeaway { display:block; } .takeaway p { margin-top:6px; } .source-list { columns:1; } .detail-card summary { padding:18px; } .detail-content { padding:0 18px 18px; } }
+    @media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } *,*::before,*::after { animation:none !important; transition:none !important; } }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#explore">Skip to the architecture explorer</a>
+  <header class="topbar">
+    <div class="shell">
+      <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">Z</span> Crucible <small>/ architecture</small></a>
+      <nav aria-label="Page sections"><a href="#explore">Explore</a><a href="#details">How it works</a><a href="#ownership">Repositories</a><a href="#sources">Sources</a></nav>
+    </div>
+  </header>
+  <main id="top">
+    <div class="hero shell">
+      <p class="eyebrow">Zipline on AWS · Architecture explorer</p>
+      <h1>From configuration<br>to <span>running workloads.</span></h1>
+      <p class="lede">Follow a Zipline request through the Hub, Kubernetes, and the data systems it reads and writes. Team namespaces own the budgets. Shared node pools provide the compute.</p>
+      <div class="meta"><span><span class="dot" aria-hidden="true"></span>Source snapshot · October 9, 2026</span><span>Customer-owned Amazon EKS</span><a href="#sources">Three repositories · pinned evidence ↗</a></div>
+      <div class="principles">
+        <div class="principle"><b>One workflow, several engines</b><p>A deploy workflow can prepare data with Spark before starting a long-running Flink job.</p></div>
+        <div class="principle"><b>Team budgets, shared capacity</b><p>Namespace and mode quotas apply to pods. Spark roles and Flink select shared node pools.</p></div>
+        <div class="principle"><b>Durable intent, reconciled execution</b><p>Hub stores workflow state in PostgreSQL. Operators reconcile the engine resources in Kubernetes.</p></div>
+      </div>
+    </div>
+    <section id="explore" class="shell" aria-labelledby="explore-title">
+      <div class="section-heading"><div><p class="eyebrow">01 / Follow the architecture</p><h2 id="explore-title">Pick a path. Follow the request.</h2></div><p>Choose a flow, then step through its handoffs. Select any diagram component to inspect its responsibility and source.</p></div>
+      <div class="explorer">
+        <div id="flow-tabs" class="flow-tabs" role="tablist" aria-label="Architecture flows"></div>
+        <div id="flow-panel" role="tabpanel" aria-labelledby="tab-overview" tabindex="0">
+          <div class="flow-header"><div><h3 id="flow-title">End-to-end architecture</h3><p id="flow-summary">Configuration enters the control plane; engine workloads produce data for offline use and online serving.</p></div><span id="step-count" class="count-tag">01 / 01</span></div>
+          <div class="flow-controls"><button id="prev-step" type="button" class="button">← Previous</button><button id="play-flow" type="button" class="button primary" aria-pressed="false">Play</button><button id="next-step" type="button" class="button">Next →</button><button id="reset-flow" type="button" class="button">Reset</button><div class="progress" aria-hidden="true"><span id="flow-progress"></span></div><small>Arrow keys: steps · Space on Play: pause/resume</small></div>
+          <div class="explorer-body">
+            <div class="map-area">
+              <div class="map-legend" role="group" aria-label="Diagram legend"><span class="external">Clients &amp; inputs</span><span>Control services</span><span class="compute">Workloads</span><span class="store">State &amp; data</span><span class="infra">Infrastructure</span></div>
+              <div class="diagram-scroll" tabindex="0" role="group" aria-label="Architecture diagram; scroll horizontally on small screens"><svg id="architecture" viewBox="0 0 996 488" role="group" aria-labelledby="map-title" aria-describedby="map-description"><title id="map-title">Crucible architecture</title><desc id="map-description">Interactive architecture diagram. The step list below describes each handoff.</desc></svg></div>
+              <div id="node-inspector" class="inspector" aria-live="polite"><b>Read the diagram</b><p>Arrows show the direction of a request, write, or control handoff. Select a component for details.</p></div>
+            </div>
+            <aside class="step-panel" aria-label="Flow walkthrough">
+              <ol id="step-nav" class="step-nav"></ol>
+              <div aria-live="polite" aria-atomic="true"><h4 id="step-title">Explore the system</h4><p id="step-body">Select a flow to see how Crucible handles it.</p><p id="step-output" class="step-output"></p></div>
+              <div id="step-sources" class="step-sources" role="group" aria-label="Source evidence for this step"></div>
+            </aside>
+          </div>
+        </div>
+      </div>
+      <div class="takeaway"><strong>Keep in mind</strong><p id="flow-takeaway">Namespaces and node pools are separate boundaries: workloads from different teams can share the same nodes.</p></div>
+      <noscript><p>This explorer requires JavaScript. The architecture details below remain available: CLI → Hub → engine custom resource → operator → pods → data stores. Quotas apply at pod admission; shared node pools supply execution capacity.</p></noscript>
+    </section>
+        <section id="details" class="shell" aria-labelledby="details-title">
+      <div class="section-heading"><div><p class="eyebrow">02 / The execution contract</p><h2 id="details-title">Open the layer you need.</h2></div><p>The diagrams follow logical handoffs. These details explain resource sizing, placement, durable state, and the services that support them.</p></div>
+      <div class="detail-grid">
+        <details id="resource-management" class="detail-card full-width" open>
+          <summary><span class="summary-copy"><strong>Team and mode quotas</strong><span>Overlapping ceilings, checked when each pod is created.</span></span></summary>
+          <div class="detail-content">
+            <div class="inline-chain" role="group" aria-label="Resource admission chain"><span>Team → namespace</span><i aria-hidden="true">→</i><span>Run mode → PriorityClass</span><i aria-hidden="true">→</i><span>Pod requests + limits</span><i aria-hidden="true">→</i><span>All applicable quotas</span></div>
+            <p>Each team namespace can have an aggregate <code>zipline-compute</code> quota plus <code>zipline-backfill</code> and <code>zipline-deploy</code> quotas. Mode quotas match the pod’s <code>priorityClassName</code>. They do not match an arbitrary pod label and they do not select physical nodes.</p>
+            <div class="table-scroll"><table><thead><tr><th scope="col">Quota</th><th scope="col">Which pods count?</th><th scope="col">Example CPU request ceiling</th></tr></thead><tbody>
+              <tr><td><code>zipline-compute</code></td><td>All quota-counted pods in the namespace</td><td>200 CPU across all modes together</td></tr>
+              <tr><td><code>zipline-backfill</code></td><td><code>priorityClassName: zipline-backfill</code></td><td>200 CPU within the shared total</td></tr>
+              <tr><td><code>zipline-deploy</code></td><td><code>priorityClassName: zipline-deploy</code></td><td>200 CPU within the shared total</td></tr>
+            </tbody></table></div>
+            <p><strong>Example:</strong> if backfill requests 150 CPU and nothing else is running, deploy can request at most another 50 CPU under a 200-CPU namespace ceiling. The mode ceilings do not add together or reserve a share for either mode.</p>
+            <p>An empty mode <code>hard: {}</code> inherits the configured aggregate hard values when Helm renders the chart. Defaults are requests of 200 CPU / 800 GiB, limits of 400 CPU / 1,600 GiB, and 500 pods. Explicit per-mode hard maps can make an individual mode stricter. Quota limits describe the sum of pod resource limits; they are separate from resource-request ceilings.</p>
+            <pre><code>{
+  "orchestration": {
+    "compute": {
+      "namespaces": [
+        { "name": "zipline-recommendations", "team": "recommendations" }
+      ],
+      "mode_resource_quotas": {
+        "zipline-recommendations": {
+          "backfill": { "hard": {} },
+          "deploy":   { "hard": {} }
+        }
+      }
+    }
+  }
+}</code></pre>
+            <p class="note">Illustrative fragment of the S3 installation inputs. Additions to this list create namespace policy; they do not generate team-specific compute pools. Only configured namespaces receive mode quotas. A direct live patch is not automatically written back to these inputs.</p>
+            <p><a data-source="quota" href="#sources">Quota rendering ↗</a> · <a data-source="defaults" href="#sources">Chart defaults ↗</a> · <a data-source="k8sQuota" href="#sources">Kubernetes semantics ↗</a></p>
+          </div>
+        </details>
+        <details id="placement" class="detail-card full-width" open>
+          <summary><span class="summary-copy"><strong>Shared pools and stable workload roles</strong><span>Infrastructure owns instance policy. Workloads select their engine and role.</span></span></summary>
+          <div class="detail-content">
+            <div class="table-scroll"><table><thead><tr><th scope="col">Workload</th><th scope="col">Node selector</th><th scope="col">Shared NodePool</th><th scope="col">AWS policy</th><th scope="col">Default pool ceiling</th></tr></thead><tbody>
+              <tr><td>Spark driver</td><td><code>zipline.ai/engine: spark</code><br><code>zipline.ai/role: driver</code></td><td><code>spark-driver</code></td><td>On-demand; no local-NVMe requirement</td><td>100 CPU / 400 GiB</td></tr>
+              <tr><td>Spark executor</td><td><code>zipline.ai/engine: spark</code><br><code>zipline.ai/role: executor</code></td><td><code>spark-executor</code></td><td>Spot; local NVMe required</td><td>1,000 CPU / 4,000 GiB</td></tr>
+              <tr><td>Flink JobManager</td><td><code>zipline.ai/engine: flink</code></td><td><code>flink</code></td><td>On-demand</td><td rowspan="2">1,100 CPU / 4,400 GiB shared by both roles</td></tr>
+              <tr><td>Flink TaskManager</td><td><code>zipline.ai/engine: flink</code></td><td><code>flink</code></td><td>On-demand</td></tr>
+            </tbody></table></div>
+            <p>Pod labels retain team, engine, and role attribution. Flink keeps <code>jobmanager</code> and <code>taskmanager</code> role labels even though those roles share a pool. Spark and Flink tolerate <code>zipline.ai/workload=&lt;engine&gt;:NoSchedule</code>. Neither the team nor run mode is part of their node selector.</p>
+            <p>The system pool hosts control services separately. AWS capacity constraints, architecture, instance selection, and pool ceilings are defined by <code>aws/zipline-orchestration/node-pools.tf</code> and its <code>aws.karpenter</code> overrides. Adding a team namespace does not require another set of pools.</p>
+            <p class="note">Pool limits cap provisioned node resources. Namespace quotas cap admitted workload resources. They are independent controls; a permitted pod can remain Pending while suitable capacity is unavailable.</p>
+            <p><a data-source="pools" href="#sources">Pool policy ↗</a> · <a data-source="spark" href="#sources">Spark selectors ↗</a> · <a data-source="flink" href="#sources">Flink selectors ↗</a></p>
+          </div>
+        </details>
+        <details class="detail-card">
+          <summary><span class="summary-copy"><strong>How a conf becomes pod resource requests</strong><span>Per-node execution settings drive engine-specific pod sizing.</span></span></summary>
+          <div class="detail-content">
+            <p>Chronon merges default-team, team, and conf settings into <code>metadata.executionInfo</code>. Mode-specific settings inherit common configuration. Hub selects the resolved mode settings for each runnable node.</p>
+            <h4>Spark</h4><p>Resource properties pass through <code>SparkApplication.spec.sparkConf</code>. Spark translates cores, request-cores, executor count, memory, and overhead settings into driver and executor pods. Executor heap memory alone is not the complete pod memory request.</p>
+            <h4>Flink</h4><p>Hub emits separate <code>jobManager.resource</code> and <code>taskManager.resource</code> fields. JM memory comes from its process-size setting and CPU from Hub configuration. TM memory comes from its resolved resource/tier settings, while task slots influence CPU.</p>
+            <p>Quota admission counts the resulting pod requests, limits, and pod count. It does not reserve an entire workflow’s predicted peak resources when the request reaches Hub.</p>
+            <p><a data-source="compile" href="#sources">Configuration inheritance ↗</a> · <a data-source="submit" href="#sources">Per-node submission ↗</a></p>
+          </div>
+        </details>
+        <details class="detail-card">
+          <summary><span class="summary-copy"><strong>Run mode, priority, and warm capacity</strong><span>Backfill and deploy classify work. Pause pods keep Spark driver capacity ready.</span></span></summary>
+          <div class="detail-content">
+            <p><code>backfill</code> selects backfill mode. <code>run-adhoc</code> selects deploy mode, which can include both Spark preparation and Flink streaming nodes. Crucible submission accepts only these two modes, using the shared Thrift enum. Its direct submission boundary rejects missing or unsupported modes.</p>
+            <p>Internal workflow submission already supplies the mode; its engine adapters also have internal fallback defaults. Workflow API validation and terminal-node lookup are separate from Crucible’s submission validation.</p>
+            <div class="table-scroll"><table><thead><tr><th scope="col">PriorityClass</th><th scope="col">Priority</th><th scope="col">Purpose</th></tr></thead><tbody><tr><td><code>zipline-deploy</code></td><td>200</td><td>Deploy workflow pods</td></tr><tr><td><code>zipline-backfill</code></td><td>100</td><td>Backfill workflow pods</td></tr><tr><td><code>zipline-spark-pause</code></td><td>−1</td><td>Warm driver placeholders</td></tr></tbody></table></div>
+            <p>The warm deployment runs two low-priority pause pods, each requesting 2 CPU / 4 GiB, on <code>spark-driver</code>. Higher-priority workloads can displace those placeholders. It uses the existing pool; it is not a separate NodePool. Executor image pre-pull is a separate DaemonSet that targets executor nodes.</p>
+            <p>Backfill and deploy use <code>PreemptLowerPriority</code>. This does not reserve capacity per team or allow a request to exceed its namespace quota. Mode classification uses PriorityClass; the current submitter does not automatically add a <code>zipline.ai/mode</code> pod label.</p>
+            <p><a data-source="validation" href="#sources">Mode validation ↗</a> · <a data-source="priority" href="#sources">PriorityClasses ↗</a> · <a data-source="warm" href="#sources">Warm-pool deployment ↗</a></p>
+          </div>
+        </details>
+        <details class="detail-card full-width">
+          <summary><span class="summary-copy"><strong>Namespaces and durable state</strong><span>Control state, live engine state, table data, and diagnostic history have different owners.</span></span></summary>
+          <div class="detail-content">
+            <p><code>zipline-system</code> hosts Hub, UI, Eval, Polaris, optional Fetcher and Data Explorer, logs/history services, and the Spark, Flink, and KubeRay operators. External Secrets, cert-manager, and the OpenTelemetry operator also use this install namespace. <code>kube-system</code> contains infrastructure controllers such as Karpenter and the AWS load balancer controller. Team namespaces host workload custom resources and pods.</p>
+            <div class="table-scroll"><table><thead><tr><th scope="col">State</th><th scope="col">Owner / store</th><th scope="col">What persists</th></tr></thead><tbody>
+              <tr><td>Configuration and workflows</td><td>Hub → RDS PostgreSQL</td><td>Conf/node hashes, schedules, plans, dependencies, and step state</td></tr>
+              <tr><td>Live engine execution</td><td>Kubernetes API + engine operators</td><td>SparkApplication, FlinkDeployment, and RayJob desired/observed state while resources exist</td></tr>
+              <tr><td>Iceberg catalog</td><td>Polaris → separate RDS database</td><td>Catalog state and storage access policy; table data and metadata files live in S3</td></tr>
+              <tr><td>Batch and engine output</td><td>S3</td><td>Tables, staged nodes, import files, checkpoints, event logs, and model artifacts</td></tr>
+              <tr><td>Online features</td><td>DynamoDB</td><td>Materialized data, serving metadata, and logical-to-physical table mappings</td></tr>
+              <tr><td>Operational history</td><td>AMP, Loki, S3 event logs</td><td>Metrics, retained pod logs, and Spark history under their respective retention policies</td></tr>
+            </tbody></table></div>
+            <p>Optional Redis configuration supports an alternative online store. Optional StarRocks powers Data Explorer and queries configured catalogs and S3; Data Explorer is disabled by default in the current shared module.</p>
+            <p><a data-source="placement" href="#sources">Namespace installation ↗</a> · <a data-source="storage" href="#sources">Storage wiring ↗</a> · <a data-source="explorer" href="#sources">Optional Data Explorer ↗</a></p>
+          </div>
+        </details>
+        <details class="detail-card">
+          <summary><span class="summary-copy"><strong>Identity and access</strong><span>HTTP authentication, Kubernetes RBAC, and AWS IAM apply at different boundaries.</span></span></summary>
+          <div class="detail-content">
+            <h4>HTTP</h4><p>NLB and NGINX route public service traffic. When Hub authentication is enabled, browser forward-auth converts the UI session into bearer authorization; CLI tokens pass through. Hub validates JWTs and enforces viewer/operator roles. Eval has its own authentication middleware.</p>
+            <h4>Kubernetes</h4><p>Hub receives submitter permissions in configured compute namespaces and cluster-wide read/watch access to engine CRs. Spark and Flink use separate workload service accounts and namespaced permissions. Namespace and RBAC boundaries alone do not imply network isolation.</p>
+            <h4>AWS</h4><p>Service accounts assume IAM roles through IRSA. External Secrets materializes values from Secrets Manager into Kubernetes Secrets for services. Catalog access can vend scoped S3 credentials for table operations.</p>
+            <p class="note">Fetcher serves its own endpoints. The diagram does not imply that Hub authenticates or proxies online fetch traffic; exposure and access depend on the configured gateway.</p>
+            <p><a data-source="auth" href="#sources">Hub route guards ↗</a> · <a data-source="rbac" href="#sources">Workload RBAC ↗</a> · <a data-source="irsa" href="#sources">IAM roles ↗</a></p>
+          </div>
+        </details>
+        <details class="detail-card">
+          <summary><span class="summary-copy"><strong>Monitoring, logs, and failure signals</strong><span>Read each signal at the layer that owns the decision.</span></span></summary>
+          <div class="detail-content">
+            <p>The AMP scraper collects annotated workload/service metrics, both Fetcher metric ports, kube-state-metrics, Karpenter, and cAdvisor. The UI server queries AMP using signed AWS requests. Hub health and workflow state are fetched separately.</p>
+            <p>Promtail sends pod logs to Loki. Hub reads live Kubernetes logs and retained logs. Spark History Server replays S3 event logs after an application finishes. Fluent Bit provides a separate CloudWatch log path where deployed.</p>
+            <div class="table-scroll"><table><thead><tr><th scope="col">Symptom</th><th scope="col">Inspect first</th></tr></thead><tbody><tr><td>Pod creation rejected</td><td>Operator/driver errors and namespace quota usage</td></tr><tr><td>Pod exists but is Pending</td><td>Scheduling events, selectors, pool limits, and Karpenter provisioning</td></tr><tr><td>Engine running but workflow stalled</td><td>Hub worker health, dependencies, and step tracking</td></tr><tr><td>Need completed Spark details</td><td>S3 event logs and Spark History Server</td></tr></tbody></table></div>
+            <p><a data-source="metrics" href="#sources">Metric collection ↗</a> · <a data-source="monitor" href="#sources">Monitor queries ↗</a> · <a data-source="logs" href="#sources">Log access ↗</a></p>
+          </div>
+        </details>
+        <details class="detail-card full-width">
+          <summary><span class="summary-copy"><strong>Installation inputs and release artifacts</strong><span>Configuration is applied through Terraform and Helm; it is not hot-loaded from S3.</span></span></summary>
+          <div class="detail-content">
+            <div class="inline-chain" role="group" aria-label="Deployment configuration chain"><span>S3 install inputs</span><i aria-hidden="true">→</i><span>pull_crucible_config.sh</span><i aria-hidden="true">→</i><span>Local tfvars</span><i aria-hidden="true">→</i><span>Terraform</span><i aria-hidden="true">→</i><span>Helm / AWS</span></div>
+            <p>The S3 configuration supplies <code>orchestration</code> and <code>aws</code> inputs. The AWS node-pool definition stays in the infrastructure repository; tfvars override its defaults. Helm receives the resolved service settings, namespace quotas, identity, artifacts, and placement configuration.</p>
+            <p>Chronon publishes engine artifacts; Platform publishes service images. The selected image references and Chronon artifact version form the runtime release set. Spark 4 artifact names distinguish that dependency profile. A mutable image tag alone does not identify the running source revision.</p>
+            <p>Changing S3 inputs takes effect after a fresh pull and Terraform apply. Changing a live object directly does not update the saved inputs. The diagrams show source-defined architecture rather than temporary cluster overrides.</p>
+            <p><a data-source="pull" href="#sources">Configuration download ↗</a> · <a data-source="wrapper" href="#sources">AWS wrapper ↗</a> · <a data-source="module" href="#sources">Helm application ↗</a></p>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section id="ownership" class="shell" aria-labelledby="ownership-title"><div class="section-heading"><div><p class="eyebrow">03 / Repository ownership</p><h2 id="ownership-title">Three repositories. One execution path.</h2></div></div><div class="ownership"><article><h3>chronon</h3><p>Configuration compilation, planners, CLI commands, Spark and Flink computation, model inputs, online materialization, and feature fetching.</p></article><article><h3>platform</h3><p>Hub APIs, workflow planning and scheduling, Crucible submission, engine resource specifications, UI, Eval, and monitoring queries.</p></article><article><h3>infrastructure</h3><p>AWS resources, Kubernetes installation, Helm configuration, namespaces, quotas, identity, shared capacity, and telemetry collection.</p></article></div></section>
+    <section id="sources" class="shell" aria-labelledby="sources-title"><div class="section-heading"><div><p class="eyebrow">04 / Implementation evidence</p><h2 id="sources-title">Read the code behind the diagram.</h2></div><p>This is a snapshot of merged source. Instance counts and temporary deployment overrides are not architecture defaults.</p></div><details class="detail-card"><summary><span class="summary-copy"><strong>Commit-pinned sources</strong><span id="source-summary">Infrastructure, Platform, and Chronon</span></span></summary><div class="detail-content"><ol id="source-list" class="source-list"></ol></div></details></section>
+  </main>
+  <footer><div class="shell"><span>Crucible architecture · AWS · October 9, 2026</span><a href="https://github.com/zipline-ai/infrastructure/pull/184">Architecture document · PR #184 ↗</a></div></footer>
+  <script id="architecture-data" type="application/json">{
+  "commits": {
+    "infrastructure": "587d359e15df11fb188c67ef253f03662bc4156e",
+    "platform": "7e8b69a04e6714ed1eb74e5713d6673ee6bdf2c3",
+    "chronon": "28fe167e69dc04a829bc546e6b42e6031bd10e89"
+  },
+  "sources": {
+    "pools": {
+      "repo": "infrastructure",
+      "path": "aws/zipline-orchestration/node-pools.tf",
+      "line": 62,
+      "title": "Shared node pools"
+    },
+    "quota": {
+      "repo": "infrastructure",
+      "path": "charts/zipline-orchestration/templates/compute-namespace.yaml",
+      "line": 7,
+      "title": "Namespace and mode quotas"
+    },
+    "priority": {
+      "repo": "infrastructure",
+      "path": "charts/zipline-orchestration/templates/compute-priorityclasses.yaml",
+      "line": 13,
+      "title": "Workload priorities"
+    },
+    "warm": {
+      "repo": "infrastructure",
+      "path": "charts/zipline-orchestration/templates/compute-warm-pool.yaml",
+      "line": 8,
+      "title": "Warm driver capacity"
+    },
+    "defaults": {
+      "repo": "infrastructure",
+      "path": "charts/zipline-orchestration/values.yaml",
+      "line": 24,
+      "title": "Compute defaults"
+    },
+    "module": {
+      "repo": "infrastructure",
+      "path": "modules/zipline-orchestration/main.tf",
+      "line": 962,
+      "title": "Terraform \u2192 Helm values"
+    },
+    "pull": {
+      "repo": "infrastructure",
+      "path": "pull_crucible_config.sh",
+      "line": 97,
+      "title": "S3 configuration download"
+    },
+    "wrapper": {
+      "repo": "infrastructure",
+      "path": "aws/zipline-orchestration/main.tf",
+      "line": 70,
+      "title": "AWS Terraform wrapper"
+    },
+    "nodechart": {
+      "repo": "infrastructure",
+      "path": "aws/zipline-orchestration/karpenter.tf",
+      "line": 428,
+      "title": "NodePool Helm release"
+    },
+    "addons": {
+      "repo": "infrastructure",
+      "path": "modules/zipline-kubernetes-addons/main.tf",
+      "line": 38,
+      "title": "Operator installation"
+    },
+    "placement": {
+      "repo": "infrastructure",
+      "path": "modules/zipline-orchestration/main.tf",
+      "line": 854,
+      "title": "Control namespace"
+    },
+    "ingress": {
+      "repo": "infrastructure",
+      "path": "charts/zipline-orchestration/templates/ingress-orchestration-hub.yaml",
+      "line": 14,
+      "title": "Ingress authentication"
+    },
+    "awsValues": {
+      "repo": "infrastructure",
+      "path": "aws/zipline-orchestration/locals.tf",
+      "line": 479,
+      "title": "AWS service configuration"
+    },
+    "rbac": {
+      "repo": "infrastructure",
+      "path": "charts/zipline-orchestration/templates/compute-rbac.yaml",
+      "line": 7,
+      "title": "Workload service accounts and RBAC"
+    },
+    "irsa": {
+      "repo": "infrastructure",
+      "path": "aws/zipline-orchestration/irsa.tf",
+      "line": 232,
+      "title": "Spark and Flink IAM roles"
+    },
+    "secrets": {
+      "repo": "infrastructure",
+      "path": "aws/zipline-orchestration/locals.tf",
+      "line": 284,
+      "title": "AWS identity and secret wiring"
+    },
+    "metrics": {
+      "repo": "infrastructure",
+      "path": "aws/zipline-orchestration/observability.tf",
+      "line": 19,
+      "title": "AMP scrape configuration"
+    },
+    "ksm": {
+      "repo": "infrastructure",
+      "path": "charts/zipline-orchestration/values.yaml",
+      "line": 547,
+      "title": "Metric labels and log collection"
+    },
+    "loki": {
+      "repo": "infrastructure",
+      "path": "charts/zipline-orchestration/templates/compute-loki.yaml",
+      "line": 46,
+      "title": "Loki storage and retention"
+    },
+    "history": {
+      "repo": "infrastructure",
+      "path": "charts/zipline-orchestration/templates/spark-history-server.yaml",
+      "line": 102,
+      "title": "Spark History Server"
+    },
+    "explorer": {
+      "repo": "infrastructure",
+      "path": "modules/zipline-orchestration/main.tf",
+      "line": 888,
+      "title": "Optional Data Explorer"
+    },
+    "ddb": {
+      "repo": "infrastructure",
+      "path": "aws/zipline-orchestration/dynamodb.tf",
+      "line": 1,
+      "title": "DynamoDB metadata tables"
+    },
+    "storage": {
+      "repo": "infrastructure",
+      "path": "aws/zipline-orchestration/locals.tf",
+      "line": 416,
+      "title": "Database and catalog configuration"
+    },
+    "compile": {
+      "repo": "chronon",
+      "path": "python/src/ai/chronon/cli/compile/parse_teams.py",
+      "line": 382,
+      "title": "Inherited execution settings"
+    },
+    "cli": {
+      "repo": "chronon",
+      "path": "python/src/ai/chronon/repo/hub_runner.py",
+      "line": 678,
+      "title": "Compile, upload, and start"
+    },
+    "commands": {
+      "repo": "chronon",
+      "path": "python/src/ai/chronon/repo/hub_runner.py",
+      "line": 1088,
+      "title": "Backfill and run-adhoc modes"
+    },
+    "client": {
+      "repo": "chronon",
+      "path": "python/src/ai/chronon/repo/zipline_hub.py",
+      "line": 326,
+      "title": "CLI Hub requests"
+    },
+    "evalclient": {
+      "repo": "chronon",
+      "path": "python/src/ai/chronon/repo/zipline_hub.py",
+      "line": 584,
+      "title": "CLI \u2192 Eval"
+    },
+    "upload": {
+      "repo": "platform",
+      "path": "orchestration/src/main/scala/ai/chronon/orchestration/service/handlers/UploadHandler.scala",
+      "line": 92,
+      "title": "Configuration planning and persistence"
+    },
+    "plan": {
+      "repo": "platform",
+      "path": "orchestration/src/main/scala/ai/chronon/orchestration/scheduler/WorkflowPlanGenerator.scala",
+      "line": 176,
+      "title": "Mode-specific workflow planning"
+    },
+    "workflow": {
+      "repo": "platform",
+      "path": "orchestration/src/main/scala/ai/chronon/orchestration/scheduler/WorkflowManager.scala",
+      "line": 41,
+      "title": "Durable workflow creation"
+    },
+    "schedule": {
+      "repo": "platform",
+      "path": "orchestration/src/main/scala/ai/chronon/orchestration/executor/ScheduleExecutor.scala",
+      "line": 30,
+      "title": "Scheduled workflow execution"
+    },
+    "worker": {
+      "repo": "platform",
+      "path": "orchestration/src/main/scala/ai/chronon/orchestration/executor/WorkflowOrchestrator.scala",
+      "line": 34,
+      "title": "Runnable work allocation"
+    },
+    "submit": {
+      "repo": "platform",
+      "path": "orchestration/src/main/scala/ai/chronon/orchestration/executor/NodeSubmitter.scala",
+      "line": 103,
+      "title": "Execution settings and engine selection"
+    },
+    "backend": {
+      "repo": "platform",
+      "path": "aws/src/main/scala/ai/chronon/hub/AWSWorkflowExecutionVerticle.scala",
+      "line": 92,
+      "title": "AWS Crucible backend selection"
+    },
+    "crucible": {
+      "repo": "platform",
+      "path": "crucible/src/main/scala/ai/chronon/crucible/submission/CrucibleSubmitter.scala",
+      "line": 51,
+      "title": "Team namespace and engine submission"
+    },
+    "validation": {
+      "repo": "platform",
+      "path": "crucible/src/main/scala/ai/chronon/crucible/api/SubmitValidation.scala",
+      "line": 19,
+      "title": "Required submission mode"
+    },
+    "spark": {
+      "repo": "platform",
+      "path": "crucible/src/main/scala/ai/chronon/crucible/k8s/CrucibleKubernetesSpecs.scala",
+      "line": 68,
+      "title": "Spark settings and role selectors"
+    },
+    "flink": {
+      "repo": "platform",
+      "path": "crucible/src/main/scala/ai/chronon/crucible/k8s/CrucibleKubernetesSpecs.scala",
+      "line": 172,
+      "title": "Flink settings and pod templates"
+    },
+    "ray": {
+      "repo": "platform",
+      "path": "crucible/src/main/scala/ai/chronon/crucible/k8s/CrucibleKubernetesSpecs.scala",
+      "line": 291,
+      "title": "RayJob and worker group"
+    },
+    "model": {
+      "repo": "platform",
+      "path": "crucible/src/main/scala/ai/chronon/crucible/model/CrucibleModelPlatform.scala",
+      "line": 97,
+      "title": "Training archive and model output"
+    },
+    "jobstore": {
+      "repo": "platform",
+      "path": "crucible/src/main/scala/ai/chronon/crucible/service/KubernetesCrucibleJobStore.scala",
+      "line": 52,
+      "title": "Kubernetes job lifecycle"
+    },
+    "logs": {
+      "repo": "platform",
+      "path": "crucible/src/main/scala/ai/chronon/crucible/service/KubernetesCrucibleJobStore.scala",
+      "line": 363,
+      "title": "Live and retained job logs"
+    },
+    "auth": {
+      "repo": "platform",
+      "path": "orchestration/src/main/scala/ai/chronon/orchestration/service/OrchestrationVerticle.scala",
+      "line": 175,
+      "title": "Hub authentication and authorization"
+    },
+    "forwardAuth": {
+      "repo": "platform",
+      "path": "frontend/src/routes/auth/forward/+server.ts",
+      "line": 5,
+      "title": "Browser session \u2192 Hub token"
+    },
+    "batch": {
+      "repo": "chronon",
+      "path": "spark/src/main/scala/ai/chronon/spark/batch/BatchNodeRunner.scala",
+      "line": 464,
+      "title": "Batch computation"
+    },
+    "kvupload": {
+      "repo": "chronon",
+      "path": "spark/src/main/scala/ai/chronon/spark/kv_store/KVUploadNodeRunner.scala",
+      "line": 31,
+      "title": "Online data and metadata preparation"
+    },
+    "import": {
+      "repo": "chronon",
+      "path": "cloud_aws/src/main/scala/ai/chronon/integrations/aws/DynamoDBKVStoreImpl.scala",
+      "line": 526,
+      "title": "S3 \u2192 DynamoDB bulk import"
+    },
+    "stream": {
+      "repo": "chronon",
+      "path": "flink/src/main/scala/ai/chronon/flink/FlinkJob.scala",
+      "line": 380,
+      "title": "Streaming sources and online writes"
+    },
+    "fetch": {
+      "repo": "chronon",
+      "path": "online/src/main/scala/ai/chronon/online/fetcher/Fetcher.scala",
+      "line": 250,
+      "title": "Feature lookup and derivations"
+    },
+    "fetchapi": {
+      "repo": "chronon",
+      "path": "service/src/main/java/ai/chronon/service/FetcherVerticle.java",
+      "line": 70,
+      "title": "Online serving endpoints"
+    },
+    "eval": {
+      "repo": "platform",
+      "path": "eval/src/main/scala/ai/chronon/eval/service/EvalVerticle.scala",
+      "line": 76,
+      "title": "Eval API and authentication"
+    },
+    "evalconf": {
+      "repo": "platform",
+      "path": "eval/src/main/scala/ai/chronon/eval/handlers/ConfEvaluator.scala",
+      "line": 25,
+      "title": "Eval configuration lookup"
+    },
+    "evalsync": {
+      "repo": "chronon",
+      "path": "python/src/ai/chronon/repo/hub_runner.py",
+      "line": 1554,
+      "title": "Sync confs before Eval"
+    },
+    "engineci": {
+      "repo": "chronon",
+      "path": ".github/workflows/reusable_build_and_push.yaml",
+      "line": 85,
+      "title": "Chronon artifact publication"
+    },
+    "platformci": {
+      "repo": "platform",
+      "path": ".github/workflows/build_and_publish_images.yaml",
+      "line": 1,
+      "title": "Platform image publication"
+    },
+    "awsquery": {
+      "repo": "platform",
+      "path": "frontend/src/lib/api/aws_api.ts",
+      "line": 274,
+      "title": "UI server \u2192 AMP queries"
+    },
+    "monitor": {
+      "repo": "platform",
+      "path": "frontend/src/lib/api/crucible.remote.ts",
+      "line": 25,
+      "title": "Crucible Monitor health queries"
+    },
+    "chart": {
+      "repo": "platform",
+      "path": "frontend/src/lib/components/cards/MonitoringChartCard.svelte",
+      "line": 32,
+      "title": "Monitor chart requests"
+    },
+    "health": {
+      "repo": "platform",
+      "path": "frontend/src/lib/api/orchestration.remote.ts",
+      "line": 66,
+      "title": "Hub worker health"
+    },
+    "k8sQuota": {
+      "title": "Kubernetes quota semantics",
+      "url": "https://kubernetes.io/docs/concepts/policy/resource-quotas/"
+    },
+    "karpenter": {
+      "title": "Karpenter provisioning and pool limits",
+      "url": "https://karpenter.sh/docs/concepts/nodepools/"
+    }
+  },
+  "nodes": {
+    "cli": {
+      "title": "Zipline CLI / UI",
+      "sub": "Conf + team + run mode",
+      "kind": "external",
+      "detail": "The CLI compiles repository configuration, uploads changed hashes, and starts workflows. UI requests reach the same workflow control plane.",
+      "source": "cli"
+    },
+    "conf": {
+      "title": "Compiled configuration",
+      "sub": "Team \u2192 conf \u2192 mode",
+      "kind": "external",
+      "detail": "Default-team, team, and conf settings merge into executionInfo. Hub selects the settings for the requested workflow mode.",
+      "source": "compile"
+    },
+    "hub": {
+      "title": "Workflow Hub",
+      "sub": "Plan \u00b7 schedule \u00b7 track",
+      "kind": "control",
+      "detail": "Hub owns uploaded confs, workflow plans, schedules, dependencies, step state, and submission. Crucible is selected for the deployment at Hub startup.",
+      "source": "workflow"
+    },
+    "db": {
+      "title": "PostgreSQL",
+      "sub": "Workflow and conf state",
+      "kind": "store",
+      "detail": "RDS persists Hub configuration, workflow, step, and schedule state. Polaris uses a separate catalog database on the same RDS instance.",
+      "source": "storage"
+    },
+    "spark": {
+      "title": "Spark workload",
+      "sub": "Driver + executors",
+      "kind": "compute",
+      "detail": "Spark executes batch preparation, joins, group-bys, and upload work. Driver and executor pods share the team namespace and use separate shared capacity pools.",
+      "source": "spark"
+    },
+    "flink": {
+      "title": "Flink workload",
+      "sub": "JobManager + TaskManagers",
+      "kind": "compute",
+      "detail": "A long-running workflow node becomes a FlinkDeployment. Both roles select the shared on-demand Flink pool and retain distinct pod role labels.",
+      "source": "flink"
+    },
+    "ray": {
+      "title": "Ray training",
+      "sub": "Submitter \u00b7 head \u00b7 workers",
+      "kind": "compute",
+      "detail": "KubeRay reconciles a namespaced RayJob, runs its training entrypoint, and reports job status to the Hub.",
+      "source": "ray"
+    },
+    "operators": {
+      "title": "Engine operators",
+      "sub": "Spark \u00b7 Flink \u00b7 KubeRay",
+      "kind": "control",
+      "detail": "Operators reconcile engine custom resources. The current installation places all three operators in zipline-system; engine workloads run in compute namespaces.",
+      "source": "placement"
+    },
+    "capacity": {
+      "title": "Shared node pools",
+      "sub": "Spark \u00d7 2 \u00b7 Flink \u00d7 1",
+      "kind": "infra",
+      "detail": "Karpenter supplies shared Spark driver, Spark executor, and Flink capacity. Team and mode are not physical pool dimensions. System services have a separate system pool.",
+      "source": "pools"
+    },
+    "storage": {
+      "title": "Iceberg + S3",
+      "sub": "Polaris catalog \u00b7 table data",
+      "kind": "store",
+      "detail": "Polaris manages the Iceberg catalog and vends storage credentials. S3 holds table data and metadata files, plus staged configuration, logs, checkpoints, and artifacts.",
+      "source": "storage"
+    },
+    "input": {
+      "title": "Configured sources",
+      "sub": "Tables \u00b7 Kafka / Kinesis",
+      "kind": "external",
+      "detail": "Compiled configurations identify batch input tables and streaming topics. The selected source integration determines which catalog, credentials, and connector are used.",
+      "source": "stream"
+    },
+    "kv": {
+      "title": "DynamoDB",
+      "sub": "Online values + metadata",
+      "kind": "store",
+      "detail": "Batch and streaming writers materialize online feature values and serving metadata. Terraform creates metadata and partition-registry tables; runtime paths create data tables.",
+      "source": "ddb"
+    },
+    "fetcher": {
+      "title": "Online Fetcher",
+      "sub": "Read \u00b7 compose \u00b7 return",
+      "kind": "control",
+      "detail": "Fetcher resolves serving metadata, reads online feature values, applies external features and derivations, and responds independently of Hub.",
+      "source": "fetch"
+    },
+    "ui": {
+      "title": "Zipline UI",
+      "sub": "Workflows + Monitor",
+      "kind": "control",
+      "detail": "The UI displays workflow state from Hub and metrics from cloud monitoring APIs. Its server signs AMP query requests with its AWS IAM credentials.",
+      "source": "awsquery"
+    },
+    "telemetry": {
+      "title": "Telemetry",
+      "sub": "Metrics \u00b7 logs \u00b7 history",
+      "kind": "infra",
+      "detail": "The managed scraper collects metrics for AMP. Promtail forwards pod logs to Loki. Spark event logs are stored in S3 for the History Server.",
+      "source": "metrics"
+    },
+    "config": {
+      "title": "S3 install configuration",
+      "sub": "Crucible tfvars + backend",
+      "kind": "store",
+      "detail": "The configuration bucket holds installation inputs. pull_crucible_config.sh downloads them to ignored local files before Terraform runs; it is not a runtime configuration watcher.",
+      "source": "pull"
+    },
+    "sparkcr": {
+      "title": "SparkApplication",
+      "sub": "Namespaced desired state",
+      "kind": "compute",
+      "detail": "Hub stages a node specification and creates a SparkApplication. Execution resource settings remain in spec.sparkConf; driver and executor templates carry selectors and PriorityClass.",
+      "source": "spark"
+    },
+    "sparkop": {
+      "title": "Spark operator",
+      "sub": "Reconcile application",
+      "kind": "control",
+      "detail": "The Spark operator watches compute namespaces and submits the driver. Spark creates executors using the configured pod templates and execution settings.",
+      "source": "spark"
+    },
+    "driver": {
+      "title": "Spark driver",
+      "sub": "engine=spark \u00b7 role=driver",
+      "kind": "compute",
+      "detail": "Drivers select zipline.ai/engine=spark and zipline.ai/role=driver, tolerate the Spark workload taint, and use the workflow mode PriorityClass. Hardware policy lives in the shared driver pool.",
+      "source": "spark"
+    },
+    "executor": {
+      "title": "Spark executors",
+      "sub": "engine=spark \u00b7 executor",
+      "kind": "compute",
+      "detail": "Executors select engine=spark and role=executor. The AWS executor pool chooses Spot instances with local NVMe. CPU and memory requests include the engine resource configuration.",
+      "source": "spark"
+    },
+    "catalog": {
+      "title": "Polaris catalog",
+      "sub": "Iceberg REST + credentials",
+      "kind": "control",
+      "detail": "Spark and compatible query clients use Polaris for Iceberg catalog operations and S3 credential vending. Other configured sources can use their own catalog integration.",
+      "source": "storage"
+    },
+    "lake": {
+      "title": "S3 warehouse",
+      "sub": "Table data + engine output",
+      "kind": "store",
+      "detail": "S3 persists data files, batch import files, staged node JSON, event logs, checkpoints, and model output under their configured prefixes. The objects have different owners and lifecycles.",
+      "source": "storage"
+    },
+    "staged": {
+      "title": "Staged node JSON",
+      "sub": "S3 execution input",
+      "kind": "store",
+      "detail": "Before submitting an engine step, NodeSubmitter writes the resolved node JSON to warehouse S3 and passes its path to the runner.",
+      "source": "submit"
+    },
+    "quota": {
+      "title": "Quota admission",
+      "sub": "Namespace total \u2229 mode",
+      "kind": "infra",
+      "detail": "At pod creation, the API server checks every applicable ResourceQuota. Mode scope matches priorityClassName. A failed check rejects pod creation; the parent engine custom resource may already exist.",
+      "source": "quota"
+    },
+    "pods": {
+      "title": "Pod specifications",
+      "sub": "CPU \u00b7 memory \u00b7 priority",
+      "kind": "compute",
+      "detail": "Operators and engines produce pod resource requests and limits from execution settings. These pod values, including applicable overhead, are what quota admission counts.",
+      "source": "spark"
+    },
+    "budgets": {
+      "title": "ResourceQuota",
+      "sub": "Team total + mode ceilings",
+      "kind": "infra",
+      "detail": "Helm renders aggregate namespace quotas and configured PriorityClass-scoped mode quotas. Empty mode hard maps inherit the configured aggregate hard values. Overlapping quotas are simultaneous ceilings.",
+      "source": "quota"
+    },
+    "scheduler": {
+      "title": "Kubernetes scheduler",
+      "sub": "Bind admitted pods",
+      "kind": "infra",
+      "detail": "The scheduler matches node selectors, tolerations, resource requests, and other scheduling constraints. A pod admitted under quota can still remain Pending without eligible capacity.",
+      "source": "karpenter"
+    },
+    "karpenter": {
+      "title": "Karpenter",
+      "sub": "Pending pods \u2192 EC2 nodes",
+      "kind": "infra",
+      "detail": "Karpenter observes unscheduled pods and provisions compatible EC2 instances within NodePool requirements and provisioning limits. It runs in kube-system.",
+      "source": "nodechart"
+    },
+    "driverpool": {
+      "title": "spark-driver",
+      "sub": "On-demand \u00b7 shared",
+      "kind": "infra",
+      "detail": "Shared across teams and modes. Default ceiling: 100 CPU / 400 GiB. Selects engine=spark and role=driver. There is no instance-local-NVMe requirement.",
+      "source": "pools"
+    },
+    "executorpool": {
+      "title": "spark-executor",
+      "sub": "Spot \u00b7 local NVMe",
+      "kind": "infra",
+      "detail": "Shared across teams and modes. Default ceiling: 1,000 CPU / 4,000 GiB. The pool owns the Spot and local-NVMe hardware requirements.",
+      "source": "pools"
+    },
+    "flinkpool": {
+      "title": "flink",
+      "sub": "On-demand \u00b7 shared",
+      "kind": "infra",
+      "detail": "Both JobManagers and TaskManagers select engine=flink. The single pool has no role label requirement. Default ceiling: 1,100 CPU / 4,400 GiB.",
+      "source": "pools"
+    },
+    "flinkcr": {
+      "title": "FlinkDeployment",
+      "sub": "Job + role resource fields",
+      "kind": "compute",
+      "detail": "Hub supplies the Flink job, configuration, parallelism, JM/TM pod templates, and per-role CPU/memory fields. The Flink operator reconciles this desired state.",
+      "source": "flink"
+    },
+    "flinkop": {
+      "title": "Flink operator",
+      "sub": "Reconcile deployment",
+      "kind": "control",
+      "detail": "The operator reconciles the deployment and JobManager. JobManager manages TaskManager pods. Hub reads FlinkDeployment status to track the workflow step.",
+      "source": "jobstore"
+    },
+    "jm": {
+      "title": "Flink JobManager",
+      "sub": "role=jobmanager",
+      "kind": "compute",
+      "detail": "JobManager coordinates the job. Its pod keeps a jobmanager role label but selects only engine=flink for node placement. CPU and memory are configured independently of TaskManagers.",
+      "source": "flink"
+    },
+    "tm": {
+      "title": "Flink TaskManagers",
+      "sub": "role=taskmanager",
+      "kind": "compute",
+      "detail": "TaskManagers process stream partitions and write online values. Their CPU and memory settings differ from JobManager settings; both roles share the same on-demand pool.",
+      "source": "flink"
+    },
+    "checkpoint": {
+      "title": "S3 checkpoints",
+      "sub": "Flink recovery state",
+      "kind": "store",
+      "detail": "Flink checkpoints durable operator state to the configured S3 path. Job recovery uses this state in addition to Kubernetes reconciliation.",
+      "source": "stream"
+    },
+    "raycr": {
+      "title": "RayJob",
+      "sub": "Training entrypoint",
+      "kind": "compute",
+      "detail": "Direct training submission builds a RayJob in the resolved team namespace and classifies training under the backfill PriorityClass.",
+      "source": "crucible"
+    },
+    "rayop": {
+      "title": "KubeRay operator",
+      "sub": "Reconcile RayJob",
+      "kind": "control",
+      "detail": "KubeRay reconciles the Ray cluster and submitter, reports status, and shuts down the cluster after the job completes according to the configured lifecycle.",
+      "source": "ray"
+    },
+    "rayhead": {
+      "title": "Ray head + submitter",
+      "sub": "Coordinate training",
+      "kind": "compute",
+      "detail": "The submitter starts the training entrypoint. The Ray head coordinates distributed execution across the worker group.",
+      "source": "ray"
+    },
+    "rayworkers": {
+      "title": "Ray workers",
+      "sub": "Configured replica bounds",
+      "kind": "compute",
+      "detail": "Workers execute training tasks and scale within the configured worker group bounds. The training runtime loads the staged trainer archive.",
+      "source": "model"
+    },
+    "model": {
+      "title": "S3 model artifacts",
+      "sub": "Trainer input + model output",
+      "kind": "store",
+      "detail": "Training loads an immutable trainer archive and writes model output to the configured URI. The model platform supplies archive and output locations to the runtime.",
+      "source": "model"
+    },
+    "client": {
+      "title": "Online client",
+      "sub": "Feature keys + join",
+      "kind": "external",
+      "detail": "Applications request feature values from Fetcher. The online request does not need to pass through workflow orchestration.",
+      "source": "fetchapi"
+    },
+    "ingress": {
+      "title": "NLB + NGINX",
+      "sub": "Route service requests",
+      "kind": "infra",
+      "detail": "An internet-facing AWS NLB fronts NGINX ingress. Browser Hub requests use forward-auth when enabled; CLI bearer authorization passes through to Hub.",
+      "source": "ingress"
+    },
+    "metadata": {
+      "title": "Serving metadata",
+      "sub": "Join / GroupBy definitions",
+      "kind": "store",
+      "detail": "Fetcher uses published serving metadata and the table registry to identify the required online data. Batch upload nodes publish this metadata.",
+      "source": "kvupload"
+    },
+    "external": {
+      "title": "External features",
+      "sub": "Configured online sources",
+      "kind": "external",
+      "detail": "A join may combine stored feature values with configured external feature lookups before applying derivations.",
+      "source": "fetch"
+    },
+    "eval": {
+      "title": "Eval service",
+      "sub": "Configuration feedback",
+      "kind": "control",
+      "detail": "The CLI calls Eval directly. Eval authenticates requests, resolves configuration state, evaluates dependencies, and returns schema and validation feedback.",
+      "source": "eval"
+    },
+    "catalogs": {
+      "title": "Configured catalogs",
+      "sub": "Polaris + source catalogs",
+      "kind": "store",
+      "detail": "Schema inspection uses the catalog integration for each configured source. Crucible Iceberg tables use Polaris; source tables need not all be in Polaris.",
+      "source": "eval"
+    },
+    "scraper": {
+      "title": "AWS managed scraper",
+      "sub": "Discover + scrape metrics",
+      "kind": "infra",
+      "detail": "The AMP scraper discovers annotated pods, Fetcher metrics ports, Karpenter, and cAdvisor. kube-state-metrics is included through its scrape annotations.",
+      "source": "metrics"
+    },
+    "amp": {
+      "title": "Managed Prometheus",
+      "sub": "Metric time series",
+      "kind": "store",
+      "detail": "AMP stores scraped metrics. The UI server makes SigV4-signed instant and range queries against the configured AMP endpoint.",
+      "source": "awsquery"
+    },
+    "metricpods": {
+      "title": "Workload metrics",
+      "sub": "Spark \u00b7 Flink \u00b7 services",
+      "kind": "compute",
+      "detail": "Configured exporters expose workload and service metrics. The scraper discovers annotated pods and both named Fetcher metrics ports.",
+      "source": "metrics"
+    },
+    "ksm": {
+      "title": "kube-state-metrics",
+      "sub": "Pods \u00b7 quotas \u00b7 node labels",
+      "kind": "infra",
+      "detail": "Kubernetes object metrics expose namespace quota headroom, pod state, and selected team, engine, role, and node-pool labels. An allowlist exposes existing labels; it does not add labels to pods.",
+      "source": "ksm"
+    },
+    "cadvisor": {
+      "title": "cAdvisor",
+      "sub": "Node / container usage",
+      "kind": "infra",
+      "detail": "The managed scraper reaches per-node cAdvisor metrics through the Kubernetes API server proxy.",
+      "source": "metrics"
+    },
+    "uiserver": {
+      "title": "UI server",
+      "sub": "Viewer auth + AWS signing",
+      "kind": "control",
+      "detail": "SvelteKit server queries enforce viewer access and sign AMP requests using the AWS credential chain. Hub is not the proxy for these metrics queries.",
+      "source": "awsquery"
+    },
+    "browser": {
+      "title": "Monitor in browser",
+      "sub": "Compute health + charts",
+      "kind": "external",
+      "detail": "The Monitor tab displays service health, quota headroom, pending pods, node-pool capacity, and workload metrics obtained through the UI server.",
+      "source": "monitor"
+    },
+    "api": {
+      "title": "Kubernetes API",
+      "sub": "CR state and pod logs",
+      "kind": "infra",
+      "detail": "Hub creates, watches, reads, and deletes engine custom resources. Live reads and informer caches provide engine status while resources exist.",
+      "source": "jobstore"
+    },
+    "podlogs": {
+      "title": "Live pod logs",
+      "sub": "Kubernetes log API",
+      "kind": "infra",
+      "detail": "Hub reads container output through the Kubernetes API while the relevant pods exist. Loki provides a retained-log path.",
+      "source": "logs"
+    },
+    "promtail": {
+      "title": "Promtail",
+      "sub": "Collect pod logs",
+      "kind": "infra",
+      "detail": "Promtail tails eligible pod logs, attaches workload metadata, and sends them to Loki.",
+      "source": "ksm"
+    },
+    "loki": {
+      "title": "Loki",
+      "sub": "Retained workload logs",
+      "kind": "store",
+      "detail": "The chart deploys filesystem-backed Loki on a persistent volume with seven-day default retention. Hub queries it for retained workload logs.",
+      "source": "loki"
+    },
+    "history": {
+      "title": "Spark History Server",
+      "sub": "Completed Spark UI",
+      "kind": "control",
+      "detail": "Spark event logs persist in S3. History Server replays those logs and serves terminal application UIs; its PVC caches replay state.",
+      "source": "history"
+    },
+    "pull": {
+      "title": "Pull configuration",
+      "sub": "pull_crucible_config.sh",
+      "kind": "infra",
+      "detail": "The AWS script downloads the configured S3 objects into ignored local tfvars and backend files. Terraform subsequently reads those local files.",
+      "source": "pull"
+    },
+    "local": {
+      "title": "Local tfvars",
+      "sub": "Installation inputs",
+      "kind": "infra",
+      "detail": "The downloaded configuration supplies orchestration and AWS inputs. These local values, overrides, and checked-in defaults determine the Terraform plan.",
+      "source": "wrapper"
+    },
+    "terraform": {
+      "title": "Terraform",
+      "sub": "AWS + Kubernetes state",
+      "kind": "infra",
+      "detail": "The AWS wrapper provisions cloud resources, evaluates shared capacity policy, and passes resolved settings to the shared orchestration module and Helm releases.",
+      "source": "wrapper"
+    },
+    "helm": {
+      "title": "Helm releases",
+      "sub": "Render + reconcile",
+      "kind": "infra",
+      "detail": "The orchestration chart creates services, namespaces, quotas, RBAC, and configuration. A separate node-pool chart creates Karpenter NodePools and its EC2NodeClass.",
+      "source": "module"
+    },
+    "cluster": {
+      "title": "EKS resources",
+      "sub": "Services + compute policy",
+      "kind": "infra",
+      "detail": "System services run in zipline-system. Team namespaces host engine workloads. kube-system hosts infrastructure controllers such as Karpenter and the AWS load balancer controller.",
+      "source": "placement"
+    },
+    "aws": {
+      "title": "AWS dependencies",
+      "sub": "RDS \u00b7 S3 \u00b7 IAM \u00b7 AMP",
+      "kind": "store",
+      "detail": "Terraform provisions or configures the AWS resources that support control state, artifacts, identity, online serving, and telemetry.",
+      "source": "wrapper"
+    },
+    "ci": {
+      "title": "Chronon + Platform CI",
+      "sub": "Build versioned artifacts",
+      "kind": "external",
+      "detail": "Chronon builds engine artifacts and Platform builds Hub, Eval, and UI images. Installation inputs select the release versions used by the deployment.",
+      "source": "platformci"
+    },
+    "registry": {
+      "title": "Container registry",
+      "sub": "Hub / Eval / engine images",
+      "kind": "store",
+      "detail": "Kubernetes pulls the configured service and engine images. Image references and Chronon artifact versions form the deployed release set.",
+      "source": "platformci"
+    },
+    "artifacts": {
+      "title": "S3 engine artifacts",
+      "sub": "Versioned engine JARs",
+      "kind": "store",
+      "detail": "Engine jobs load versioned Chronon artifacts. Spark 4 artifact names distinguish them from other Spark profiles.",
+      "source": "engineci"
+    }
+  },
+  "flows": [
+    {
+      "id": "overview",
+      "label": "Overview",
+      "title": "One control plane. Shared execution capacity.",
+      "summary": "Zipline turns configuration into durable workflows, runs engine steps in team namespaces, and serves their output through offline tables and online features.",
+      "takeaway": "A namespace is a budget and access boundary. A node pool is a capacity policy. Multiple team namespaces can use the same physical nodes.",
+      "columns": [
+        "Clients & inputs",
+        "Control plane",
+        "Team workloads",
+        "Durable data",
+        "Serve & observe"
+      ],
+      "layout": [
+        [
+          "cli",
+          0,
+          0
+        ],
+        [
+          "hub",
+          1,
+          0
+        ],
+        [
+          "spark",
+          2,
+          0
+        ],
+        [
+          "storage",
+          3,
+          0
+        ],
+        [
+          "ui",
+          4,
+          0
+        ],
+        [
+          "input",
+          0,
+          1
+        ],
+        [
+          "operators",
+          1,
+          1
+        ],
+        [
+          "flink",
+          2,
+          1
+        ],
+        [
+          "kv",
+          3,
+          1
+        ],
+        [
+          "fetcher",
+          4,
+          1
+        ],
+        [
+          "config",
+          0,
+          2
+        ],
+        [
+          "capacity",
+          1,
+          2
+        ],
+        [
+          "ray",
+          2,
+          2
+        ],
+        [
+          "db",
+          3,
+          2
+        ],
+        [
+          "telemetry",
+          4,
+          2
+        ]
+      ],
+      "edges": [
+        [
+          "cli",
+          "hub"
+        ],
+        [
+          "hub",
+          "spark"
+        ],
+        [
+          "hub",
+          "operators"
+        ],
+        [
+          "operators",
+          "flink"
+        ],
+        [
+          "operators",
+          "ray"
+        ],
+        [
+          "spark",
+          "storage"
+        ],
+        [
+          "flink",
+          "kv"
+        ],
+        [
+          "input",
+          "flink",
+          "bottom"
+        ],
+        [
+          "kv",
+          "fetcher"
+        ],
+        [
+          "config",
+          "capacity"
+        ],
+        [
+          "ray",
+          "storage",
+          "top"
+        ],
+        [
+          "hub",
+          "db",
+          "bottom"
+        ],
+        [
+          "ui",
+          "hub",
+          "top"
+        ],
+        [
+          "ui",
+          "telemetry"
+        ]
+      ],
+      "steps": [
+        {
+          "title": "Submit configuration",
+          "body": "The CLI compiles the conf and inherited team settings, uploads changed hashes, and requests a workflow. Browser requests use the same Hub control plane.",
+          "output": "Intent: conf snapshot, team, mode, and partition range.",
+          "nodes": [
+            "cli",
+            "hub"
+          ],
+          "sources": [
+            "cli",
+            "commands"
+          ],
+          "edges": [
+            [
+              "cli",
+              "hub"
+            ]
+          ]
+        },
+        {
+          "title": "Persist and orchestrate",
+          "body": "Hub stores configurations and workflow state in PostgreSQL. Its worker resolves dependencies and allocates runnable steps. Each step selects its engine.",
+          "output": "State: confs, schedules, workflows, and steps in RDS.",
+          "nodes": [
+            "hub",
+            "db",
+            "operators"
+          ],
+          "sources": [
+            "upload",
+            "workflow"
+          ],
+          "edges": [
+            [
+              "hub",
+              "db"
+            ],
+            [
+              "hub",
+              "operators"
+            ]
+          ]
+        },
+        {
+          "title": "Run engine workloads",
+          "body": "Spark executes batch work, Flink processes long-running streams, and Ray executes training. Operators reconcile these resources inside the team compute namespace.",
+          "output": "Execution: namespaced custom resources and engine pods.",
+          "nodes": [
+            "operators",
+            "spark",
+            "flink",
+            "ray"
+          ],
+          "sources": [
+            "crucible",
+            "placement"
+          ],
+          "edges": [
+            [
+              "operators",
+              "flink"
+            ],
+            [
+              "operators",
+              "ray"
+            ]
+          ]
+        },
+        {
+          "title": "Persist data and serve",
+          "body": "Batch work produces offline tables and online materializations. Streaming updates online values. Fetcher reads serving metadata and features independently of Hub.",
+          "output": "Data: Iceberg/S3 output, DynamoDB values, and serving metadata.",
+          "nodes": [
+            "spark",
+            "storage",
+            "flink",
+            "kv",
+            "fetcher"
+          ],
+          "sources": [
+            "batch",
+            "kvupload",
+            "fetch"
+          ],
+          "edges": [
+            [
+              "spark",
+              "storage"
+            ],
+            [
+              "flink",
+              "kv"
+            ],
+            [
+              "kv",
+              "fetcher"
+            ]
+          ]
+        },
+        {
+          "title": "Operate the deployment",
+          "body": "Infrastructure configures namespaces and shared capacity. Logs, engine history, and metrics expose execution health. The UI combines workflow state with monitoring views.",
+          "output": "Visibility: workflow state, engine status, logs, and metrics.",
+          "nodes": [
+            "config",
+            "capacity",
+            "telemetry",
+            "ui"
+          ],
+          "sources": [
+            "pools",
+            "metrics",
+            "monitor"
+          ],
+          "edges": [
+            [
+              "config",
+              "capacity"
+            ],
+            [
+              "ui",
+              "telemetry"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "backfill",
+      "label": "Backfill",
+      "title": "From a conf snapshot to offline results.",
+      "summary": "zipline hub backfill selects backfill mode. Hub plans the requested partitions, then submits runnable Spark work to Kubernetes.",
+      "takeaway": "The workflow and SparkApplication can exist before any pod is admitted. Quota rejection and an admitted pod waiting for capacity are different states.",
+      "columns": [
+        "Configuration",
+        "Orchestration",
+        "Persisted input",
+        "Admission",
+        "Spark execution"
+      ],
+      "layout": [
+        [
+          "cli",
+          0,
+          0
+        ],
+        [
+          "hub",
+          1,
+          0
+        ],
+        [
+          "db",
+          2,
+          0
+        ],
+        [
+          "sparkcr",
+          3,
+          0
+        ],
+        [
+          "sparkop",
+          4,
+          0
+        ],
+        [
+          "input",
+          0,
+          1
+        ],
+        [
+          "catalog",
+          1,
+          1
+        ],
+        [
+          "staged",
+          2,
+          1
+        ],
+        [
+          "quota",
+          3,
+          1
+        ],
+        [
+          "driver",
+          4,
+          1
+        ],
+        [
+          "lake",
+          2,
+          2
+        ],
+        [
+          "executor",
+          4,
+          2
+        ]
+      ],
+      "edges": [
+        [
+          "cli",
+          "hub"
+        ],
+        [
+          "hub",
+          "db"
+        ],
+        [
+          "hub",
+          "sparkcr",
+          "bottom"
+        ],
+        [
+          "hub",
+          "staged"
+        ],
+        [
+          "sparkcr",
+          "sparkop"
+        ],
+        [
+          "sparkop",
+          "quota"
+        ],
+        [
+          "quota",
+          "driver"
+        ],
+        [
+          "driver",
+          "executor"
+        ],
+        [
+          "driver",
+          "catalog",
+          "top"
+        ],
+        [
+          "executor",
+          "lake"
+        ],
+        [
+          "driver",
+          "staged",
+          "bottom"
+        ],
+        [
+          "catalog",
+          "lake"
+        ],
+        [
+          "input",
+          "executor",
+          "bottom"
+        ]
+      ],
+      "steps": [
+        {
+          "title": "Compile and upload",
+          "body": "The CLI combines team and conf settings, computes conf hashes, and uploads changed configurations. Upload expands confs into planner nodes and persists their relationships.",
+          "output": "Writes: configuration hashes, planned nodes, and conf-node links.",
+          "nodes": [
+            "cli",
+            "hub",
+            "db"
+          ],
+          "sources": [
+            "cli",
+            "upload"
+          ],
+          "edges": [
+            [
+              "cli",
+              "hub"
+            ],
+            [
+              "hub",
+              "db"
+            ]
+          ]
+        },
+        {
+          "title": "Create the backfill run",
+          "body": "Hub chooses the backfill terminal node for the requested conf hash, resolves dependencies and date ranges, and persists a waiting workflow.",
+          "output": "Writes: workflow, dependency graph, and partitioned steps.",
+          "nodes": [
+            "hub",
+            "db"
+          ],
+          "sources": [
+            "commands",
+            "plan",
+            "workflow"
+          ],
+          "edges": [
+            [
+              "hub",
+              "db"
+            ]
+          ]
+        },
+        {
+          "title": "Stage each runnable step",
+          "body": "The worker allocates ready work. NodeSubmitter selects backfill execution settings, writes the node JSON to S3, and passes its path to the engine runner.",
+          "output": "Writes: staged node JSON and submission state.",
+          "nodes": [
+            "hub",
+            "staged"
+          ],
+          "sources": [
+            "submit",
+            "worker"
+          ],
+          "edges": [
+            [
+              "hub",
+              "staged"
+            ]
+          ]
+        },
+        {
+          "title": "Submit SparkApplication",
+          "body": "Crucible resolves the team namespace and creates the SparkApplication. spec.sparkConf carries execution settings; pod templates carry role selectors and the mode PriorityClass.",
+          "output": "Writes: SparkApplication desired state in the team namespace.",
+          "nodes": [
+            "hub",
+            "sparkcr",
+            "sparkop"
+          ],
+          "sources": [
+            "crucible",
+            "spark"
+          ],
+          "edges": [
+            [
+              "hub",
+              "sparkcr"
+            ],
+            [
+              "sparkcr",
+              "sparkop"
+            ]
+          ]
+        },
+        {
+          "title": "Admit the driver and executors",
+          "body": "The operator submits the driver and Spark creates executors. Each pod must fit its namespace and backfill quotas before the scheduler can place it.",
+          "output": "Admission: actual pod CPU/memory requests, limits, and pod count.",
+          "nodes": [
+            "sparkop",
+            "quota",
+            "driver",
+            "executor"
+          ],
+          "sources": [
+            "spark",
+            "quota"
+          ],
+          "edges": [
+            [
+              "sparkop",
+              "quota"
+            ],
+            [
+              "quota",
+              "driver"
+            ],
+            [
+              "driver",
+              "executor"
+            ]
+          ]
+        },
+        {
+          "title": "Compute and commit results",
+          "body": "The driver coordinates Spark tasks. Configured input catalogs resolve source tables; Crucible Iceberg output uses Polaris and S3. Hub polls job state and advances downstream steps.",
+          "output": "Writes: result tables, statistics, event logs, and workflow progress.",
+          "nodes": [
+            "input",
+            "catalog",
+            "driver",
+            "executor",
+            "lake"
+          ],
+          "sources": [
+            "batch",
+            "jobstore"
+          ],
+          "edges": [
+            [
+              "driver",
+              "catalog"
+            ],
+            [
+              "driver",
+              "executor"
+            ],
+            [
+              "executor",
+              "lake"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "adhoc",
+      "label": "Run-adhoc",
+      "title": "Prepare online data, then start the stream.",
+      "summary": "zipline hub run-adhoc selects deploy mode. The workflow can contain Spark preparation and upload work before its long-running Flink step.",
+      "takeaway": "Run mode and engine are different dimensions: a Spark preparation pod in this workflow belongs to the deploy quota, just like the later Flink pods.",
+      "columns": [
+        "Request / input",
+        "Workflow control",
+        "Engine work",
+        "Offline staging",
+        "Online serving"
+      ],
+      "layout": [
+        [
+          "cli",
+          0,
+          0
+        ],
+        [
+          "hub",
+          1,
+          0
+        ],
+        [
+          "spark",
+          2,
+          0
+        ],
+        [
+          "lake",
+          3,
+          0
+        ],
+        [
+          "kv",
+          4,
+          0
+        ],
+        [
+          "input",
+          0,
+          1
+        ],
+        [
+          "operators",
+          1,
+          1
+        ],
+        [
+          "flink",
+          2,
+          1
+        ],
+        [
+          "fetcher",
+          4,
+          1
+        ],
+        [
+          "db",
+          1,
+          2
+        ]
+      ],
+      "edges": [
+        [
+          "cli",
+          "hub"
+        ],
+        [
+          "hub",
+          "spark"
+        ],
+        [
+          "spark",
+          "lake"
+        ],
+        [
+          "lake",
+          "kv"
+        ],
+        [
+          "hub",
+          "operators"
+        ],
+        [
+          "operators",
+          "flink"
+        ],
+        [
+          "input",
+          "flink",
+          "bottom"
+        ],
+        [
+          "flink",
+          "kv"
+        ],
+        [
+          "kv",
+          "fetcher"
+        ],
+        [
+          "hub",
+          "db"
+        ]
+      ],
+      "steps": [
+        {
+          "title": "Request deploy mode",
+          "body": "run-adhoc sends mode=deploy with the compiled conf snapshot. Hub selects the deploy terminal node and plans its dependency graph.",
+          "output": "Intent: deploy workflow; engine selection happens per node.",
+          "nodes": [
+            "cli",
+            "hub",
+            "db"
+          ],
+          "sources": [
+            "commands",
+            "plan"
+          ],
+          "edges": [
+            [
+              "cli",
+              "hub"
+            ],
+            [
+              "hub",
+              "db"
+            ]
+          ]
+        },
+        {
+          "title": "Run Spark preparation",
+          "body": "Runnable batch nodes compute the snapshots or features needed by the online deployment. Their pods use zipline-deploy even though their engine is Spark.",
+          "output": "Writes: preparation tables and staged online data.",
+          "nodes": [
+            "hub",
+            "spark",
+            "lake"
+          ],
+          "sources": [
+            "submit",
+            "spark",
+            "kvupload"
+          ],
+          "edges": [
+            [
+              "hub",
+              "spark"
+            ],
+            [
+              "spark",
+              "lake"
+            ]
+          ]
+        },
+        {
+          "title": "Publish online materialization",
+          "body": "Upload nodes publish serving metadata and materialize online values. The AWS bulk path imports S3 Ion files into DynamoDB and updates table registry metadata.",
+          "output": "Writes: DynamoDB data tables, serving metadata, and table mappings.",
+          "nodes": [
+            "spark",
+            "lake",
+            "kv"
+          ],
+          "sources": [
+            "kvupload",
+            "import"
+          ],
+          "edges": [
+            [
+              "spark",
+              "lake"
+            ],
+            [
+              "lake",
+              "kv"
+            ]
+          ]
+        },
+        {
+          "title": "Start long-running Flink",
+          "body": "After required preparation completes, the long-running node selects Flink. The operator reconciles the deployment; JobManager manages TaskManager pods. Both roles use the same team namespace and shared on-demand Flink pool.",
+          "output": "Writes: FlinkDeployment, JM/TM pods, and running step state.",
+          "nodes": [
+            "hub",
+            "operators",
+            "flink"
+          ],
+          "sources": [
+            "submit",
+            "flink",
+            "pools"
+          ],
+          "edges": [
+            [
+              "hub",
+              "operators"
+            ],
+            [
+              "operators",
+              "flink"
+            ]
+          ]
+        },
+        {
+          "title": "Update and serve features",
+          "body": "Flink consumes the configured stream and updates online values. Fetcher reads those values and serving metadata for client requests independently of workflow orchestration.",
+          "output": "Writes: online updates and checkpoint state; reads: feature values.",
+          "nodes": [
+            "input",
+            "flink",
+            "kv",
+            "fetcher"
+          ],
+          "sources": [
+            "stream",
+            "fetch"
+          ],
+          "edges": [
+            [
+              "input",
+              "flink"
+            ],
+            [
+              "flink",
+              "kv"
+            ],
+            [
+              "kv",
+              "fetcher"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "schedule",
+      "label": "Scheduled",
+      "title": "Stored schedules enter the same execution path.",
+      "summary": "The Hub worker polls schedules, creates due workflow runs, and submits dependency-ready engine steps.",
+      "takeaway": "Workflow concurrency controls when Hub dispatches steps. Kubernetes quotas separately control whether their pods can be created.",
+      "columns": [
+        "Scheduled intent",
+        "Workflow creation",
+        "Runnable steps",
+        "Execution",
+        "Results"
+      ],
+      "layout": [
+        [
+          "db",
+          0,
+          0
+        ],
+        [
+          "hub",
+          1,
+          0
+        ],
+        [
+          "sparkcr",
+          2,
+          0
+        ],
+        [
+          "spark",
+          3,
+          0
+        ],
+        [
+          "storage",
+          4,
+          0
+        ],
+        [
+          "operators",
+          2,
+          1
+        ],
+        [
+          "quota",
+          3,
+          1
+        ]
+      ],
+      "edges": [
+        [
+          "db",
+          "hub"
+        ],
+        [
+          "hub",
+          "sparkcr"
+        ],
+        [
+          "sparkcr",
+          "operators"
+        ],
+        [
+          "operators",
+          "quota"
+        ],
+        [
+          "quota",
+          "spark"
+        ],
+        [
+          "spark",
+          "storage"
+        ],
+        [
+          "hub",
+          "db",
+          "bottom"
+        ]
+      ],
+      "steps": [
+        {
+          "title": "Find a due schedule",
+          "body": "The worker reads stored schedules and computes the due partition range. Scheduled runs retain applicable source sensors that ad hoc planning can omit.",
+          "output": "Reads: schedule definitions, prior runs, and dependency state.",
+          "nodes": [
+            "db",
+            "hub"
+          ],
+          "sources": [
+            "schedule",
+            "plan"
+          ],
+          "edges": [
+            [
+              "db",
+              "hub"
+            ]
+          ]
+        },
+        {
+          "title": "Persist a workflow run",
+          "body": "ScheduleExecutor creates a normal workflow request using the stored mode, conf, and range. WorkflowManager persists waiting work for execution.",
+          "output": "Writes: durable workflow and step records.",
+          "nodes": [
+            "hub",
+            "db"
+          ],
+          "sources": [
+            "schedule",
+            "workflow"
+          ],
+          "edges": [
+            [
+              "hub",
+              "db"
+            ]
+          ]
+        },
+        {
+          "title": "Allocate ready steps",
+          "body": "The orchestrator evaluates dependency readiness and workflow concurrency, then stages and submits runnable engine work.",
+          "output": "Writes: submission attempts and step transitions.",
+          "nodes": [
+            "hub",
+            "sparkcr",
+            "operators"
+          ],
+          "sources": [
+            "worker",
+            "submit"
+          ],
+          "edges": [
+            [
+              "hub",
+              "sparkcr"
+            ],
+            [
+              "sparkcr",
+              "operators"
+            ]
+          ]
+        },
+        {
+          "title": "Execute under pod quotas",
+          "body": "Engine reconciliation and pod admission use the same namespace, mode PriorityClass, and shared pool selectors as interactive requests.",
+          "output": "Execution: operator-managed workloads and data outputs.",
+          "nodes": [
+            "operators",
+            "quota",
+            "spark",
+            "storage"
+          ],
+          "sources": [
+            "spark",
+            "quota"
+          ],
+          "edges": [
+            [
+              "operators",
+              "quota"
+            ],
+            [
+              "quota",
+              "spark"
+            ],
+            [
+              "spark",
+              "storage"
+            ]
+          ]
+        },
+        {
+          "title": "Track and advance",
+          "body": "Hub polls engine state, records terminal step status, and releases downstream work. The schedule and workflow remain durable across Hub restarts.",
+          "output": "Writes: workflow progress and final status in PostgreSQL.",
+          "nodes": [
+            "hub",
+            "db",
+            "spark"
+          ],
+          "sources": [
+            "jobstore",
+            "workflow"
+          ],
+          "edges": [
+            [
+              "hub",
+              "db"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "resources",
+      "label": "Resources",
+      "title": "From resource intent to a running pod.",
+      "summary": "Execution settings describe pod demand. Namespace and mode quotas admit that demand. Engine selectors then route it to shared capacity.",
+      "takeaway": "A quota is a ceiling, not a reservation. Passing quota admission does not guarantee a matching node, available Spot capacity, or room within a NodePool limit.",
+      "columns": [
+        "Resource intent",
+        "Resolve settings",
+        "Engine specification",
+        "Pod demand",
+        "Admit & schedule"
+      ],
+      "layout": [
+        [
+          "conf",
+          0,
+          0
+        ],
+        [
+          "hub",
+          1,
+          0
+        ],
+        [
+          "sparkcr",
+          2,
+          0
+        ],
+        [
+          "pods",
+          3,
+          0
+        ],
+        [
+          "quota",
+          4,
+          0
+        ],
+        [
+          "budgets",
+          3,
+          1
+        ],
+        [
+          "scheduler",
+          4,
+          1
+        ],
+        [
+          "driverpool",
+          0,
+          2
+        ],
+        [
+          "executorpool",
+          1,
+          2
+        ],
+        [
+          "flinkpool",
+          2,
+          2
+        ],
+        [
+          "karpenter",
+          4,
+          2
+        ]
+      ],
+      "edges": [
+        [
+          "conf",
+          "hub"
+        ],
+        [
+          "hub",
+          "sparkcr"
+        ],
+        [
+          "sparkcr",
+          "pods"
+        ],
+        [
+          "pods",
+          "quota"
+        ],
+        [
+          "budgets",
+          "quota"
+        ],
+        [
+          "quota",
+          "scheduler"
+        ],
+        [
+          "scheduler",
+          "karpenter"
+        ],
+        [
+          "karpenter",
+          "driverpool",
+          "bottom"
+        ],
+        [
+          "karpenter",
+          "executorpool",
+          "bottom"
+        ],
+        [
+          "karpenter",
+          "flinkpool",
+          "bottom"
+        ]
+      ],
+      "steps": [
+        {
+          "title": "Inherit resource settings",
+          "body": "Compilation merges default-team, team, and conf execution settings. Hub selects the configuration for the workflow mode, such as Spark cores and memory or Flink process memory and slots.",
+          "output": "Input: resolved executionInfo and the workflow mode.",
+          "nodes": [
+            "conf",
+            "hub"
+          ],
+          "sources": [
+            "compile",
+            "submit"
+          ],
+          "edges": [
+            [
+              "conf",
+              "hub"
+            ]
+          ]
+        },
+        {
+          "title": "Resolve namespace and mode",
+          "body": "Crucible resolves the team namespace. The submission boundary requires backfill or deploy, mapped to zipline-backfill or zipline-deploy. Unsupported or missing submission modes are rejected.",
+          "output": "Classification: team namespace and pod priorityClassName.",
+          "nodes": [
+            "hub",
+            "sparkcr"
+          ],
+          "sources": [
+            "crucible",
+            "validation"
+          ],
+          "edges": [
+            [
+              "hub",
+              "sparkcr"
+            ]
+          ]
+        },
+        {
+          "title": "Build engine pod demand",
+          "body": "Spark settings pass through spec.sparkConf. Flink has explicit JM/TM resource fields. Operators and engines create pod specifications from those settings, including engine memory overhead.",
+          "output": "Demand: per-pod resource requests and limits, not a whole-workflow reservation.",
+          "nodes": [
+            "sparkcr",
+            "pods"
+          ],
+          "sources": [
+            "spark",
+            "flink"
+          ],
+          "edges": [
+            [
+              "sparkcr",
+              "pods"
+            ]
+          ]
+        },
+        {
+          "title": "Check every applicable quota",
+          "body": "The API server checks the aggregate namespace quota and any configured PriorityClass-scoped mode quota. Exceeding either rejects pod creation, even if its custom resource already exists.",
+          "output": "Admission: resource requests, resource limits, and active pod count.",
+          "nodes": [
+            "pods",
+            "budgets",
+            "quota"
+          ],
+          "sources": [
+            "quota",
+            "k8sQuota"
+          ],
+          "edges": [
+            [
+              "pods",
+              "quota"
+            ],
+            [
+              "budgets",
+              "quota"
+            ]
+          ]
+        },
+        {
+          "title": "Match a node",
+          "body": "Admitted pods enter scheduling. Spark selects engine plus driver/executor role; Flink selects engine=flink. Tolerations permit the engine workload taint. Team and mode do not select node pools.",
+          "output": "Placement: bind a pod, or leave it Pending if no eligible node fits.",
+          "nodes": [
+            "quota",
+            "scheduler",
+            "driverpool",
+            "executorpool",
+            "flinkpool"
+          ],
+          "sources": [
+            "spark",
+            "flink",
+            "pools"
+          ],
+          "edges": [
+            [
+              "quota",
+              "scheduler"
+            ]
+          ]
+        },
+        {
+          "title": "Provision shared capacity",
+          "body": "Karpenter observes unscheduled pods and creates matching EC2 capacity under pool requirements and limits. Spark drivers use on-demand; executors use Spot with NVMe; JM/TM share on-demand Flink capacity.",
+          "output": "Writes: NodeClaims and nodes; the scheduler can then bind pods.",
+          "nodes": [
+            "scheduler",
+            "karpenter",
+            "driverpool",
+            "executorpool",
+            "flinkpool"
+          ],
+          "sources": [
+            "pools",
+            "karpenter"
+          ],
+          "edges": [
+            [
+              "scheduler",
+              "karpenter"
+            ],
+            [
+              "karpenter",
+              "driverpool"
+            ],
+            [
+              "karpenter",
+              "executorpool"
+            ],
+            [
+              "karpenter",
+              "flinkpool"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "streaming",
+      "label": "Flink",
+      "title": "Two roles, one on-demand pool.",
+      "summary": "A long-running workflow step becomes a FlinkDeployment. JobManager and TaskManagers retain independent resource settings and share physical capacity.",
+      "takeaway": "Role labels preserve JM/TM visibility. Both roles select only zipline.ai/engine=flink for placement, so separate role labels do not create separate pools.",
+      "columns": [
+        "Submit",
+        "Desired state",
+        "Reconcile / source",
+        "Coordinate / state",
+        "Process / materialize"
+      ],
+      "layout": [
+        [
+          "hub",
+          0,
+          0
+        ],
+        [
+          "flinkcr",
+          1,
+          0
+        ],
+        [
+          "flinkop",
+          2,
+          0
+        ],
+        [
+          "jm",
+          3,
+          0
+        ],
+        [
+          "tm",
+          4,
+          0
+        ],
+        [
+          "input",
+          2,
+          1
+        ],
+        [
+          "checkpoint",
+          3,
+          1
+        ],
+        [
+          "kv",
+          4,
+          1
+        ],
+        [
+          "flinkpool",
+          2,
+          2
+        ]
+      ],
+      "edges": [
+        [
+          "hub",
+          "flinkcr"
+        ],
+        [
+          "flinkcr",
+          "flinkop"
+        ],
+        [
+          "flinkop",
+          "jm"
+        ],
+        [
+          "jm",
+          "tm"
+        ],
+        [
+          "input",
+          "tm"
+        ],
+        [
+          "tm",
+          "checkpoint"
+        ],
+        [
+          "tm",
+          "kv"
+        ],
+        [
+          "jm",
+          "flinkpool",
+          "bottom"
+        ],
+        [
+          "tm",
+          "flinkpool",
+          "bottom"
+        ]
+      ],
+      "steps": [
+        {
+          "title": "Build the deployment",
+          "body": "Hub supplies the Flink entrypoint, configuration, parallelism, versioned JAR locations, and role-specific pod templates to a namespaced FlinkDeployment.",
+          "output": "Writes: job desired state and JM/TM resource fields.",
+          "nodes": [
+            "hub",
+            "flinkcr"
+          ],
+          "sources": [
+            "submit",
+            "flink"
+          ],
+          "edges": [
+            [
+              "hub",
+              "flinkcr"
+            ]
+          ]
+        },
+        {
+          "title": "Reconcile the JobManager",
+          "body": "The Flink operator creates the JobManager. Its memory and CPU settings are distinct from TaskManager settings. Its pod is subject to the workflow mode quota.",
+          "output": "Creates: JobManager pod, service, and deployment status.",
+          "nodes": [
+            "flinkcr",
+            "flinkop",
+            "jm"
+          ],
+          "sources": [
+            "flink",
+            "quota"
+          ],
+          "edges": [
+            [
+              "flinkcr",
+              "flinkop"
+            ],
+            [
+              "flinkop",
+              "jm"
+            ]
+          ]
+        },
+        {
+          "title": "Run TaskManagers",
+          "body": "TaskManagers use the resolved memory tier/process size and task-slot configuration. Both roles select the shared on-demand Flink pool, while role labels identify each pod.",
+          "output": "Creates: processing capacity inside the same team namespace.",
+          "nodes": [
+            "jm",
+            "tm",
+            "flinkpool"
+          ],
+          "sources": [
+            "flink",
+            "pools"
+          ],
+          "edges": [
+            [
+              "jm",
+              "tm"
+            ],
+            [
+              "jm",
+              "flinkpool"
+            ],
+            [
+              "tm",
+              "flinkpool"
+            ]
+          ]
+        },
+        {
+          "title": "Consume and checkpoint",
+          "body": "The job reads its configured streaming source. Flink periodically checkpoints operator state to S3 so the runtime can recover processing after failures.",
+          "output": "Reads: stream records; writes: checkpoint state.",
+          "nodes": [
+            "input",
+            "jm",
+            "tm",
+            "checkpoint"
+          ],
+          "sources": [
+            "stream"
+          ],
+          "edges": [
+            [
+              "input",
+              "tm"
+            ],
+            [
+              "tm",
+              "checkpoint"
+            ]
+          ]
+        },
+        {
+          "title": "Write online updates",
+          "body": "TaskManagers materialize feature values in the online store. Hub observes FlinkDeployment status and tracks the long-running workflow step.",
+          "output": "Writes: online feature updates and engine/workflow status.",
+          "nodes": [
+            "tm",
+            "kv",
+            "hub"
+          ],
+          "sources": [
+            "stream",
+            "jobstore"
+          ],
+          "edges": [
+            [
+              "tm",
+              "kv"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "training",
+      "label": "Training",
+      "title": "From a training step to a model artifact.",
+      "summary": "Hub submits a RayJob after the training node\u2019s dependencies are ready. KubeRay starts the runtime and tracks the distributed job.",
+      "takeaway": "The workflow owns dependency and step state. RayJob owns the training execution; the configured artifact URI identifies the model output.",
+      "columns": [
+        "Workflow",
+        "Job specification",
+        "Operator",
+        "Coordination",
+        "Training & output"
+      ],
+      "layout": [
+        [
+          "hub",
+          0,
+          0
+        ],
+        [
+          "raycr",
+          1,
+          0
+        ],
+        [
+          "rayop",
+          2,
+          0
+        ],
+        [
+          "rayhead",
+          3,
+          0
+        ],
+        [
+          "rayworkers",
+          4,
+          0
+        ],
+        [
+          "db",
+          0,
+          1
+        ],
+        [
+          "model",
+          4,
+          1
+        ]
+      ],
+      "edges": [
+        [
+          "hub",
+          "raycr"
+        ],
+        [
+          "raycr",
+          "rayop"
+        ],
+        [
+          "rayop",
+          "rayhead"
+        ],
+        [
+          "rayhead",
+          "rayworkers"
+        ],
+        [
+          "rayworkers",
+          "model"
+        ],
+        [
+          "hub",
+          "db"
+        ],
+        [
+          "model",
+          "rayhead"
+        ]
+      ],
+      "steps": [
+        {
+          "title": "Reach the training node",
+          "body": "Workflow dependencies prepare training inputs before the model-training node becomes runnable. Hub selects the Ray submission path for supported training nodes.",
+          "output": "Reads: ready dependencies and model training configuration.",
+          "nodes": [
+            "hub",
+            "db"
+          ],
+          "sources": [
+            "submit",
+            "model"
+          ],
+          "edges": [
+            [
+              "hub",
+              "db"
+            ]
+          ]
+        },
+        {
+          "title": "Create RayJob",
+          "body": "Crucible resolves the team namespace and supplies the training entrypoint, environment, worker bounds, and staged trainer archive. Direct training is classified under backfill.",
+          "output": "Writes: a namespaced RayJob.",
+          "nodes": [
+            "hub",
+            "raycr"
+          ],
+          "sources": [
+            "crucible",
+            "model"
+          ],
+          "edges": [
+            [
+              "hub",
+              "raycr"
+            ]
+          ]
+        },
+        {
+          "title": "Reconcile the runtime",
+          "body": "KubeRay creates the submitter, Ray head, and worker group. Their pods are admitted inside the team namespace before running.",
+          "output": "Creates: Ray pods and services.",
+          "nodes": [
+            "raycr",
+            "rayop",
+            "rayhead",
+            "rayworkers"
+          ],
+          "sources": [
+            "ray"
+          ],
+          "edges": [
+            [
+              "raycr",
+              "rayop"
+            ],
+            [
+              "rayop",
+              "rayhead"
+            ],
+            [
+              "rayhead",
+              "rayworkers"
+            ]
+          ]
+        },
+        {
+          "title": "Execute distributed training",
+          "body": "The runtime loads the trainer archive and executes work across the configured worker group. KubeRay reports progress through RayJob status.",
+          "output": "Produces: training progress, logs, and job status.",
+          "nodes": [
+            "model",
+            "rayhead",
+            "rayworkers"
+          ],
+          "sources": [
+            "model",
+            "ray"
+          ],
+          "edges": [
+            [
+              "model",
+              "rayhead"
+            ],
+            [
+              "rayhead",
+              "rayworkers"
+            ]
+          ]
+        },
+        {
+          "title": "Publish the artifact",
+          "body": "Training writes model output to its configured artifact URI. Hub reads the terminal job status and advances the workflow.",
+          "output": "Writes: model artifacts and durable workflow status.",
+          "nodes": [
+            "rayworkers",
+            "model",
+            "hub",
+            "db"
+          ],
+          "sources": [
+            "model",
+            "jobstore"
+          ],
+          "edges": [
+            [
+              "rayworkers",
+              "model"
+            ],
+            [
+              "hub",
+              "db"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fetch",
+      "label": "Online fetch",
+      "title": "Serve features without a workflow round trip.",
+      "summary": "An application sends keys and a join name to Fetcher. Fetcher resolves the serving definition, retrieves values, and composes the response.",
+      "takeaway": "Hub is not in the online request path. Online serving uses the data and metadata produced by earlier batch and streaming workflows.",
+      "columns": [
+        "Application",
+        "Routing",
+        "Feature service",
+        "Serving definitions",
+        "Online values"
+      ],
+      "layout": [
+        [
+          "client",
+          0,
+          0
+        ],
+        [
+          "ingress",
+          1,
+          0
+        ],
+        [
+          "fetcher",
+          2,
+          0
+        ],
+        [
+          "metadata",
+          3,
+          0
+        ],
+        [
+          "kv",
+          4,
+          0
+        ],
+        [
+          "external",
+          3,
+          1
+        ]
+      ],
+      "edges": [
+        [
+          "client",
+          "ingress"
+        ],
+        [
+          "ingress",
+          "fetcher"
+        ],
+        [
+          "fetcher",
+          "metadata"
+        ],
+        [
+          "fetcher",
+          "kv",
+          "top"
+        ],
+        [
+          "fetcher",
+          "external"
+        ],
+        [
+          "fetcher",
+          "client",
+          "bottom"
+        ]
+      ],
+      "steps": [
+        {
+          "title": "Request features",
+          "body": "The application calls the configured Fetcher endpoint with a join name and keys. Ingress routes the request to the service; it does not create a workflow.",
+          "output": "Request: online feature lookup.",
+          "nodes": [
+            "client",
+            "ingress",
+            "fetcher"
+          ],
+          "sources": [
+            "fetchapi"
+          ],
+          "edges": [
+            [
+              "client",
+              "ingress"
+            ],
+            [
+              "ingress",
+              "fetcher"
+            ]
+          ]
+        },
+        {
+          "title": "Resolve serving metadata",
+          "body": "Fetcher loads the published join and GroupBy metadata and the required online table mappings.",
+          "output": "Reads: serving definitions and registry metadata.",
+          "nodes": [
+            "fetcher",
+            "metadata"
+          ],
+          "sources": [
+            "fetch",
+            "kvupload"
+          ],
+          "edges": [
+            [
+              "fetcher",
+              "metadata"
+            ]
+          ]
+        },
+        {
+          "title": "Read online values",
+          "body": "Fetcher fetches the relevant feature data from DynamoDB using the resolved keys and table information.",
+          "output": "Reads: materialized batch and streaming feature values.",
+          "nodes": [
+            "fetcher",
+            "kv"
+          ],
+          "sources": [
+            "fetch"
+          ],
+          "edges": [
+            [
+              "fetcher",
+              "kv"
+            ]
+          ]
+        },
+        {
+          "title": "Compose the result",
+          "body": "Configured external features and derivations are evaluated as part of constructing the join response.",
+          "output": "Builds: the requested feature result.",
+          "nodes": [
+            "fetcher",
+            "external"
+          ],
+          "sources": [
+            "fetch"
+          ],
+          "edges": [
+            [
+              "fetcher",
+              "external"
+            ]
+          ]
+        },
+        {
+          "title": "Return to the caller",
+          "body": "Fetcher sends the feature response and emits service latency and request telemetry. Hub does not proxy this read.",
+          "output": "Returns: feature values to the application.",
+          "nodes": [
+            "fetcher",
+            "client"
+          ],
+          "sources": [
+            "fetchapi"
+          ],
+          "edges": [
+            [
+              "fetcher",
+              "client"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "eval",
+      "label": "Eval",
+      "title": "Check a configuration against its data sources.",
+      "summary": "The CLI calls the Eval service directly with the configuration snapshot and evaluation parameters.",
+      "takeaway": "Eval returns configuration feedback. It is a separate service path from submitting a scheduled workflow or creating engine custom resources.",
+      "columns": [
+        "Configuration",
+        "Routing",
+        "Evaluation",
+        "Conf state",
+        "Source schemas"
+      ],
+      "layout": [
+        [
+          "cli",
+          0,
+          0
+        ],
+        [
+          "hub",
+          1,
+          0
+        ],
+        [
+          "db",
+          2,
+          0
+        ],
+        [
+          "eval",
+          3,
+          0
+        ],
+        [
+          "catalogs",
+          4,
+          0
+        ],
+        [
+          "ingress",
+          1,
+          1
+        ]
+      ],
+      "edges": [
+        [
+          "cli",
+          "hub"
+        ],
+        [
+          "hub",
+          "db"
+        ],
+        [
+          "cli",
+          "ingress"
+        ],
+        [
+          "ingress",
+          "eval"
+        ],
+        [
+          "eval",
+          "db"
+        ],
+        [
+          "eval",
+          "catalogs"
+        ],
+        [
+          "eval",
+          "cli",
+          "bottom"
+        ]
+      ],
+      "steps": [
+        {
+          "title": "Compile and synchronize",
+          "body": "The CLI compiles the conf and synchronizes changed configuration with Hub before sending its conf name, hash map, and evaluation parameters to Eval.",
+          "output": "Writes: uploaded configuration that Eval can resolve by hash.",
+          "nodes": [
+            "cli",
+            "hub",
+            "db"
+          ],
+          "sources": [
+            "evalsync",
+            "upload"
+          ],
+          "edges": [
+            [
+              "cli",
+              "hub"
+            ],
+            [
+              "hub",
+              "db"
+            ]
+          ]
+        },
+        {
+          "title": "Call Eval directly",
+          "body": "The CLI posts to the configured Eval endpoint through service routing. Eval applies its own JWT middleware when authentication is enabled.",
+          "output": "Request: evaluation, not workflow submission.",
+          "nodes": [
+            "cli",
+            "ingress",
+            "eval"
+          ],
+          "sources": [
+            "evalclient",
+            "eval"
+          ],
+          "edges": [
+            [
+              "cli",
+              "ingress"
+            ],
+            [
+              "ingress",
+              "eval"
+            ]
+          ]
+        },
+        {
+          "title": "Resolve configuration state",
+          "body": "Eval resolves the supplied conf snapshot and evaluates its dependencies against uploaded configuration state.",
+          "output": "Reads: configuration and dependency information.",
+          "nodes": [
+            "eval",
+            "db"
+          ],
+          "sources": [
+            "evalconf"
+          ],
+          "edges": [
+            [
+              "eval",
+              "db"
+            ]
+          ]
+        },
+        {
+          "title": "Inspect source schemas",
+          "body": "Schema inspection uses the configured catalog for each source. Polaris supplies the Iceberg catalog for Crucible tables; source integrations can use other catalogs.",
+          "output": "Reads: catalog and table-schema information.",
+          "nodes": [
+            "eval",
+            "catalogs"
+          ],
+          "sources": [
+            "eval"
+          ],
+          "edges": [
+            [
+              "eval",
+              "catalogs"
+            ]
+          ]
+        },
+        {
+          "title": "Return feedback",
+          "body": "Eval returns configuration validation, schema, or lineage feedback to the CLI so the author can adjust the conf.",
+          "output": "Returns: validation results and diagnostics.",
+          "nodes": [
+            "eval",
+            "cli"
+          ],
+          "sources": [
+            "evalclient",
+            "eval"
+          ],
+          "edges": [
+            [
+              "eval",
+              "cli"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "monitor",
+      "label": "Monitor",
+      "title": "Collection and queries are separate paths.",
+      "summary": "Workload and cluster exporters feed Amazon Managed Prometheus. The UI server queries AMP and combines those charts with Hub health.",
+      "takeaway": "Monitor charts go through the UI server to AMP. Hub serves workflow state and worker health; it does not proxy the Prometheus chart queries.",
+      "columns": [
+        "Workload signals",
+        "Collection",
+        "Metric storage",
+        "Server queries",
+        "Monitor UI"
+      ],
+      "layout": [
+        [
+          "metricpods",
+          0,
+          0
+        ],
+        [
+          "scraper",
+          1,
+          0
+        ],
+        [
+          "amp",
+          2,
+          0
+        ],
+        [
+          "uiserver",
+          3,
+          0
+        ],
+        [
+          "browser",
+          4,
+          0
+        ],
+        [
+          "ksm",
+          0,
+          1
+        ],
+        [
+          "karpenter",
+          1,
+          1
+        ],
+        [
+          "cadvisor",
+          2,
+          1
+        ],
+        [
+          "hub",
+          3,
+          1
+        ]
+      ],
+      "edges": [
+        [
+          "metricpods",
+          "scraper"
+        ],
+        [
+          "scraper",
+          "amp"
+        ],
+        [
+          "browser",
+          "uiserver"
+        ],
+        [
+          "uiserver",
+          "amp"
+        ],
+        [
+          "ksm",
+          "scraper"
+        ],
+        [
+          "karpenter",
+          "scraper"
+        ],
+        [
+          "cadvisor",
+          "scraper"
+        ],
+        [
+          "uiserver",
+          "hub"
+        ]
+      ],
+      "steps": [
+        {
+          "title": "Expose workload metrics",
+          "body": "Configured workload exporters expose metrics. The scraper discovers annotated pods and both named Fetcher metrics ports.",
+          "output": "Signals: workload behavior, service latency, and resource use.",
+          "nodes": [
+            "metricpods",
+            "scraper"
+          ],
+          "sources": [
+            "metrics"
+          ],
+          "edges": [
+            [
+              "metricpods",
+              "scraper"
+            ]
+          ]
+        },
+        {
+          "title": "Add cluster context",
+          "body": "kube-state-metrics exposes pod, namespace-quota, and node state. Karpenter adds provisioning metrics; cAdvisor adds node and container resource metrics.",
+          "output": "Context: team, engine, role, node pool, quota headroom, and pending work.",
+          "nodes": [
+            "ksm",
+            "karpenter",
+            "cadvisor",
+            "scraper"
+          ],
+          "sources": [
+            "ksm",
+            "metrics"
+          ],
+          "edges": [
+            [
+              "ksm",
+              "scraper"
+            ],
+            [
+              "karpenter",
+              "scraper"
+            ],
+            [
+              "cadvisor",
+              "scraper"
+            ]
+          ]
+        },
+        {
+          "title": "Collect into AMP",
+          "body": "The AWS managed scraper sends the configured time series to the AMP workspace. Collection is independent of who is viewing a dashboard.",
+          "output": "Writes: metric time series in AMP.",
+          "nodes": [
+            "scraper",
+            "amp"
+          ],
+          "sources": [
+            "metrics"
+          ],
+          "edges": [
+            [
+              "scraper",
+              "amp"
+            ]
+          ]
+        },
+        {
+          "title": "Query through the UI server",
+          "body": "Browser charts call SvelteKit server queries. The UI server enforces viewer access and signs instant or range requests to AMP with AWS credentials.",
+          "output": "Reads: AMP queries for compute health and charts.",
+          "nodes": [
+            "browser",
+            "uiserver",
+            "amp"
+          ],
+          "sources": [
+            "awsquery",
+            "monitor",
+            "chart"
+          ],
+          "edges": [
+            [
+              "browser",
+              "uiserver"
+            ],
+            [
+              "uiserver",
+              "amp"
+            ]
+          ]
+        },
+        {
+          "title": "Combine with workflow health",
+          "body": "The UI also calls Hub health and workflow endpoints. These are separate from metrics queries and explain whether the worker is polling and workflow steps are advancing.",
+          "output": "View: workload state alongside infrastructure and service health.",
+          "nodes": [
+            "browser",
+            "uiserver",
+            "hub"
+          ],
+          "sources": [
+            "health",
+            "monitor"
+          ],
+          "edges": [
+            [
+              "browser",
+              "uiserver"
+            ],
+            [
+              "uiserver",
+              "hub"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "operate",
+      "label": "Logs & cancel",
+      "title": "Inspect the workload, then act on its owner.",
+      "summary": "Hub connects workflow state to engine status, live and retained logs, and engine UIs. Cancellation removes the engine custom resource.",
+      "takeaway": "PostgreSQL owns durable workflow state. Kubernetes owns live engine state. Logs, event history, and data outputs have their own storage and lifecycles.",
+      "columns": [
+        "Operator",
+        "Workflow control",
+        "Kubernetes / UI",
+        "Engine workload",
+        "Retained logs"
+      ],
+      "layout": [
+        [
+          "cli",
+          0,
+          0
+        ],
+        [
+          "hub",
+          1,
+          0
+        ],
+        [
+          "api",
+          2,
+          0
+        ],
+        [
+          "spark",
+          3,
+          0
+        ],
+        [
+          "db",
+          1,
+          1
+        ],
+        [
+          "podlogs",
+          2,
+          1
+        ],
+        [
+          "promtail",
+          4,
+          1
+        ],
+        [
+          "history",
+          2,
+          2
+        ],
+        [
+          "lake",
+          3,
+          2
+        ],
+        [
+          "loki",
+          4,
+          2
+        ]
+      ],
+      "edges": [
+        [
+          "cli",
+          "hub"
+        ],
+        [
+          "hub",
+          "api"
+        ],
+        [
+          "api",
+          "spark"
+        ],
+        [
+          "hub",
+          "db"
+        ],
+        [
+          "hub",
+          "podlogs"
+        ],
+        [
+          "spark",
+          "promtail"
+        ],
+        [
+          "promtail",
+          "loki"
+        ],
+        [
+          "hub",
+          "loki",
+          "bottom"
+        ],
+        [
+          "spark",
+          "lake"
+        ],
+        [
+          "history",
+          "lake"
+        ],
+        [
+          "hub",
+          "history"
+        ]
+      ],
+      "steps": [
+        {
+          "title": "Read workflow and engine state",
+          "body": "The UI or CLI asks Hub for status. Hub combines durable workflow records with cached or live Kubernetes engine-resource state.",
+          "output": "Reads: workflow steps and current engine status.",
+          "nodes": [
+            "cli",
+            "hub",
+            "db",
+            "api",
+            "spark"
+          ],
+          "sources": [
+            "jobstore"
+          ],
+          "edges": [
+            [
+              "cli",
+              "hub"
+            ],
+            [
+              "hub",
+              "db"
+            ],
+            [
+              "hub",
+              "api"
+            ],
+            [
+              "api",
+              "spark"
+            ]
+          ]
+        },
+        {
+          "title": "Read live logs",
+          "body": "While pods exist, Hub reads their container logs through the Kubernetes API.",
+          "output": "Reads: current driver, JM/TM, or training container output.",
+          "nodes": [
+            "hub",
+            "podlogs"
+          ],
+          "sources": [
+            "logs"
+          ],
+          "edges": [
+            [
+              "hub",
+              "podlogs"
+            ]
+          ]
+        },
+        {
+          "title": "Use retained logs",
+          "body": "Promtail collects eligible pod logs into Loki. Hub can query the retained-log path when direct pod logs are unavailable.",
+          "output": "History: default seven-day Loki retention on a persistent volume.",
+          "nodes": [
+            "spark",
+            "promtail",
+            "loki",
+            "hub"
+          ],
+          "sources": [
+            "ksm",
+            "loki",
+            "logs"
+          ],
+          "edges": [
+            [
+              "spark",
+              "promtail"
+            ],
+            [
+              "promtail",
+              "loki"
+            ],
+            [
+              "hub",
+              "loki"
+            ]
+          ]
+        },
+        {
+          "title": "Open engine history",
+          "body": "Hub proxies live engine UIs. For completed Spark applications, Spark History Server replays the event logs stored in S3.",
+          "output": "Reads: live engine services or retained Spark event logs.",
+          "nodes": [
+            "hub",
+            "history",
+            "lake",
+            "spark"
+          ],
+          "sources": [
+            "jobstore",
+            "history"
+          ],
+          "edges": [
+            [
+              "hub",
+              "history"
+            ],
+            [
+              "history",
+              "lake"
+            ],
+            [
+              "spark",
+              "lake"
+            ]
+          ]
+        },
+        {
+          "title": "Cancel through Hub",
+          "body": "Hub requests deletion of the engine custom resource and records cancellation. The operator reconciles removal of owned runtime resources; committed external data is not rolled back.",
+          "output": "Writes: Kubernetes deletion and workflow cancellation state.",
+          "nodes": [
+            "cli",
+            "hub",
+            "api",
+            "spark",
+            "db"
+          ],
+          "sources": [
+            "jobstore"
+          ],
+          "edges": [
+            [
+              "cli",
+              "hub"
+            ],
+            [
+              "hub",
+              "api"
+            ],
+            [
+              "api",
+              "spark"
+            ],
+            [
+              "hub",
+              "db"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "deploy",
+      "label": "Build & deploy",
+      "title": "Configuration becomes a concrete installation.",
+      "summary": "Versioned artifacts and downloaded S3 installation inputs meet in Terraform. Helm renders the Kubernetes services, namespaces, and capacity policy.",
+      "takeaway": "S3 is the source of installation inputs, not a live configuration feed. A later deployment using different local inputs can replace previously rendered settings.",
+      "columns": [
+        "Configuration / CI",
+        "Fetch / publish",
+        "Local inputs / JARs",
+        "Provision",
+        "Install"
+      ],
+      "layout": [
+        [
+          "config",
+          0,
+          0
+        ],
+        [
+          "pull",
+          1,
+          0
+        ],
+        [
+          "local",
+          2,
+          0
+        ],
+        [
+          "terraform",
+          3,
+          0
+        ],
+        [
+          "helm",
+          4,
+          0
+        ],
+        [
+          "ci",
+          0,
+          1
+        ],
+        [
+          "registry",
+          1,
+          1
+        ],
+        [
+          "artifacts",
+          2,
+          1
+        ],
+        [
+          "aws",
+          3,
+          1
+        ],
+        [
+          "cluster",
+          4,
+          1
+        ]
+      ],
+      "edges": [
+        [
+          "config",
+          "pull"
+        ],
+        [
+          "pull",
+          "local"
+        ],
+        [
+          "local",
+          "terraform"
+        ],
+        [
+          "terraform",
+          "helm"
+        ],
+        [
+          "terraform",
+          "aws"
+        ],
+        [
+          "helm",
+          "cluster"
+        ],
+        [
+          "ci",
+          "registry"
+        ],
+        [
+          "ci",
+          "artifacts",
+          "bottom"
+        ],
+        [
+          "registry",
+          "cluster",
+          "bottom"
+        ],
+        [
+          "artifacts",
+          "cluster",
+          "bottom"
+        ]
+      ],
+      "steps": [
+        {
+          "title": "Build and publish",
+          "body": "Chronon and Platform CI publish engine JARs and service images. Deployment inputs select compatible artifact versions and image references.",
+          "output": "Publishes: versioned JARs and Hub, Eval, UI, and engine images.",
+          "nodes": [
+            "ci",
+            "registry",
+            "artifacts"
+          ],
+          "sources": [
+            "engineci",
+            "platformci"
+          ],
+          "edges": [
+            [
+              "ci",
+              "registry"
+            ],
+            [
+              "ci",
+              "artifacts"
+            ]
+          ]
+        },
+        {
+          "title": "Pull installation inputs",
+          "body": "pull_crucible_config.sh aws downloads tfvars, backend configuration, and optional companion files from the configuration bucket.",
+          "output": "Writes: ignored local configuration files.",
+          "nodes": [
+            "config",
+            "pull",
+            "local"
+          ],
+          "sources": [
+            "pull"
+          ],
+          "edges": [
+            [
+              "config",
+              "pull"
+            ],
+            [
+              "pull",
+              "local"
+            ]
+          ]
+        },
+        {
+          "title": "Plan the AWS installation",
+          "body": "Terraform reads local orchestration and AWS inputs, combines them with checked-in defaults, and plans cloud resources and Kubernetes configuration.",
+          "output": "Plans: network, EKS, storage, identity, telemetry, and releases.",
+          "nodes": [
+            "local",
+            "terraform",
+            "aws"
+          ],
+          "sources": [
+            "wrapper"
+          ],
+          "edges": [
+            [
+              "local",
+              "terraform"
+            ],
+            [
+              "terraform",
+              "aws"
+            ]
+          ]
+        },
+        {
+          "title": "Render shared policy",
+          "body": "Terraform passes service and compute settings to Helm. The orchestration chart renders team quotas and RBAC; the node-pool chart renders the shared Karpenter capacity policy.",
+          "output": "Renders: namespace budgets, service identities, and NodePools.",
+          "nodes": [
+            "terraform",
+            "helm",
+            "cluster"
+          ],
+          "sources": [
+            "module",
+            "nodechart",
+            "quota"
+          ],
+          "edges": [
+            [
+              "terraform",
+              "helm"
+            ],
+            [
+              "helm",
+              "cluster"
+            ]
+          ]
+        },
+        {
+          "title": "Run the selected release",
+          "body": "Kubernetes reconciles services and operators, pulls configured images, and supplies artifact locations to engine jobs. New requests use this installed configuration.",
+          "output": "Runs: the selected service images and engine artifact versions.",
+          "nodes": [
+            "registry",
+            "artifacts",
+            "helm",
+            "cluster"
+          ],
+          "sources": [
+            "placement",
+            "module"
+          ],
+          "edges": [
+            [
+              "registry",
+              "cluster"
+            ],
+            [
+              "artifacts",
+              "cluster"
+            ],
+            [
+              "helm",
+              "cluster"
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}</script>
+  <script>
+    (() => {
+      "use strict";
+      const data = JSON.parse(document.getElementById("architecture-data").textContent);
+      const $ = id => document.getElementById(id);
+      const ns = "http://www.w3.org/2000/svg";
+      let flowIndex = 0, stepIndex = 0, timer = null, selectedNode = null;
+      const escape = value => String(value).replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+      const sourceUrl = key => { const s = data.sources[key]; return s.url || `https://github.com/zipline-ai/${s.repo}/blob/${data.commits[s.repo]}/${s.path}${s.line ? "#L" + s.line : ""}`; };
+      const sourceLink = (key, label) => { const a = document.createElement("a"); a.href = sourceUrl(key); a.textContent = label || data.sources[key].title; return a; };
+      function sourceLinks(container, keys) { container.replaceChildren(...keys.map(key => sourceLink(key))); }
+      function svgElement(tag, attrs = {}, text = "") { const el = document.createElementNS(ns, tag); Object.entries(attrs).forEach(([k,v]) => el.setAttribute(k,v)); if (text) el.textContent = text; return el; }
+      const textMeasure=document.createElement("canvas").getContext("2d");
+      function wrap(text,size,weight) {
+        textMeasure.font=`${weight} ${size}px ${getComputedStyle(document.body).fontFamily}`;
+        const lines=[];text.split(" ").forEach(word=>{const last=lines.length-1;if(last>=0&&textMeasure.measureText(lines[last]+" "+word).width<=138)lines[last]+=" "+word;else lines.push(word);});return lines;
+      }
+      function point(p) { return {x:24 + p[1]*196, y:62 + p[2]*146}; }
+      // Route on the gutters between cards, so an edge cannot pass through another component.
+      function edgePath(a,b,positions) {
+        const boxes=Object.values(positions), rows=1+Math.round(Math.max(...boxes.map(p=>p.y-62))/146);
+        const xs=Array.from({length:11},(_,i)=>8+i*98);
+        const ys=[38]; for(let r=0;r<rows;r++) ys.push(104+r*146,177+r*146);
+        const blocked=(x,y)=>boxes.some(p=>x>p.x-5&&x<p.x+169&&y>p.y-5&&y<p.y+89);
+        const clear=(a,b)=>!boxes.some(p=>a.x===b.x
+          ? a.x>p.x-5&&a.x<p.x+169&&Math.max(a.y,b.y)>p.y-5&&Math.min(a.y,b.y)<p.y+89
+          : a.y>p.y-5&&a.y<p.y+89&&Math.max(a.x,b.x)>p.x-5&&Math.min(a.x,b.x)<p.x+169);
+        const grid=new Map(); for(const x of xs)for(const y of ys)if(!blocked(x,y))grid.set(`${x},${y}`,{x,y});
+        const ports=p=>[
+          {x:p.x-16,y:p.y+42,face:[p.x,p.y+42],dir:"h"},
+          {x:p.x+180,y:p.y+42,face:[p.x+164,p.y+42],dir:"h"},
+          {x:p.x+82,y:p.y===62?38:p.y-31,face:[p.x+82,p.y],dir:"v"},
+          {x:p.x+82,y:p.y+115,face:[p.x+82,p.y+84],dir:"v"}
+        ];
+        // The first row's upper gutter differs from the gaps between subsequent rows.
+        const starts=ports(a), ends=ports(b), queue=[], best=new Map();
+        starts.forEach(p=>{const cost=Math.abs(p.x-p.face[0])+Math.abs(p.y-p.face[1]);queue.push({x:p.x,y:p.y,dir:p.dir,cost,points:[p.face,[p.x,p.y]]});});
+        let winner=null;
+        while(queue.length){
+          queue.sort((u,v)=>u.cost-v.cost);const cur=queue.shift(),key=`${cur.x},${cur.y},${cur.dir}`;
+          if(cur.cost>=(best.get(key)??Infinity))continue;best.set(key,cur.cost);
+          if(winner&&cur.cost>winner.cost)continue;
+          for(const end of ends)if(cur.x===end.x&&cur.y===end.y){
+            const cost=cur.cost+Math.abs(end.x-end.face[0])+Math.abs(end.y-end.face[1])+(cur.dir===end.dir?0:12);
+            if(!winner||cost<winner.cost)winner={cost,points:[...cur.points,end.face]};
+          }
+          const xi=xs.indexOf(cur.x),yi=ys.indexOf(cur.y);
+          for(const [x,y,dir] of [[xs[xi-1],cur.y,"h"],[xs[xi+1],cur.y,"h"],[cur.x,ys[yi-1],"v"],[cur.x,ys[yi+1],"v"]]){
+            const next=grid.get(`${x},${y}`);if(!next||!clear(cur,next))continue;
+            const cost=cur.cost+Math.abs(x-cur.x)+Math.abs(y-cur.y)+(dir===cur.dir?0:12);
+            if(cost<(best.get(`${x},${y},${dir}`)??Infinity))queue.push({x,y,dir,cost,points:[...cur.points,[x,y]]});
+          }
+        }
+        if(!winner)throw new Error("No clear route between diagram components");
+        const points=winner.points.filter((p,i,all)=>i===0||i===all.length-1||!((all[i-1][0]===p[0]&&p[0]===all[i+1][0])||(all[i-1][1]===p[1]&&p[1]===all[i+1][1])));
+        return points.map((p,i)=>`${i?"L":"M"}${p[0]},${p[1]}`).join(" ");
+      }
+      function inspect(id) {
+        selectedNode=id; document.querySelectorAll(".map-node.selected").forEach(el=>el.classList.remove("selected"));
+        if(!id) { $("node-inspector").innerHTML="<b>Read the diagram</b><p>Arrows show the direction of a request, write, or control handoff. Select a component for details.</p>"; return; }
+        const n=data.nodes[id]; $("node-"+id)?.classList.add("selected");
+        $("node-inspector").innerHTML=`<b>${escape(n.title)}</b><p>${escape(n.detail)}</p>`;
+        if(n.source) $("node-inspector").append(sourceLink(n.source,"View implementation ↗"));
+      }
+      function drawMap(flow) {
+        const svg=$("architecture"), rows=Math.max(...flow.layout.map(p=>p[2]))+1;
+        svg.setAttribute("viewBox",`0 0 996 ${62+rows*146}`);
+        svg.replaceChildren(svgElement("title",{id:"map-title"},flow.title),svgElement("desc",{id:"map-description"},flow.summary+". Select components for details; use the step list for a text walkthrough."));
+        const defs=svgElement("defs");
+        for(const [id,color] of [["arrow","#698875"],["arrow-active","#9cedbd"]]) { const marker=svgElement("marker",{id,viewBox:"0 0 10 10",refX:9,refY:5,markerWidth:6,markerHeight:6,orient:"auto-start-reverse"}); marker.append(svgElement("path",{d:"M 0 0 L 10 5 L 0 10 z",fill:color})); defs.append(marker); } svg.append(defs);
+        flow.columns.forEach((name,i)=>svg.append(svgElement("text",{x:24+i*196,y:30,class:"lane-title"},name)));
+        const positions=Object.fromEntries(flow.layout.map(p=>[p[0],point(p)]));
+        flow.edges.forEach(([from,to])=>svg.append(svgElement("path",{id:`edge-${from}-${to}`,class:"map-edge",d:edgePath(positions[from],positions[to],positions)})));
+        flow.layout.forEach(p=>{
+          const id=p[0],n=data.nodes[id],pos=positions[id],g=svgElement("g",{id:"node-"+id,class:`map-node ${n.kind}`,transform:`translate(${pos.x},${pos.y})`,role:"button",tabindex:0,"aria-label":`${n.title}: ${n.sub}. Show component details.`});
+          g.append(svgElement("rect",{class:"node-box",width:164,height:84,rx:9}),svgElement("rect",{class:"node-accent",x:0,y:16,width:3,height:25,rx:1}));
+          const titles=wrap(n.title,13,600); titles.forEach((line,i)=>g.append(svgElement("text",{class:"node-title",x:13,y:23+i*16},line)));
+          wrap(n.sub,11,400).forEach((line,i)=>g.append(svgElement("text",{class:"node-sub",x:13,y:(titles.length>1?58:49)+i*14},line)));
+          g.addEventListener("click",()=>inspect(id)); g.addEventListener("keydown",event=>{ if(event.key==="Enter"||event.key===" ") { event.preventDefault(); event.stopPropagation(); inspect(id); } }); svg.append(g);
+        });
+        inspect(null);
+      }
+      function stop() { if(timer!==null) clearInterval(timer); timer=null; $("play-flow").textContent="Play"; $("play-flow").setAttribute("aria-pressed","false"); }
+      function renderStep() {
+        const flow=data.flows[flowIndex],step=flow.steps[stepIndex];
+        $("step-count").textContent=`${String(stepIndex+1).padStart(2,"0")} / ${String(flow.steps.length).padStart(2,"0")}`;
+        $("step-title").textContent=step.title; $("step-body").textContent=step.body; $("step-output").textContent=step.output;
+        sourceLinks($("step-sources"),step.sources); $("flow-progress").style.width=`${100*(stepIndex+1)/flow.steps.length}%`;
+        $("prev-step").disabled=stepIndex===0; $("next-step").disabled=stepIndex===flow.steps.length-1; $("play-flow").disabled=flow.steps.length<2;
+        document.querySelectorAll("#step-nav button").forEach((button,i)=>{ if(i===stepIndex) button.setAttribute("aria-current","step"); else button.removeAttribute("aria-current"); });
+        document.querySelectorAll(".map-node,.map-edge").forEach(el=>el.classList.remove("active"));
+        step.nodes.forEach(id=>$("node-"+id).classList.add("active"));
+        (step.edges||[]).forEach(([from,to])=>$(`edge-${from}-${to}`).classList.add("active"));
+      }
+      function setStep(index) { stop(); stepIndex=Math.max(0,Math.min(data.flows[flowIndex].steps.length-1,index)); renderStep(); }
+      function selectFlow(index,updateUrl=true) {
+        stop(); flowIndex=index; stepIndex=0; const flow=data.flows[index];
+        document.querySelectorAll("#flow-tabs button").forEach((button,i)=>{ button.setAttribute("aria-selected",String(i===index)); button.tabIndex=i===index?0:-1; });
+        $("flow-panel").setAttribute("aria-labelledby","tab-"+flow.id); $("flow-title").textContent=flow.title; $("flow-summary").textContent=flow.summary; $("flow-takeaway").textContent=flow.takeaway;
+        $("step-nav").replaceChildren(...flow.steps.map((step,i)=>{ const li=document.createElement("li"),button=document.createElement("button");button.type="button";button.innerHTML=`<span aria-hidden="true">${i+1}</span>${escape(step.title)}`;button.addEventListener("click",()=>setStep(i));li.append(button);return li; }));
+        drawMap(flow); renderStep(); $("architecture").parentElement.scrollLeft=0;
+        if(updateUrl) history.replaceState(null,"",`#flow-${flow.id}`);
+      }
+      data.flows.forEach((flow,i)=>{const b=document.createElement("button");b.id="tab-"+flow.id;b.type="button";b.role="tab";b.textContent=flow.label;b.setAttribute("aria-controls","flow-panel");b.addEventListener("click",()=>selectFlow(i));b.addEventListener("keydown",event=>{let n=i;if(event.key==="ArrowRight")n=(i+1)%data.flows.length;else if(event.key==="ArrowLeft")n=(i-1+data.flows.length)%data.flows.length;else if(event.key==="Home")n=0;else if(event.key==="End")n=data.flows.length-1;else return;event.preventDefault();event.stopPropagation();selectFlow(n);$("tab-"+data.flows[n].id).focus();});$("flow-tabs").append(b);});
+      $("prev-step").addEventListener("click",()=>setStep(stepIndex-1));$("next-step").addEventListener("click",()=>setStep(stepIndex+1));$("reset-flow").addEventListener("click",()=>{setStep(0);inspect(null);});
+      $("play-flow").addEventListener("click",()=>{if(timer!==null){stop();return;}if(stepIndex===data.flows[flowIndex].steps.length-1)stepIndex=0;renderStep();$("play-flow").textContent="Pause";$("play-flow").setAttribute("aria-pressed","true");timer=setInterval(()=>{stepIndex++;renderStep();if(stepIndex===data.flows[flowIndex].steps.length-1)stop();},5500);});
+      $("flow-panel").addEventListener("keydown",event=>{if(event.target.closest(".diagram-scroll"))return;if(event.key==="ArrowRight"||event.key==="ArrowLeft"){event.preventDefault();setStep(stepIndex+(event.key==="ArrowRight"?1:-1));}});
+      document.addEventListener("visibilitychange",()=>{if(document.hidden)stop();});
+      Object.entries(data.sources).forEach(([key,s])=>{const li=document.createElement("li");li.append(sourceLink(key));const small=document.createElement("small");small.textContent=s.repo?`${s.repo} · ${data.commits[s.repo].slice(0,8)}`:"Upstream reference";li.append(small);$("source-list").append(li);});
+      $("source-summary").textContent=Object.entries(data.commits).map(([repo,commit])=>`${repo} ${commit.slice(0,8)}`).join(" · ");
+      document.querySelectorAll("[data-source]").forEach(a=>{a.href=sourceUrl(a.dataset.source);});
+      function readHash(){const id=location.hash.replace(/^#flow-/,"");const i=data.flows.findIndex(f=>f.id===id);if(i>=0)selectFlow(i,false);}
+      selectFlow(0,false);readHash();window.addEventListener("hashchange",readHash);
+    })();
+  </script>
+</body>
+</html>
