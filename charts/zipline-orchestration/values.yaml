@@ -19,6 +19,10 @@ secrets:
       name: zipline-secret-store
       kind: SecretStore
       spec: {}
+    clusterSecretStore:
+      create: false
+      name: zipline-cluster-secret-store
+      spec: {}
     targets: []
 
 compute:

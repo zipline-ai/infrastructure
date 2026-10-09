@@ -300,6 +300,11 @@ locals {
       kind   = "SecretStore"
       spec   = {}
     }
+    cluster_secret_store = {
+      create = false
+      name   = "zipline-cluster-secret-store"
+      spec   = {}
+    }
     database_remote_refs = {
       username = {}
       password = {}
@@ -310,6 +315,7 @@ locals {
   secrets_input = try(local.orchestration.secrets, {})
   secrets = merge(local.secrets_defaults, local.secrets_input, {
     secret_store         = merge(local.secrets_defaults.secret_store, try(local.secrets_input.secret_store, {}))
+    cluster_secret_store = merge(local.secrets_defaults.cluster_secret_store, try(local.secrets_input.cluster_secret_store, {}))
     database_remote_refs = merge(local.secrets_defaults.database_remote_refs, try(local.secrets_input.database_remote_refs, {}))
     auth_remote_refs     = merge(local.secrets_defaults.auth_remote_refs, try(local.secrets_input.auth_remote_refs, {}))
   })
@@ -647,10 +653,11 @@ locals {
 
     secrets = {
       externalSecrets = {
-        enabled         = local.secrets.external_secrets_enabled
-        refreshInterval = local.secrets.refresh_interval
-        secretStore     = local.secrets.secret_store
-        targets         = local.external_secret_targets
+        enabled            = local.secrets.external_secrets_enabled
+        refreshInterval    = local.secrets.refresh_interval
+        secretStore        = local.secrets.secret_store
+        clusterSecretStore = local.secrets.cluster_secret_store
+        targets            = local.external_secret_targets
       }
     }
 

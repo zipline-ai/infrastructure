@@ -76,7 +76,9 @@ module "zipline_orchestration" {
   depends_on = [
     aws_eks_addon.aws_ebs_csi_driver,
     aws_eks_node_group.default,
+    aws_iam_role_policy.orchestration_secrets,
     kubernetes_storage_class_v1.gp3,
+    aws_secretsmanager_secret_version.redis,
     helm_release.aws_load_balancer_controller,
     helm_release.fluent_bit,
     helm_release.karpenter_nodepools,
