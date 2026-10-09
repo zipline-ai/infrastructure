@@ -102,9 +102,11 @@ to the same number so discovery matches the exporter.
 
 ## Compute workload quotas
 
-The chart creates non-preempting `zipline-backfill` and `zipline-deploy`
-PriorityClasses. Pods select one of these classes, and namespace ResourceQuotas
-use the class name to account for backfill and deploy resources separately.
+The chart creates `zipline-backfill` and `zipline-deploy` PriorityClasses that
+preempt lower-priority pods, including warm pool placeholders. Deploy can also
+preempt backfill. Set a class's `preemptionPolicy` to `Never` to disable its
+preemption. Pods select one of these classes, and namespace ResourceQuotas use
+the class name to account for backfill and deploy resources separately.
 
 Mode quotas are initially enabled only for `zipline-default` through
 `compute.modeResourceQuotas`. An empty mode `hard` map inherits the namespace's

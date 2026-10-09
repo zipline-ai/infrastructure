@@ -215,6 +215,15 @@ The wrapper creates an AKS cluster with workload identity enabled. The default
 node pool is intended to be a general-purpose starting point, and optional user
 node pools can be added through `azure.node_pools`.
 
+Crucible Spark and Flink placement uses pools shared by all teams. Configure
+the `zipline.ai/engine` label and `zipline.ai/workload=<engine>:NoSchedule`
+taint using `spark` or `flink`. Spark nodes also use `zipline.ai/role` set to
+`driver` or `executor`. Flink selects by engine so both roles share nodes.
+Team and role labels remain on pods; namespace quotas enforce team
+budgets. This wrapper does not generate those pools automatically.
+
+Ray uses its configured selectors and tolerations.
+
 | Field | Default | Use when |
 | --- | --- | --- |
 | `azure.subscription_id` | active Azure CLI/default subscription | Terraform should target a specific subscription. |

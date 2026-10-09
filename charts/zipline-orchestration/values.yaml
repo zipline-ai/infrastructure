@@ -64,7 +64,6 @@ compute:
     eventLogDir: ""
     imagePullPolicy: "Always"
     chrononJarPath: "/opt/chronon/chronon-spark.jar"
-    spotNodeSelector: {}
   flinkDefaults:
     serviceAccount: flink
     serviceAccountAnnotations: {}
@@ -77,11 +76,11 @@ compute:
     backfill:
       name: "zipline-backfill"
       value: 100
-      preemptionPolicy: Never
+      preemptionPolicy: PreemptLowerPriority
     deploy:
       name: "zipline-deploy"
       value: 200
-      preemptionPolicy: Never
+      preemptionPolicy: PreemptLowerPriority
   # Mode quotas are enabled only for listed namespaces. An empty hard map
   # inherits that namespace's aggregate resourceQuota.hard values.
   modeResourceQuotas:

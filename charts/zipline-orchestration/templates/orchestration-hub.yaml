@@ -90,10 +90,6 @@ spec:
               value: {{ include "zipline-orchestration.sparkEventLogDir" . | quote }}
             - name: LOKI_URL
               value: "http://{{ include "zipline-orchestration.fullname" . }}-loki.{{ include "zipline-orchestration.computeSystemNamespace" . }}.svc.cluster.local:3100"
-            {{- with .Values.compute.sparkDefaults.spotNodeSelector }}
-            - name: CRUCIBLE_SPOT_NODE_SELECTOR
-              value: {{ toJson . | quote }}
-            {{- end }}
             - name: CRUCIBLE_FLINK_IMAGE
               value: {{ include "zipline-orchestration.flinkImage" . | quote }}
             - name: CRUCIBLE_FLINK_SERVICE_ACCOUNT

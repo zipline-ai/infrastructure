@@ -511,12 +511,12 @@ locals {
       backfill = {
         name             = "zipline-backfill"
         value            = 100
-        preemptionPolicy = "Never"
+        preemptionPolicy = "PreemptLowerPriority"
       }
       deploy = {
         name             = "zipline-deploy"
         value            = 200
-        preemptionPolicy = "Never"
+        preemptionPolicy = "PreemptLowerPriority"
       }
     }
     mode_resource_quotas = {
@@ -570,7 +570,7 @@ locals {
     local.compute.image_prepull_overrides,
   )
   # Crucible warm pool pause pods + compute priority classes.
-  # Disabled by default; enable + target a driver pool via compute.warm_pool.
+  # Disabled by default; enable + target Spark capacity via compute.warm_pool.
   # do-not-disrupt keeps Karpenter from consolidating the pre-warmed nodes away.
   compute_warm_pool = merge(
     {
