@@ -388,6 +388,12 @@ locals {
         }
       ],
     )
+    # Eval reads Databricks credentials from its own env for UC schema lookups and resolves
+    # the secret's vault ref itself (orchestration IRSA already grants read on it).
+    eval_env = try(trimspace(local.cloud_args.databricks_client_id), "") == "" ? [] : [
+      { name = "DATABRICKS_CLIENT_ID", value = local.cloud_args.databricks_client_id },
+      { name = "DATABRICKS_CLIENT_SECRET_VAULT_URI", value = aws_secretsmanager_secret.databricks_client_secret[0].arn },
+    ]
     ui_env = local.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.eks_log_group }]
     values = merge(
       local.provider_values,
