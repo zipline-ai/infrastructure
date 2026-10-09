@@ -572,6 +572,9 @@ promtail:
     limits:
       memory: 128Mi
 
+kube-state-metrics:
+  enabled: false
+
 auth:
   enabled: false
   url: ""
