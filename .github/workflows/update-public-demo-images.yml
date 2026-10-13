@@ -1,0 +1,82 @@
+name: Update Public Demo Images
+
+# Public demo uses mutable `nightly` tags. Publishing a new image does not
+# replace an existing pod, so restart the long-running services once per day to
+# make imagePullPolicy: Always resolve the newest digest.
+on:
+  schedule:
+    - cron: "0 11 * * *" # ~03:00-04:00 PT
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: update-public-demo-images
+  cancel-in-progress: false
+
+jobs:
+  rollout:
+    runs-on: ubuntu-latest
+    environment: aws-public-demo
+    timeout-minutes: 20
+    env:
+      AWS_REGION: ${{ vars.AWS_PUBLIC_DEMO_REGION || 'us-west-2' }}
+      CLUSTER_NAME: ${{ vars.AWS_PUBLIC_DEMO_EKS_CLUSTER || 'public-demo-eks' }}
+      NAMESPACE: zipline-system
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PUBLIC_DEMO_GITHUB_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --region "$AWS_REGION" --name "$CLUSTER_NAME"
+
+      - name: Restart public-demo services
+        run: |
+          set -euo pipefail
+
+          deployments=(
+            zipline-orchestration-hub
+            zipline-orchestration-ui
+            zipline-eval
+            zipline-fetcher
+          )
+
+          # Check the complete target set before changing any deployment.
+          for deployment in "${deployments[@]}"; do
+            kubectl get deployment "$deployment" --namespace "$NAMESPACE" >/dev/null
+          done
+
+          for deployment in "${deployments[@]}"; do
+            kubectl rollout restart deployment/"$deployment" --namespace "$NAMESPACE"
+          done
+
+          for deployment in "${deployments[@]}"; do
+            kubectl rollout status deployment/"$deployment" \
+              --namespace "$NAMESPACE" \
+              --timeout=10m
+          done
+
+      - name: Report deployed images
+        run: |
+          {
+            echo "### Public Demo Images"
+            echo ""
+            echo '```text'
+            kubectl get deployments \
+              zipline-orchestration-hub \
+              zipline-orchestration-ui \
+              zipline-eval \
+              zipline-fetcher \
+              --namespace "$NAMESPACE" \
+              -o custom-columns='DEPLOYMENT:.metadata.name,IMAGES:.spec.template.spec.containers[*].image'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
