@@ -65,8 +65,11 @@ locals {
     replicas_per_shard  = 1
   }, try(local.cloud_args.redis, {}))
   redis_managed = local.redis.enabled && trimspace(local.redis.cluster_nodes) == ""
-  redis_password_secret_arn = local.redis.enabled ? (
-    local.redis_managed ? try(aws_secretsmanager_secret.redis[0].arn, "") : trimspace(local.redis.password_secret_arn)
+  redis_password_enabled = local.redis.enabled && (
+    local.redis_managed || trimspace(local.redis.password_secret_arn) != ""
+  )
+  redis_password_secret_arn = local.redis_password_enabled ? (
+    local.redis_managed ? aws_secretsmanager_secret.redis[0].arn : trimspace(local.redis.password_secret_arn)
   ) : ""
   redis_cluster_nodes = local.redis.enabled ? (
     local.redis_managed ? "${aws_elasticache_replication_group.redis[0].configuration_endpoint_address}:6379" : trimspace(local.redis.cluster_nodes)
@@ -91,6 +94,8 @@ locals {
   spark_service_account         = try(var.orchestration.compute.spark_service_account, "spark-operator-spark")
   flink_service_account         = try(var.orchestration.compute.flink_service_account, "flink")
 
+  compute_namespaces       = try(var.orchestration.compute.namespaces, [{ name = try(var.orchestration.compute.default_namespace, "zipline-default"), team = "default" }])
+  redis_compute_namespaces = length(local.compute_namespaces) > 0 ? local.compute_namespaces : [{ name = try(var.orchestration.compute.default_namespace, "zipline-default"), team = "default" }]
   karpenter = merge({
     enabled            = true
     namespace          = "kube-system"
@@ -214,7 +219,7 @@ locals {
   extra_external_secrets = concat(
     try(local.cloud_args.extra_external_secrets, []),
     local.legacy_extra_external_secrets,
-    local.redis.enabled && local.redis_password_secret_arn != "" ? [{
+    local.redis_password_enabled ? [{
       name = "redis-credentials"
       spec = {
         refreshInterval = "1h"
@@ -233,10 +238,32 @@ locals {
         }]
       }
     }] : [],
+    local.redis_password_enabled ? [
+      for namespace in local.redis_compute_namespaces : {
+        name      = "redis-credentials"
+        namespace = tostring(namespace.name)
+        spec = {
+          refreshInterval = "1h"
+          secretStoreRef  = { name = "zipline-cluster-secret-store", kind = "ClusterSecretStore" }
+          target = {
+            name           = "redis-credentials"
+            creationPolicy = "Owner"
+            template       = { type = "Opaque" }
+          }
+          data = [{
+            secretKey = "REDIS_PASSWORD"
+            remoteRef = {
+              key      = local.redis_password_secret_arn
+              property = local.redis.password_secret_key
+            }
+          }]
+        }
+      } if tostring(namespace.name) != local.orchestration_namespace
+    ] : [],
   )
   extra_external_secret_arns = distinct(compact(concat(
     try(local.cloud_args.extra_secret_arns, []),
-    local.redis.enabled && local.redis_password_secret_arn != "" ? [local.redis_password_secret_arn] : [],
+    local.redis_password_enabled ? [local.redis_password_secret_arn] : [],
     flatten([
       for external_secret in local.extra_external_secrets : [
         for item in try(external_secret.spec.data, []) : tostring(try(item.remoteRef.key, ""))
@@ -316,6 +343,31 @@ locals {
           }
         }
       }
+      cluster_secret_store = {
+        create = local.redis_password_enabled
+        name   = "zipline-cluster-secret-store"
+        spec = {
+          provider = {
+            aws = {
+              service = "SecretsManager"
+              region  = local.cloud_args.region
+              auth = {
+                jwt = {
+                  serviceAccountRef = {
+                    name      = local.orchestration_service_account
+                    namespace = local.orchestration_namespace
+                  }
+                }
+              }
+            }
+          }
+          conditions = [{
+            namespaceSelector = {
+              matchLabels = { "zipline.ai/namespace-type" = "compute" }
+            }
+          }]
+        }
+      }
       database_remote_refs = {
         username = {
           key      = aws_secretsmanager_secret.db_credentials.arn
@@ -348,7 +400,7 @@ locals {
       ], local.redis.enabled ? [
       { name = "REDIS_CLUSTER_NODES", value = local.redis_cluster_nodes },
       { name = "REDIS_USE_SSL", value = tostring(local.redis.use_ssl) },
-      ] : [], local.redis_password_secret_arn != "" ? [{
+      ] : [], local.redis_password_enabled ? [{
         name      = "REDIS_PASSWORD"
         valueFrom = { secretKeyRef = { name = "redis-credentials", key = "REDIS_PASSWORD" } }
       }] : [], [
@@ -363,7 +415,14 @@ locals {
       local.redis.enabled || local.cloud_args.kv_enable_ttl ? [] : [{ name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) }],
       local.redis.enabled ? [] : (length(local.cloud_args.kv_replica_regions) == 0 ? [] : [{ name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) }]),
       local.redis.enabled ? [] : (local.cloud_args.kv_batch_table_gc_age_days == "" ? [] : [{ name = "KV_BATCH_TABLE_GC_AGE_DAYS", value = local.cloud_args.kv_batch_table_gc_age_days }]),
-      local.redis_password_secret_arn != "" ? [{ name = "REDIS_PASSWORD", valueFrom = { secretKeyRef = { name = "redis-credentials", key = "REDIS_PASSWORD" } } }] : [],
+      local.redis_password_enabled ? [{ name = "REDIS_PASSWORD", valueFrom = { secretKeyRef = { name = "redis-credentials", key = "REDIS_PASSWORD" } } }] : [],
+      local.redis_password_enabled ? [{
+        name = "CRUCIBLE_SPARK_ADMIN_CONF"
+        value = jsonencode({
+          "spark.kubernetes.driver.secretKeyRef.REDIS_PASSWORD"   = "redis-credentials:REDIS_PASSWORD"
+          "spark.kubernetes.executor.secretKeyRef.REDIS_PASSWORD" = "redis-credentials:REDIS_PASSWORD"
+        })
+      }] : [],
       # Cluster name drives the AWS-console deployment URL emitted by
       # CrucibleSubmitter.getJobUrl. Without it the per-step "open in
       # console" link on each job comes up empty.

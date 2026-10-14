@@ -17,7 +17,7 @@ The chart renders:
 The chart does not branch on a cloud provider. Cloud-specific infrastructure is supplied through values by Terraform:
 
 - `serviceAccount.annotations` and `podLabels` for workload identity
-- `secrets.externalSecrets.*` for External Secrets Operator SecretStores and ExternalSecrets
+- `secrets.externalSecrets.*` for External Secrets Operator SecretStores and ExternalSecrets, including an optional cluster-scoped store for secrets synced into compute namespaces
 - `database.*` and `database.credentialsSecret.*` for Postgres connectivity
 - `compute.objectStore.*`, `compute.sparkDefaults.eventLogDir`, and Loki storage settings for object storage
 - `polaris.bootstrap.rbac.catalog.storage.*` for Polaris storage config
@@ -53,6 +53,7 @@ At minimum, each Terraform module should provide:
 - `compute.sparkDefaults.eventLogDir`
 - `polaris.bootstrap.rbac.catalog.storage.type`
 - `secrets.externalSecrets.secretStore` and `secrets.externalSecrets.targets` when the chart should create runtime Kubernetes Secrets
+- `secrets.externalSecrets.clusterSecretStore` when ExternalSecrets in selected namespaces should use a shared provider store; set `targets[].namespace` to place a target outside the release namespace
 
 `compute.objectStore.bucket` is the bucket or container name only. Do not pass an object-store URI there; pass full provider-native paths only to values that expect paths, such as Spark event logs or Polaris base locations.
 
