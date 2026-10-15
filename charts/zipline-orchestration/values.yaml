@@ -26,6 +26,8 @@ secrets:
     targets: []
 
 compute:
+  # Complete Spark 4 image reference; empty uses ziplineai/spark:nightly.
+  sparkImage: ""
   defaultNamespace: zipline-default
   namespaceDefaults:
     labels: {}
@@ -365,6 +367,8 @@ domains:
 orchestration:
   hub:
     image: ""
+    # Complete image tag or digest; overrides the repository/global.version combination.
+    imageOverride: ""
     verticleClass: ""
     replicas: 1
     port: 3903
