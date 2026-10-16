@@ -78,6 +78,24 @@ locals {
       capacity_type = "on-demand"
       limits        = { cpu = "1100", memory = "4400Gi" }
     }
+    # Ray training. Shared across teams, same as the Spark and Flink pools.
+    # On-demand for both roles, unlike spark-executor: training runs once with
+    # no retry (platform#1383), so a spot reclaim loses the whole run rather
+    # than one task. CPU-only for now; GPU needs its own pool and instance
+    # requirements. Karpenter provisions from zero, so an idle pool costs
+    # nothing -- limits are the ceiling, not a reservation.
+    ray-control = {
+      engine        = "ray"
+      role          = "control"
+      capacity_type = "on-demand"
+      limits        = { cpu = "100", memory = "400Gi" }
+    }
+    ray-worker = {
+      engine        = "ray"
+      role          = "worker"
+      capacity_type = "on-demand"
+      limits        = { cpu = "200", memory = "800Gi" }
+    }
   }
   # Pools own hardware and capacity requirements; Spark pods select their role.
   karpenter_compute_requirements = [
