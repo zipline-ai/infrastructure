@@ -252,3 +252,15 @@ reachable.
 {{- printf "https://%s%s" .Values.ingress.ui.host (include "zipline-orchestration.historyServerProxyBase" .) -}}
 {{- end -}}
 {{- end }}
+
+{{/* Public frontend origin; omit links when no public endpoint is configured.
+Do not use uiOrigin's localhost startup fallback or an internal auth URL. */}}
+{{- define "zipline-orchestration.frontendExternalUrl" -}}
+{{- if .Values.ingress.ui.externalUrl -}}
+{{- .Values.ingress.ui.externalUrl -}}
+{{- else if .Values.orchestration.ui.origin -}}
+{{- .Values.orchestration.ui.origin -}}
+{{- else if .Values.ingress.ui.host -}}
+{{- printf "https://%s" .Values.ingress.ui.host -}}
+{{- end -}}
+{{- end }}

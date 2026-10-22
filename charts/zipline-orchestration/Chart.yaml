@@ -2,7 +2,7 @@ apiVersion: v2
 name: zipline-orchestration
 description: Kubernetes deployment chart for Zipline Orchestration and Crucible compute
 type: application
-version: 1.0.0
+version: 1.0.1
 appVersion: "1.17.7"
 
 keywords:
