@@ -143,3 +143,5 @@ helm template zipline charts/zipline-orchestration \
   --set orchestration.hub.verticleClass=com.zipline.OrchestrationVerticle \
   --set orchestration.eval.image=ziplineai/eval
 ```
+
+Hub webhook links and CORS use `ingress.ui.externalUrl`, then `orchestration.ui.origin`, then `https://<ingress.ui.host>`. Terraform supplies the existing `orchestration.ingress.domain` as the UI host. Set `ingress.ui.externalUrl` for a public proxy origin. Without these settings, `HUB_FRONTEND_URL` is empty and webhook notifications show workflow IDs without links; the UI startup placeholder and internal authentication URL are not used for notification links.
