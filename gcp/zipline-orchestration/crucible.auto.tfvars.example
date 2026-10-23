@@ -1,0 +1,74 @@
+{
+  "orchestration": {
+    "install": {
+      "namespace": "zipline-system"
+    },
+    "deployment": {
+      "customer_name": "crucible",
+      "artifact_prefix": "gs://zipline-artifacts-crucible",
+      "zipline_version": "nightly",
+      "deploy_fetcher": false
+    },
+    "auth": {
+      "enabled": true,
+      "github_oauth_client_id": "<github-client-id>",
+      "google_oauth_client_id": "<google-client-id>",
+      "idp_group_claim": "groups",
+      "idp_role_mapping": "Zipline Admins:admin,Zipline Operators:operator",
+      "microsoft_entra_oauth_client_id": "<entra-client-id>",
+      "microsoft_entra_tenant_id": "<entra-tenant-id>",
+      "secrets_arn": "crucible-zipline-auth-secret",
+      "sso_client_id": "<okta-client-id>",
+      "sso_domain": "zipline.ai",
+      "sso_issuer": "https://integrator-6444800.okta.com",
+      "sso_provider_id": "okta",
+      "sso_use_saml": false,
+      "url": "https://crucible-gcp.zipline.ai"
+    },
+    "image_pull_secret": {
+      "name": "docker-hub-creds",
+      "create": true,
+      "dockerhub_token": "<dockerhub-token>"
+    },
+    "ingress": {
+      "domain": "crucible-gcp.zipline.ai",
+      "class_name": "nginx-ui",
+      "annotations": {},
+      "tls_secret_name": "crucible-gcp-tls",
+      "cert_manager_cluster_issuer": "letsencrypt-prod",
+      "create_cluster_issuer": true,
+      "cluster_issuer_email": "nikhil@zipline.ai"
+    },
+    "addons": {
+      "cert_manager_values": {
+        "extraArgs": [
+          "--acme-http01-solver-nameservers=1.1.1.1:53,8.8.8.8:53"
+        ]
+      },
+      "kuberay_operator_skip_crds": true
+    },
+    "compute": {
+      "default_namespace": "zipline-default",
+      "namespaces": [
+        {
+          "name": "zipline-default",
+          "team": "default"
+        }
+      ]
+    }
+  },
+  "gcp": {
+    "project_id": "canary-443022",
+    "region": "us-central1",
+    "cluster_name": "crucible-gke",
+    "warehouse_bucket": "zipline-warehouse-crucible",
+    "shared_warehouse_bucket": "zipline-warehouse-canary",
+    "spark_libs_bucket": "",
+    "logs_bucket": "zipline-logs-crucible",
+    "bigtable_instance": "zipline-crucible-instance",
+    "auth_secret_id": "crucible-zipline-auth-secret",
+    "personnel_emails": [
+      "group:all@zipline.ai"
+    ]
+  }
+}

@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<EOF
-Usage: $0 <aws|azure>
+Usage: $0 <aws|azure|gcp>
 
 Downloads Crucible orchestration config for the selected cloud into a temp
 directory and diffs it against the git-ignored config files currently present
@@ -59,6 +59,11 @@ case "${cloud}" in
     current_root="${CRUCIBLE_CONFIG_DIR:-${repo_root}/azure/zipline-orchestration}"
     copy_ignored_config_files "${current_root}" "${current_snapshot}"
     CRUCIBLE_CONFIG_DIR="${remote_snapshot}" "${repo_root}/pull_crucible_config.sh" azure >/dev/null
+    ;;
+  gcp)
+    current_root="${CRUCIBLE_CONFIG_ROOT:-${repo_root}/gcp/zipline-orchestration}"
+    copy_ignored_config_files "${current_root}" "${current_snapshot}"
+    CRUCIBLE_CONFIG_ROOT="${remote_snapshot}" "${repo_root}/pull_crucible_config.sh" gcp >/dev/null
     ;;
   *)
     usage
