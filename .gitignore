@@ -29,6 +29,14 @@ azure/zipline-orchestration/backend.hcl
 azure/zipline-orchestration/current-helm-values.*
 azure/zipline-orchestration/dns-provider.tf
 
+# GCP environment-specific canary configuration pulled from remote storage.
+gcp/zipline-orchestration/.crucible-config/
+gcp/zipline-orchestration/backend.hcl
+gcp/zipline-orchestration/current-helm-values.*
+gcp/zipline-orchestration/dns-provider.tf
+gcp/zipline-orchestration/cloudflare.tf
+gcp/zipline-orchestration/crucible-config/
+
 # AWS public-demo datasource configuration pulled from remote storage.
 aws/public-demo-datasources/backend.hcl
 aws/public-demo-datasources/current-helm-values.*
