@@ -22,7 +22,7 @@ orchestration = {
     env = [
       {
         name  = "CRUCIBLE_JAR_URI"
-        value = "s3://zipline-public-demo-artifacts/release/latest/jars/cloud_aws_lib_spark4_deploy.jar"
+        value = "s3://zipline-public-demo-artifacts/release/redis-auth-d958ecac0/jars/cloud_aws_lib_spark4_deploy.jar"
       },
     ]
   }
@@ -48,7 +48,14 @@ orchestration = {
   }
 
   values = {
+    compute = {
+      sparkImage = "345594603419.dkr.ecr.us-west-2.amazonaws.com/spark:redis-auth-d958ecac0"
+    }
     orchestration = {
+      hub = {
+        # prefix-d7b84d527-redis-d958ecac0-spark4, pinned to the validated image.
+        imageOverride = "345594603419.dkr.ecr.us-west-2.amazonaws.com/zipline-private/ziplineai/hub-aws@sha256:15c45df1c954405e8b5055edb6c674444829be04d84892314f699c5129df0307"
+      }
       fetcher = {
         replicas = 1
         resources = {
