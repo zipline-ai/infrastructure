@@ -9,8 +9,10 @@ locals {
   system_node_selector        = { "zipline.ai/node-pool" = local.system_node_pool }
   system_node_tolerations     = [{ key = "zipline.ai/node-pool", operator = "Equal", value = local.system_node_pool, effect = "NoSchedule" }]
   image_prepull_node_selector = { "zipline.ai/engine" = "spark", "zipline.ai/role" = "executor" }
+  # image-prepull lands on executor (arm64) nodes — tolerate GKE's auto arch taint.
   image_prepull_node_tolerations = [
     { key = "zipline.ai/workload", operator = "Equal", value = "spark", effect = "NoSchedule" },
+    { key = "kubernetes.io/arch", operator = "Exists", effect = "NoSchedule" },
   ]
 
   node_pools_defaults = {
@@ -22,8 +24,15 @@ locals {
       max_count     = 3
       initial_count = 1
       labels        = { "zipline.ai/team" = "system", "zipline.ai/node-pool" = local.system_node_pool }
-      taints        = local.system_node_tolerations
-      local_ssd     = false
+      # No taints on the system pool: GKE-managed system pods (kube-dns,
+      # metrics-server, kube-state-metrics, l7-default-backend) don't tolerate
+      # custom taints, so a system-pool taint strands the entire cluster
+      # control plane. AWS gets away with the equivalent taint because EKS
+      # runs those pods on the managed control plane; GKE runs them on your
+      # nodes. The label alone + the chart's nodeSelector is enough to steer
+      # workloads to this pool.
+      taints    = []
+      local_ssd = false
     }
     spark-driver = {
       machine_type  = local.cloud_args.compute_machine_type
@@ -86,10 +95,18 @@ locals {
   node_pools = merge(local.node_pools_defaults, try(local.cloud_args.node_pools, {}))
 
   # Pre-warm on-demand Spark driver capacity (chart compute.warmPool).
+  # GKE auto-taints c4a/arm64 nodes with kubernetes.io/arch=arm64:NoSchedule.
+  # Crucible's own Spark/Flink/Ray submitters already emit a matching
+  # archToleration (CrucibleKubernetesSpecs.scala:701), but the chart's
+  # warm-pool deployment doesn't — add it here so pause pods schedule on
+  # the Arm compute pool.
   compute_warm_pool = {
     enabled      = true
     nodeSelector = { "zipline.ai/engine" = "spark", "zipline.ai/role" = "driver" }
-    tolerations  = [{ key = "zipline.ai/workload", operator = "Equal", value = "spark", effect = "NoSchedule" }]
+    tolerations = [
+      { key = "zipline.ai/workload", operator = "Equal", value = "spark", effect = "NoSchedule" },
+      { key = "kubernetes.io/arch", operator = "Exists", effect = "NoSchedule" },
+    ]
   }
 }
 
@@ -251,10 +268,29 @@ resource "google_container_node_pool" "pools" {
     max_unavailable = 0
   }
 
+  # c4a pools occasionally return status=ERROR from GKE's create call even
+  # when the pool's own reconciler heals it to RUNNING within seconds. Default
+  # Terraform timeouts (~10m) are long enough for the heal, but it only helps
+  # if the provider actually polls past the first status read — bump explicitly
+  # to be unambiguous.
+  timeouts {
+    create = "30m"
+    update = "30m"
+    delete = "30m"
+  }
+
   node_config {
     machine_type = each.value.machine_type
     disk_size_gb = each.value.disk_size_gb
-    disk_type    = "pd-balanced"
+    # c4a (Arm Axion) machines only support hyperdisk-balanced boot disks —
+    # pd-balanced and pd-ssd both fail at instance create with
+    # UNSUPPORTED_OPERATION. x86 pools stay on pd-balanced (cheaper, same
+    # performance at these sizes). Per-pool `disk_type` in cloud_args.node_pools
+    # overrides either default.
+    disk_type = try(
+      each.value.disk_type,
+      startswith(each.value.machine_type, "c4a-") || startswith(each.value.machine_type, "t2a-") ? "hyperdisk-balanced" : "pd-balanced",
+    )
 
     service_account = google_service_account.nodes.email
     oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
@@ -279,6 +315,18 @@ resource "google_container_node_pool" "pools" {
     shielded_instance_config {
       enable_secure_boot          = true
       enable_integrity_monitoring = true
+    }
+
+    # c4a-standard-8-lssd machines come with 2 local SSDs attached. GKE
+    # auto-provisions them with the pool, but if TF doesn't declare the block
+    # it reads back and wants to remove them — a ForceNew field, so this
+    # would trigger a pool replace on every refresh. Spark shuffle scratch
+    # uses these; keep them.
+    dynamic "ephemeral_storage_local_ssd_config" {
+      for_each = endswith(each.value.machine_type, "-lssd") ? [1] : []
+      content {
+        local_ssd_count = 2
+      }
     }
   }
 

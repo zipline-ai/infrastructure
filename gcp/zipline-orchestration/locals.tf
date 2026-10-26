@@ -132,16 +132,39 @@ locals {
     })
   })
 
-  # §10.6: GKE Standard ships a metrics-server as a system addon, so the
-  # chart's addon would clobber it. Default off at the wrapper level.
+  # Wrapper-side addon defaults. Module merge order is
+  # `merge(orchestration_addons, provider_context.addons)` — provider_context
+  # wins. Each entry below is only set when the tfvars hasn't already provided
+  # its own override, so a stack can still override from tfvars.
   #
-  # Module merge order is `merge(orchestration_addons, provider_context.addons)`
-  # — the provider_context wins. So we only populate the wrapper's addon
-  # override when the orchestration input hasn't explicitly set it; a tfvars
-  # `addons.install_metrics_server = true` therefore still works.
-  provider_addons = try(var.orchestration.addons.install_metrics_server, null) == null ? {
-    install_metrics_server = false
-  } : {}
+  # - install_metrics_server: GKE Standard ships metrics-server as a system
+  #   addon; chart addon would clobber it (§10.6).
+  # - kuberay_operator_values.priorityClassName: the shared addons module
+  #   defaults kuberay to priorityClassName=system-cluster-critical. GKE's
+  #   admission controller only allows system-* priority classes in
+  #   kube-system, so installing kuberay in zipline-system fails with
+  #   "insufficient quota to match these scopes". Clear it.
+  # - external_secrets_operator_values.serviceAccount.annotations: the ESO
+  #   chart creates its own KSA, which Terraform's identity.tf separately
+  #   binds to the eso GSA via Workload Identity. The KSA needs the
+  #   iam.gke.io/gcp-service-account annotation for that binding to resolve.
+  provider_addons = merge(
+    try(var.orchestration.addons.install_metrics_server, null) == null ? { install_metrics_server = false } : {},
+    try(var.orchestration.addons.external_secrets_operator_values, null) == null ? {
+      external_secrets_operator_values = {
+        serviceAccount = {
+          annotations = {
+            "iam.gke.io/gcp-service-account" = google_service_account.external_secrets.email
+          }
+        }
+      }
+    } : {},
+    try(var.orchestration.addons.kuberay_operator_values, null) == null ? {
+      kuberay_operator_values = {
+        priorityClassName = ""
+      }
+    } : {},
+  )
 
   # §3.4 runtime contract. Hub pod env emitted via provider_hub_env.
   hub_env = concat(

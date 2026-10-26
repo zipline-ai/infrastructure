@@ -44,8 +44,7 @@
         "extraArgs": [
           "--acme-http01-solver-nameservers=1.1.1.1:53,8.8.8.8:53"
         ]
-      },
-      "kuberay_operator_skip_crds": true
+      }
     },
     "compute": {
       "default_namespace": "zipline-default",
@@ -63,7 +62,7 @@
     "cluster_name": "crucible-gke",
     "warehouse_bucket": "zipline-warehouse-crucible",
     "shared_warehouse_bucket": "zipline-warehouse-canary",
-    "spark_libs_bucket": "",
+    "spark_libs_bucket": "zipline-spark-libs",
     "logs_bucket": "zipline-logs-crucible",
     "bigtable_instance": "zipline-crucible-instance",
     "auth_secret_id": "crucible-zipline-auth-secret",
