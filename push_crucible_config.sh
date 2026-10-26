@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<EOF
-Usage: $0 <aws|azure>
+Usage: $0 <aws|azure|gcp>
 
 Uploads Crucible orchestration config for the selected cloud from the
 git-ignored local files used by that cloud's Terraform wrapper.
@@ -43,6 +43,18 @@ upload_optional_s3_object() {
 
   if [ -f "${file}" ]; then
     aws s3 cp "${file}" "s3://${bucket}/${key}"
+  fi
+}
+
+upload_optional_gcs_object() {
+  local bucket="$1"
+  local prefix="$2"
+  local file="$3"
+  local name="$4"
+  local key="${prefix:+${prefix}/}${name}"
+
+  if [ -f "${file}" ]; then
+    gcloud storage cp "${file}" "gs://${bucket}/${key}" --quiet
   fi
 }
 
@@ -124,6 +136,27 @@ case "${cloud}" in
     upload_optional_azure_blob "${storage_account}" "${container}" "${prefix}/dns-provider.tf" "${src}/dns-provider.tf"
     upload_optional_azure_blob "${storage_account}" "${container}" "${prefix}/dns.auto.tfvars.json" "${src}/dns.auto.tfvars.json"
     upload_optional_azure_blob "${storage_account}" "${container}" "${prefix}/.terraform.lock.hcl" "${src}/.terraform.lock.hcl"
+    ;;
+  gcp)
+    bucket="${CRUCIBLE_CONFIG_BUCKET:-zipline-crucible-vars}"
+    wrapper_key="${CRUCIBLE_CONFIG_KEY:-gcp/zipline-orchestration/crucible.auto.tfvars.json}"
+    config_prefix="${wrapper_key%/*}"
+    if [ "${config_prefix}" = "${wrapper_key}" ]; then
+      config_prefix=""
+    fi
+    backend_key="${config_prefix:+${config_prefix}/}backend.hcl"
+    wrapper_root="${CRUCIBLE_CONFIG_ROOT:-${repo_root}/gcp/zipline-orchestration}"
+    backend_file="${wrapper_root}/backend.hcl"
+    wrapper_file="${wrapper_root}/crucible.auto.tfvars.json"
+
+    require_file "${backend_file}"
+    require_grouped_tfvars gcp "${wrapper_file}"
+
+    gcloud storage cp "${backend_file}" "gs://${bucket}/${backend_key}" --quiet
+    gcloud storage cp "${wrapper_file}" "gs://${bucket}/${wrapper_key}" --quiet
+    upload_optional_gcs_object "${bucket}" "${config_prefix}" "${wrapper_root}/dns-provider.tf" "dns-provider.tf"
+    upload_optional_gcs_object "${bucket}" "${config_prefix}" "${wrapper_root}/dns.auto.tfvars.json" "dns.auto.tfvars.json"
+    upload_optional_gcs_object "${bucket}" "${config_prefix}" "${wrapper_root}/.terraform.lock.hcl" ".terraform.lock.hcl"
     ;;
   *)
     usage

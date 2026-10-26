@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<EOF
-Usage: $0 <aws|azure>
+Usage: $0 <aws|azure|gcp>
 
 Downloads Crucible orchestration config for the selected cloud into the
 git-ignored local files used by that cloud's Terraform wrapper.
@@ -34,6 +34,20 @@ download_optional_s3_object() {
 
   if aws s3 ls "s3://${bucket}/${key}" >/dev/null 2>&1; then
     aws s3 cp "s3://${bucket}/${key}" "${dest}"
+  else
+    rm -f "${dest}"
+  fi
+}
+
+download_optional_gcs_object() {
+  local bucket="$1"
+  local prefix="$2"
+  local name="$3"
+  local dest="$4"
+  local key="${prefix:+${prefix}/}${name}"
+
+  if gcloud storage ls "gs://${bucket}/${key}" >/dev/null 2>&1; then
+    gcloud storage cp "gs://${bucket}/${key}" "${dest}" --quiet
   else
     rm -f "${dest}"
   fi
@@ -180,6 +194,45 @@ Pulled Azure Crucible orchestration config from:
 Local files are intentionally ignored by git:
   ${dest}/backend.hcl
   ${dest}/crucible.auto.tfvars.json
+EOF
+    ;;
+  gcp)
+    # GCP shares the AWS config bucket (zipline-crucible-vars) by default, with
+    # a gcp/ prefix so the keys don't collide — matches plan §5.1.
+    bucket="${CRUCIBLE_CONFIG_BUCKET:-zipline-crucible-vars}"
+    wrapper_key="${CRUCIBLE_CONFIG_KEY:-gcp/zipline-orchestration/crucible.auto.tfvars.json}"
+    config_prefix="${wrapper_key%/*}"
+    if [ "${config_prefix}" = "${wrapper_key}" ]; then
+      config_prefix=""
+    fi
+    backend_key="${config_prefix:+${config_prefix}/}backend.hcl"
+    root_dest="${CRUCIBLE_CONFIG_ROOT:-${repo_root}/gcp/zipline-orchestration}"
+
+    mkdir -p "${root_dest}"
+
+    tmp_backend="$(mktemp "${root_dest}/backend.hcl.XXXXXX")"
+    tmp_tfvars="$(mktemp "${root_dest}/crucible.auto.tfvars.json.XXXXXX")"
+    trap 'rm -f "${tmp_backend:-}" "${tmp_tfvars:-}"' EXIT
+
+    gcloud storage cp "gs://${bucket}/${backend_key}" "${tmp_backend}" --quiet
+    gcloud storage cp "gs://${bucket}/${wrapper_key}" "${tmp_tfvars}" --quiet
+    require_grouped_tfvars gcp "${tmp_tfvars}"
+    clean_ignored_config_files "${root_dest}"
+    mv "${tmp_backend}" "${root_dest}/backend.hcl"
+    mv "${tmp_tfvars}" "${root_dest}/crucible.auto.tfvars.json"
+    trap - EXIT
+
+    download_optional_gcs_object "${bucket}" "${config_prefix}" "dns-provider.tf" "${root_dest}/dns-provider.tf"
+    download_optional_gcs_object "${bucket}" "${config_prefix}" "dns.auto.tfvars.json" "${root_dest}/dns.auto.tfvars.json"
+    download_optional_gcs_object "${bucket}" "${config_prefix}" ".terraform.lock.hcl" "${root_dest}/.terraform.lock.hcl"
+
+    cat <<EOF
+Pulled GCP Crucible orchestration config from:
+  gs://${bucket}/${config_prefix}
+
+Local files are intentionally ignored by git:
+  ${root_dest}/backend.hcl
+  ${root_dest}/crucible.auto.tfvars.json
 EOF
     ;;
   *)
