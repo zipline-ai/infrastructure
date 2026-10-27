@@ -2,6 +2,10 @@
 {{- $reader := .Values.orchestration.readOnly }}
 {{- $host := required "orchestration.readOnly.databaseHost is required" $reader.databaseHost }}
 {{- $verticle := required "orchestration.readOnly.verticleClass is required" $reader.verticleClass }}
+{{- $jdbcUrl := printf "jdbc:postgresql://%s:%v/%s" $host .Values.database.port .Values.database.name }}
+{{- if .Values.database.sslMode }}
+{{- $jdbcUrl = printf "%s?sslmode=%s" $jdbcUrl .Values.database.sslMode }}
+{{- end }}
 {{- if contains "," $verticle }}
 {{- fail "orchestration.readOnly.verticleClass must select only the HTTP verticle, without workers" }}
 {{- end }}
@@ -55,7 +59,7 @@ spec:
             - name: CUSTOMER_ID
               value: {{ .Values.global.customer_name | quote }}
             - name: DB_URL
-              value: {{ printf "jdbc:postgresql://%s:%v/%s?sslmode=%s" $host .Values.database.port .Values.database.name .Values.database.sslMode | quote }}
+              value: {{ $jdbcUrl | quote }}
             - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
