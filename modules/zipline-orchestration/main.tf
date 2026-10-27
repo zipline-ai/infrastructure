@@ -24,6 +24,10 @@ locals {
       try(local.orchestration_input.hub, {}),
       try(local.provider_context.hub, {}),
     )
+    read_only = merge(
+      try(local.orchestration_input.read_only, {}),
+      try(local.provider_context.read_only, {}),
+    )
     eval = merge(
       try(local.orchestration_input.eval, {}),
       try(local.provider_context.eval, {}),
@@ -334,6 +338,24 @@ locals {
       try(local.orchestration.provider_service_account_annotations, {}),
     )
   })
+
+  read_only = merge({
+    enabled        = false
+    database_host  = ""
+    verticle_class = ""
+    replicas       = 1
+    resources = {
+      requests = { cpu = "250m", memory = "512Mi" }
+      limits   = { cpu = "2", memory = "2Gi" }
+    }
+    ingress = {}
+  }, local.orchestration.read_only)
+  read_only_ingress = merge({
+    enabled     = false
+    host        = ""
+    tls         = []
+    annotations = {}
+  }, local.read_only.ingress)
 
   hub_input = try(local.orchestration.hub, {})
   hub_defaults = {
@@ -758,6 +780,14 @@ locals {
         podAnnotations = try(local.hub.pod_annotations, try(local.hub.podAnnotations, {}))
         env            = local.hub_env
       }
+      readOnly = {
+        enabled       = local.read_only.enabled
+        databaseHost  = local.read_only.database_host
+        verticleClass = local.read_only.verticle_class
+        replicas      = local.read_only.replicas
+        resources     = local.read_only.resources
+        ingress       = local.read_only_ingress
+      }
       ui = {
         origin = local.ui.origin
         env = concat(
@@ -983,13 +1013,17 @@ resource "helm_release" "this" {
     [yamlencode(try(local.orchestration.values, {}))],
     [for value in try(local.orchestration.extra_values, []) : yamlencode(value)],
     try(local.orchestration.extra_values_yaml, []),
-    # Keep the UI and catalog job consistent with the Terraform-managed release,
-    # including when callers supply additional Helm values.
-    [yamlencode({ dataExplorer = { enabled = local.data_explorer_enabled } })],
+    # Keep Terraform-managed feature toggles and reader connection settings
+    # consistent even when callers supply additional Helm values.
+    [yamlencode({
+      dataExplorer  = { enabled = local.data_explorer_enabled }
+      orchestration = { readOnly = local.common_values.orchestration.readOnly }
+    })],
   )
 
   depends_on = [
     terraform_data.configuration_validation,
+    terraform_data.read_only_configuration,
     kubernetes_namespace_v1.this,
     kubernetes_secret_v1.docker_hub_creds,
     module.addons,
@@ -1004,4 +1038,23 @@ data "kubernetes_service_v1" "ingress_controller" {
   }
 
   depends_on = [helm_release.this]
+}
+
+resource "terraform_data" "read_only_configuration" {
+  input = local.read_only.enabled
+
+  lifecycle {
+    precondition {
+      condition     = !local.read_only.enabled || trimspace(local.read_only.database_host) != ""
+      error_message = "The read-only server requires a replica database host. On AWS/Azure, enable database_read_replica_enabled."
+    }
+    precondition {
+      condition     = !local.read_only.enabled || (trimspace(local.read_only.verticle_class) != "" && length(split(",", local.read_only.verticle_class)) == 1)
+      error_message = "The read-only server requires a single HTTP verticle_class without workflow workers."
+    }
+    precondition {
+      condition     = !local.read_only.enabled || local.read_only.database_host != local.database.host
+      error_message = "The read-only server must connect to a different host from the primary database."
+    }
+  }
 }

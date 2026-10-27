@@ -382,6 +382,25 @@ orchestration:
         cpu: "2"
         memory: "8Gi"
 
+  # Separate PostgreSQL-only reader; requires a server image with read-only mode.
+  readOnly:
+    enabled: false
+    databaseHost: ""
+    verticleClass: ""
+    replicas: 1
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "512Mi"
+      limits:
+        cpu: "2"
+        memory: "2Gi"
+    ingress:
+      enabled: false
+      host: ""
+      tls: []
+      annotations: {}
+
   ui:
     image: "ziplineai/web-ui"
     replicas: 1

@@ -40,3 +40,13 @@ output "ingress_load_balancer_target" {
     try(data.kubernetes_service_v1.ingress_controller.status[0].load_balancer[0].ingress[0].ip, ""),
   ]), 0), "")
 }
+
+output "read_only_orchestrator_service_url" {
+  description = "Cluster-internal reader URL; null when the read-only server is disabled."
+  value       = local.read_only.enabled ? "http://orchestration-read-only-service.${local.install.namespace}.svc.cluster.local" : null
+}
+
+output "read_only_orchestrator_hostname" {
+  description = "Explicit reader ingress hostname; null when its ingress is disabled."
+  value       = local.read_only.enabled && local.read_only_ingress.enabled ? local.read_only_ingress.host : null
+}

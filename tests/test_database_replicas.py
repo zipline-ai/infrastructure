@@ -3,6 +3,7 @@
 Requires Terraform >= 1.9 on PATH (or TERRAFORM). No cloud credentials used.
 """
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -28,7 +29,9 @@ class DatabaseReplicaTests(unittest.TestCase):
                 shutil.copy(source / database, fixture / database)
                 outputs = (source / "outputs.tf").read_text()
                 name = "rds_read_replica_endpoint" if cloud == "aws" else "postgres_read_replica_fqdn"
-                (fixture / "outputs.tf").write_text('output "' + name + '"' + outputs.split('output "' + name + '"', 1)[1])
+                output_block = re.search(r'(?ms)^output "' + re.escape(name) + r'" \{.*?^\}', outputs)
+                self.assertIsNotNone(output_block)
+                (fixture / "outputs.tf").write_text(output_block.group(0) + "\n")
                 shared = '''
 locals { name_prefix = "replica-test" }
 variable "%s" {
