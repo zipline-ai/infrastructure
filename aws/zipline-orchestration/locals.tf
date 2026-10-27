@@ -299,6 +299,10 @@ locals {
         try(var.orchestration.hub.pod_annotations, {}),
       )
     }
+    read_only = {
+      database_host  = try(aws_db_instance.read_replica[0].address, "")
+      verticle_class = "ai.chronon.hub.AWSOrchestrationVerticle"
+    }
     eval = {
       image = local.eval_image
     }

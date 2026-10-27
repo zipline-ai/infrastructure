@@ -127,3 +127,13 @@ output "rds_read_replica_endpoint" {
   description = "Read replica address; null when disabled. Uses the primary database credentials."
   value       = try(aws_db_instance.read_replica[0].endpoint, null)
 }
+
+output "read_only_orchestrator_service_url" {
+  description = "Cluster-internal URL for the opt-in read-only orchestrator."
+  value       = module.zipline_orchestration.read_only_orchestrator_service_url
+}
+
+output "read_only_orchestrator_hostname" {
+  description = "Reader ingress hostname, when enabled and explicitly configured."
+  value       = module.zipline_orchestration.read_only_orchestrator_hostname
+}

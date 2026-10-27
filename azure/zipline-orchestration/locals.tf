@@ -107,6 +107,10 @@ locals {
         try(var.orchestration.hub.pod_annotations, {}),
       )
     }
+    read_only = {
+      database_host  = try(azurerm_postgresql_flexible_server.read_replica[0].fqdn, "")
+      verticle_class = "ai.chronon.hub.AzureOrchestrationVerticle"
+    }
     eval = {
       image = local.eval_image
     }

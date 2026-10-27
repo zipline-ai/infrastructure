@@ -55,3 +55,22 @@ StarRocks deployment stay consistent. Polaris remains available for other servic
 For existing deployments, set `enabled = true` before applying to retain
 Data Explorer. Applying with the default `false` removes the existing StarRocks
 release. A Terraform state migration preserves the release when enabled.
+
+## Read-only orchestration server
+
+`orchestration.read_only.enabled` defaults to false. AWS and Azure wrappers fill
+`database_host` with the managed read replica and `verticle_class` with their
+HTTP-only verticle. With a direct module call, supply both explicitly. The module
+rejects an absent replica address, the primary database host, or multiple verticles.
+
+Optional `replicas`, `resources`, and `ingress` configure the separate deployment.
+Ingress is disabled by default; enabling it requires a unique hostname and any
+needed TLS configuration. The reader shares the primary image/tag and existing
+DB Secret, and receives `ORCHESTRATION_READ_ONLY=true`. Its separate service
+account has no cloud identity annotations/RBAC and does not mount a Kubernetes
+token. Writer runtime environment and pod identity labels are not copied.
+
+Use a platform image release containing read-only mode before enabling the chart.
+The reader supports PostgreSQL metadata inspection only; authentication continues
+through the existing frontend. The final Helm values preserve the Terraform
+reader settings even if generic extra Helm values attempt to override them.

@@ -309,6 +309,59 @@ connections. Explicit SKU overrides remain supported; replicas require `GP_` or
 `MO_`, and cannot be enabled with an external `azure.database_host`. The replica
 gets its own private endpoint in the existing private DNS zone.
 
+### Read-only orchestrator
+
+Requires a platform image release that implements `ORCHESTRATION_READ_ONLY=true`.
+Deploy the platform change before enabling this server; an older image does not
+provide the read-only API boundary. Enable the managed replica and server together:
+
+```hcl
+azure = {
+  # Other required cloud settings omitted.
+  database_read_replica_enabled = true
+}
+
+orchestration = {
+  # Other required orchestration settings omitted.
+  read_only = {
+    enabled = true
+    # Optional: omit ingress to keep the reader cluster-internal.
+    ingress = {
+      enabled = true
+      host    = "reader.example.com"
+      tls     = [{ hosts = ["reader.example.com"], secretName = "reader-tls" }]
+    }
+  }
+}
+```
+
+Terraform supplies the managed replica hostname and HTTP-only cloud verticle.
+The server reuses the writer image/tag and database credentials. It runs as a
+separate Deployment with its own limits, Service, and service account. It does
+not inherit writer runtime environment, cloud identity annotations, Azure
+workload identity labels, Kubernetes API token, or RBAC bindings. No schedulers,
+workflow workers, cleanup workers, metrics-store clients, or engine proxies run
+in this mode. The platform checks PostgreSQL recovery/read-only status at startup,
+readiness, and request dispatch; it never falls back to the primary.
+
+The default is one reader pod requesting 250m CPU / 512Mi memory, limited to
+2 CPUs / 2Gi. Override `orchestration.read_only.replicas` and `resources` after
+measuring load. Readiness uses `/readyz`; liveness uses `/ping`.
+
+Outputs `read_only_orchestrator_service_url` and `read_only_orchestrator_hostname`
+identify the internal service and optional ingress. The ingress requires a
+separate hostname; configure DNS and TLS using the same load balancer as other
+services. CLI requests use bearer tokens and the existing frontend authentication
+service. Set `HUB_READ_ONLY_URL=https://reader.example.com` for the new inspection
+commands. Reads are eventually consistent and may temporarily omit recent writes.
+
+Disabling `orchestration.read_only.enabled` removes the server without changing
+the writer or database replica. Removing the database replica is a separate choice.
+This configuration does not create a new database role or network policy; the
+existing application login still has its primary-side privileges. Review node
+identity/metadata access and network policy separately if infrastructure-level
+isolation from the primary is required.
+
 ### Fetcher
 
 When the fetcher is enabled, the Azure wrapper creates a serverless Cosmos DB

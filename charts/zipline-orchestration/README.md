@@ -143,3 +143,19 @@ helm template zipline charts/zipline-orchestration \
   --set orchestration.hub.verticleClass=com.zipline.OrchestrationVerticle \
   --set orchestration.eval.image=ziplineai/eval
 ```
+
+## Optional read-only orchestrator
+
+Set `orchestration.readOnly.enabled=true`, `databaseHost` to a PostgreSQL read
+replica, and `verticleClass` to the HTTP-only AWS/Azure orchestration verticle.
+The server image must contain support for `ORCHESTRATION_READ_ONLY=true`.
+The chart reuses `orchestration.hub.image` and the version tag; no new image is
+needed. It creates a separate Deployment, Service, and unannotated service account
+with token mounting disabled. Writer environment and identity labels are excluded.
+
+`orchestration.readOnly.ingress.enabled` defaults to false. If enabled, `host`
+must be explicitly set and differ from the writer ingress; configure `tls` and
+`annotations` as needed. Bearer token verification remains in the server, using
+the existing frontend JWKS endpoint. Readiness checks `/readyz` and liveness
+checks `/ping`. The database name, port, SSL mode, and credentials Secret are
+shared with the primary, but its host and JDBC URL are not reused.
