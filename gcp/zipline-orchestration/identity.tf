@@ -174,6 +174,8 @@ resource "google_project_iam_member" "spark" {
     "roles/bigtable.user",
     "roles/bigquery.dataEditor",
     "roles/bigquery.jobUser",
+    # BigQuery Storage Read API (bigquery.readsessions.create) for BigQueryMetastoreCatalog reads.
+    "roles/bigquery.readSessionUser",
     "roles/logging.logWriter",
   ])
 
