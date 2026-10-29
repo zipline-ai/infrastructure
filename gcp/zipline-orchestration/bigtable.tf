@@ -11,7 +11,7 @@ resource "google_bigtable_instance" "zipline" {
       min_nodes      = local.cloud_args.bigtable_min_nodes
       max_nodes      = local.cloud_args.bigtable_max_nodes
       cpu_target     = local.cloud_args.bigtable_cpu_target
-      storage_target = local.cloud_args.bigtable_storage_target_gib * 1024 * 1024 * 1024
+      storage_target = local.cloud_args.bigtable_storage_target_gib
     }
 
     kms_key_name = local.cloud_args.cmek_key_id != "" ? local.cloud_args.cmek_key_id : null
