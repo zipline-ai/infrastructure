@@ -507,3 +507,28 @@ StarRocks deployment stay consistent. Polaris remains available for other servic
 For existing deployments, set `enabled = true` before applying to retain
 Data Explorer. Applying with the default `false` removes the existing StarRocks
 release. A Terraform state migration preserves the release when enabled.
+
+### Databricks credentials
+
+When `aws.databricks_client_id` is set, provide both Secrets Manager ARNs:
+
+```hcl
+aws = {
+  # Include the other required AWS settings.
+  databricks_client_id         = "your-service-principal-client-id"
+  databricks_client_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:databricks-client-AbCdEf"
+  databricks_credential_arn    = "arn:aws:secretsmanager:us-east-1:123456789012:secret:databricks-credential-AbCdEf"
+}
+```
+
+Manage both secret values outside Terraform. The first secret must contain the
+raw client secret; the second must contain `client_id:client_secret` for the
+Iceberg REST catalog. Neither value is a JSON object. Keep both secrets in sync
+when rotating credentials. Terraform passes their ARNs to runtime configuration
+and grants the Flink, Spark, and orchestration roles read access to those ARNs.
+
+To migrate, replace `aws.databricks_client_secret` with the ARNs of the two
+existing secrets before applying. Terraform relinquishes management of both
+secrets and their versions without deleting them. The old plaintext input is
+rejected even when empty or Databricks is disabled. Historical Terraform state
+may still contain the old values. Docker Hub token inputs are unchanged.

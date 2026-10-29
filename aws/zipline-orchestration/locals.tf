@@ -28,7 +28,8 @@ locals {
     glue_schema_registry_name            = ""
     msk_cluster_arn                      = ""
     databricks_client_id                 = ""
-    databricks_client_secret             = ""
+    databricks_client_secret_arn          = ""
+    databricks_credential_arn            = ""
     amp_workspace_arn                    = ""
     encryption_kms_key_arn               = ""
     encryption_kms_key_arns              = {}
@@ -431,8 +432,8 @@ locals {
       # at startup; the hub fills {NAME} placeholders without holding the secrets.
       try(trimspace(local.cloud_args.databricks_client_id), "") == "" ? [] : [
         { name = "DATABRICKS_CLIENT_ID", value = local.cloud_args.databricks_client_id },
-        { name = "DATABRICKS_CLIENT_SECRET_VAULT_URI", value = aws_secretsmanager_secret.databricks_client_secret[0].arn },
-        { name = "DATABRICKS_CREDENTIAL_VAULT_URI", value = aws_secretsmanager_secret.databricks_credential[0].arn },
+        { name = "DATABRICKS_CLIENT_SECRET_VAULT_URI", value = local.cloud_args.databricks_client_secret_arn },
+        { name = "DATABRICKS_CREDENTIAL_VAULT_URI", value = local.cloud_args.databricks_credential_arn },
       ],
       [
         {
@@ -451,7 +452,7 @@ locals {
     # the secret's vault ref itself (orchestration IRSA already grants read on it).
     eval_env = try(trimspace(local.cloud_args.databricks_client_id), "") == "" ? [] : [
       { name = "DATABRICKS_CLIENT_ID", value = local.cloud_args.databricks_client_id },
-      { name = "DATABRICKS_CLIENT_SECRET_VAULT_URI", value = aws_secretsmanager_secret.databricks_client_secret[0].arn },
+      { name = "DATABRICKS_CLIENT_SECRET_VAULT_URI", value = local.cloud_args.databricks_client_secret_arn },
     ]
     ui_env = local.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.eks_log_group }]
     values = merge(

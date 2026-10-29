@@ -22,6 +22,19 @@ variable "aws" {
     error_message = "aws.auth_secret_values is no longer supported. Store authentication values in AWS Secrets Manager and set aws.auth_secret_arn or orchestration.auth.secrets_arn."
   }
 
+  validation {
+    condition     = !contains(keys(var.aws), "databricks_client_secret")
+    error_message = "aws.databricks_client_secret is no longer supported. Store both Databricks secrets outside Terraform and set aws.databricks_client_secret_arn and aws.databricks_credential_arn."
+  }
+
+  validation {
+    condition = try(trimspace(var.aws.databricks_client_id), "") == "" || alltrue([
+      for key in ["databricks_client_secret_arn", "databricks_credential_arn"] :
+      can(regex("^arn:[a-z0-9-]+:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+$", var.aws[key]))
+    ])
+    error_message = "Databricks requires valid AWS Secrets Manager ARNs in aws.databricks_client_secret_arn and aws.databricks_credential_arn when aws.databricks_client_id is set."
+  }
+
   # vpc_id/primary_subnet_id/secondary_subnet_id are provisioned on the fly when
   # omitted (see network.tf); supply all three together to bring your own network.
   validation {
