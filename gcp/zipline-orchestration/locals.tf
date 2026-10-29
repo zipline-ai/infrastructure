@@ -172,7 +172,6 @@ locals {
       { name = "GCP_PROJECT_ID", value = local.cloud_args.project_id },
       { name = "GCP_BIGTABLE_INSTANCE_ID", value = local.bigtable_instance_name },
       { name = "CRUCIBLE_FLINK_JARS_BASE_PATH", value = local.flink_jars_base_path },
-      { name = "GOOGLE_CLOUD_PROJECT", value = local.cloud_args.project_id },
       { name = "LOG_PROVIDER", value = "gcp" },
     ],
     [{
@@ -191,7 +190,6 @@ locals {
   # without extra config.
   eval_env = [
     { name = "GCP_PROJECT_ID", value = local.cloud_args.project_id },
-    { name = "GOOGLE_CLOUD_PROJECT", value = local.cloud_args.project_id },
   ]
 
   # UI knob (§11): the UI *queries* Managed Prometheus; the hub stays on
@@ -199,9 +197,9 @@ locals {
   ui_env = [
     { name = "METRICS_PROVIDER", value = "gcp" },
     { name = "LOG_PROVIDER", value = "gcp" },
-    { name = "GOOGLE_CLOUD_PROJECT", value = local.cloud_args.project_id },
   ]
 
+  # Every service gets runtime_env, so GOOGLE_CLOUD_PROJECT is set here only.
   runtime_env = [
     { name = "GOOGLE_CLOUD_PROJECT", value = local.cloud_args.project_id },
   ]
