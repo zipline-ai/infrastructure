@@ -333,7 +333,22 @@ for the environment.
 | `aws.database_allocated_storage` | `20` | RDS needs a different initial storage size in GB. |
 | `aws.database_multi_az` | `true` | You want to disable or explicitly set Multi-AZ. |
 | `aws.database_publicly_accessible` | `false` | The RDS instance must be publicly accessible. |
+| `aws.database_read_replica_enabled` | `false` | Create one private, same-region read replica. |
 | `aws.database_backup_retention_days` | `7` | Backups need a different retention period. |
+
+Set `aws.database_read_replica_enabled = true` to create one same-region,
+private read replica. It uses the primary's instance class and existing database
+credentials. Connect read workloads explicitly to the `rds_read_replica_endpoint` output
+(null when disabled); application write connections continue using the primary.
+The existing application account can read the replica, but SQL writes are rejected
+while the server remains a replica. Updates are asynchronous, so reads may lag.
+Primary-side deletes and other writes also propagate; this is not a backup.
+Restrict cloud permissions to promote replicas, since promotion makes them writable.
+Replicas add compute and storage charges. Disabling the flag deletes the replica.
+
+RDS requires `aws.database_backup_retention_days > 0`. The replica shares the
+primary security group and encryption key, runs Single-AZ, and is deleted without
+a final snapshot; primary snapshot settings are unchanged.
 
 ### DynamoDB, Glue, MSK, and Observability
 
