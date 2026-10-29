@@ -562,35 +562,9 @@ resource "aws_iam_role_policy" "flink_compute_glue_catalog" {
 # Databricks service principal secrets (giga tile / batch Iceberg reads).
 # Jobs resolve DATABRICKS_CLIENT_SECRET_VAULT_URI and
 # DATABRICKS_CREDENTIAL_VAULT_URI at startup; the hub never holds them.
-# Only created when databricks_client_id is provided in cloud_args.
+# Access is granted when databricks_client_id is provided in cloud_args.
+# Secret values are managed outside Terraform.
 # ===================================================================
-
-resource "aws_secretsmanager_secret" "databricks_client_secret" {
-  count                   = try(trimspace(local.cloud_args.databricks_client_id), "") != "" ? 1 : 0
-  name                    = "${local.name_prefix}-zipline-databricks-client-secret"
-  description             = "Databricks service principal client secret"
-  recovery_window_in_days = local.cloud_args.secret_force_delete ? 0 : 30
-}
-
-resource "aws_secretsmanager_secret_version" "databricks_client_secret" {
-  count         = try(trimspace(local.cloud_args.databricks_client_id), "") != "" ? 1 : 0
-  secret_id     = aws_secretsmanager_secret.databricks_client_secret[0].id
-  secret_string = local.cloud_args.databricks_client_secret
-}
-
-# `client_id:client_secret` — the Iceberg REST catalog credential format.
-resource "aws_secretsmanager_secret" "databricks_credential" {
-  count                   = try(trimspace(local.cloud_args.databricks_client_id), "") != "" ? 1 : 0
-  name                    = "${local.name_prefix}-zipline-databricks-credential"
-  description             = "Databricks service principal client_id:client_secret"
-  recovery_window_in_days = local.cloud_args.secret_force_delete ? 0 : 30
-}
-
-resource "aws_secretsmanager_secret_version" "databricks_credential" {
-  count         = try(trimspace(local.cloud_args.databricks_client_id), "") != "" ? 1 : 0
-  secret_id     = aws_secretsmanager_secret.databricks_credential[0].id
-  secret_string = "${local.cloud_args.databricks_client_id}:${local.cloud_args.databricks_client_secret}"
-}
 
 resource "aws_iam_policy" "databricks_secrets_policy" {
   count       = try(trimspace(local.cloud_args.databricks_client_id), "") != "" ? 1 : 0
@@ -607,8 +581,8 @@ resource "aws_iam_policy" "databricks_secrets_policy" {
           "secretsmanager:DescribeSecret",
         ]
         Resource = [
-          aws_secretsmanager_secret.databricks_client_secret[0].arn,
-          aws_secretsmanager_secret.databricks_credential[0].arn,
+          local.cloud_args.databricks_client_secret_arn,
+          local.cloud_args.databricks_credential_arn,
         ]
       }
     ]

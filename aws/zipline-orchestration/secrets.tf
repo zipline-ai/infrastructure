@@ -20,3 +20,32 @@ removed {
     destroy = false
   }
 }
+
+# Retain existing Databricks secrets and versions when switching to ARN inputs.
+removed {
+  from = aws_secretsmanager_secret.databricks_client_secret
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = aws_secretsmanager_secret_version.databricks_client_secret
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = aws_secretsmanager_secret.databricks_credential
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = aws_secretsmanager_secret_version.databricks_credential
+  lifecycle {
+    destroy = false
+  }
+}
