@@ -117,3 +117,9 @@ Phase 1 lands infra + a healthy chart; live workloads unlock in later phases:
 
 Hub pod should start cleanly in Phase 1 but any job submission will fail
 until §3.3 lands and `hub-gcp` is rebuilt.
+
+## Conf repository sandbox
+
+Set `orchestration.conf_repo.url` to enable the internal sandbox and repository
+editor configuration. See the [sandbox configuration guide](../../charts/zipline-orchestration/SANDBOX.md)
+for inputs, cloud secret references, and image availability requirements.

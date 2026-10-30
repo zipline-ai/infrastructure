@@ -398,6 +398,31 @@ orchestration:
         cpu: "250m"
         memory: "256Mi"
 
+  confRepo:
+    url: ""
+    path: ""
+    branch: "main"
+    ziplineEnv: "default"
+    githubClientId: ""
+    githubScope: "repo"
+    credentialsSecret: conf-repo-credentials
+    tokenKey: ""
+    clientSecretKey: ""
+
+  sandbox:
+    image: ziplineai/sandbox
+    port: 8000
+    cli: source
+    nodeSelector: {}
+    tolerations: []
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+
   fetcher:
     image: "ziplineai/chronon-fetcher"
     replicas: 3

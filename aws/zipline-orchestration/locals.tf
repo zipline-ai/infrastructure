@@ -263,6 +263,10 @@ locals {
   )
   extra_external_secret_arns = distinct(compact(concat(
     try(local.cloud_args.extra_secret_arns, []),
+    trimspace(try(var.orchestration.conf_repo.url, "")) == "" ? [] : compact([
+      try(var.orchestration.conf_repo.github_token_remote_ref.key, ""),
+      try(var.orchestration.conf_repo.github_client_secret_remote_ref.key, ""),
+    ]),
     local.redis_password_enabled ? [local.redis_password_secret_arn] : [],
     flatten([
       for external_secret in local.extra_external_secrets : [
