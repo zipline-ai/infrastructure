@@ -113,6 +113,10 @@ locals {
   starrocks_defaults = {
     chartVersion = "1.11.7"
     clusterName  = "starrocks"
+    # FE replicas form a BDB-JE quorum. Going from 3 to 1 on a live cluster
+    # requires `ALTER SYSTEM DROP FOLLOWER` for the removed FEs first, or the
+    # remaining FE cannot elect a leader.
+    feReplicas = 3
     feImage = {
       repository = "starrocks/fe-ubuntu"
       tag        = "4.1.3"
@@ -930,7 +934,7 @@ resource "helm_release" "starrocks" {
         }
       }
       starrocksFESpec = {
-        replicas   = 3
+        replicas   = local.starrocks.feReplicas
         image      = local.starrocks.feImage
         resources  = local.starrocks.feResources
         affinity   = local.starrocks_component_affinity

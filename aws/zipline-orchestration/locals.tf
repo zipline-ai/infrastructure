@@ -477,6 +477,10 @@ locals {
     "-Dspark.hadoop.fs.s3a.aws.credentials.provider=com.amazonaws.auth.WebIdentityTokenCredentialsProvider",
     "-Dspark.hadoop.fs.s3a.connection.maximum=200",
     "-Dspark.hadoop.fs.s3a.threads.max=50",
+    # Spark's 10s default re-lists every event-log directory ~500 times an hour
+    # (S3 LIST is billed per request; ~1.4M LISTs/day on public-demo). New
+    # applications show up in the UI within a minute instead.
+    "-Dspark.history.fs.update.interval=60s",
   ]
   hub_image                   = "ziplineai/hub-aws"
   eval_image                  = "ziplineai/eval-aws"
