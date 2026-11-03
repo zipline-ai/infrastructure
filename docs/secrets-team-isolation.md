@@ -41,7 +41,8 @@ Variant of (a): **EKS Pod Identity** puts a `kubernetes-namespace` session tag o
 
 ## 3. Recommendation
 
-Choose **(a) per-team IRSA roles**. It fits the Oct 7 decision: vault-URI refs straight from Secrets Manager, no ESO, no plaintext in Terraform. Team namespaces are already Terraform-enumerated, so it adds no onboarding step. Secrets do not need enumerating, and Spark and Flink need no code change. Keep (b) and (c) for when non-AWS backends or ESO are wanted. If that happens, back them with namespaced SecretStores on the (a) roles, and keep team secrets off a ClusterSecretStore.
+Choose **(a) per-team IRSA roles** — agreed by Kumar and Chewy; see section 4. Not
+blocking any customer today, so it can land on its own schedule. It fits the Oct 7 decision: vault-URI refs straight from Secrets Manager, no ESO, no plaintext in Terraform. Team namespaces are already Terraform-enumerated, so it adds no onboarding step. Secrets do not need enumerating, and Spark and Flink need no code change. Keep (b) and (c) for when non-AWS backends or ESO are wanted. If that happens, back them with namespaced SecretStores on the (a) roles, and keep team secrets off a ClusterSecretStore.
 
 **Smallest first step (one infra PR, no behavior change):**
 1. `irsa.tf`: for each non-default entry in `compute.namespaces`, create `<prefix>-<ns>-spark` and `-flink` roles. Each trusts `StringEquals sub = system:serviceaccount:<ns>:<sa>` and gets the same base policies as today, the shared Databricks policy, and a team policy on `secret:<prefix>/teams/<ns>/*`.
@@ -54,9 +55,28 @@ To verify: a `zipline-default` job referencing an ARN under the `aws-databricks`
 - Stop resolving Ray secrets in the Hub. Pass the `*_VAULT_URI` refs through and resolve them in the trainer. boto3 already picks up the Spark SA's IRSA role.
 - Restrict the Hub-env `{NAME}` fill to an allowlist of non-secret names (`DATABRICKS_CLIENT_ID`, …). `OC_CREDENTIAL` needs a job-side home before it can come off that list.
 
-## 4. Open questions
+## 4. Questions asked, and what came back
 
-**Kumar:** With #2232, who creates the Secret in `zipline-<team>`: Terraform or the Hub at team sync? If the Hub does it through a ClusterSecretStore on the Hub role, could a team's `teams.py` name any Hub-readable ARN? What is the plan for Ray, given Python trainers and Hub-side resolution? Would `get` use `resourceNames`? (Pods in the namespace can already mount any Secret there.) Would you be OK with (a) landing first and `k8s://` becoming the path for non-AWS backends?
+**Kumar — answered 2026-11-03.** Option (a) is agreed for team-level secrets, and it is
+not blocking Depop: their Unity Catalog is shared across their teams, so one compute
+identity per cluster is not currently costing them isolation they need.
+
+That answers the last question asked here — (a) lands first, and `k8s://` (option (b))
+becomes the path for non-AWS backends rather than a competing proposal. It also sets the
+priority: this is wanted, but nothing is waiting on it, so the first step below can go in
+on its own schedule rather than ahead of other Crucible work.
+
+What Depop actually asked for instead is **usage cost attribution per team, or per
+workflow**. That is a different axis from secret isolation and nothing in this document
+delivers it — per-team IAM roles say who may read a secret, not who pays for a job. Worth
+recording here only so the two are not conflated: a cost-attribution design needs its own
+note, and if it lands on per-namespace tags it may share (a)'s namespace enumeration.
+
+Still open from this section, because they were not addressed: with #2232, who creates the
+Secret in `zipline-<team>` — Terraform or the Hub at team sync? If the Hub does it through
+a ClusterSecretStore on the Hub role, could a team's `teams.py` name any Hub-readable ARN?
+And what is the plan for Ray, given Python trainers and Hub-side resolution? These only
+become live if (b) is taken up, which (a) landing first defers.
 
 **Chewy — answered 2026-11-02.** The ClusterSecretStore from #186 stays limited to
 platform-wide secrets like Redis, so team secrets do not go through it and the
@@ -74,7 +94,18 @@ design, and the switch to an out-of-band secret plus an ARN input is being made 
 infrastructure#206. That removes the "sits in Terraform state" problem this document
 raises, so it is no longer an open question here — it is a dependency.
 
-Still open: does a per-namespace SA-annotation override conflict with the shared-pool
-work?
+The per-namespace SA-annotation override does **not** inherently conflict with the
+shared-pool work, provided jobs run under the intended namespace and service account and
+the IAM trust policies match — which is exactly what step 2 of the first step below sets
+up, and what the `StringEquals sub = system:serviceaccount:<ns>:<sa>` trust in step 1
+enforces. Nor does it change #186's store identity, which names the Hub service account
+in the orchestration namespace explicitly.
+
+One thing to carry into step 1 from the same answer: the number of namespaces was recently
+reduced. The role-count caveat in option (a) — two roles per team, against a 64-character
+limit on role names — is therefore smaller in practice than the table suggests, though the
+truncate-and-hash for long namespaces is still needed to be safe.
+
+Nothing from this section is open.
 
 **Piyush:** Should each team get its own Databricks SP and Polaris principal, or is shared fine for now? That decides whether the Databricks policy stays on every team role. Does the Hub check that the submitting user belongs to `metaData.team`? The namespace is taken from the conf (`NodeSubmitter.scala:345-350`). Without that check, any of these options isolates jobs from each other but not users from other teams. Do customers bring existing ARNs that will not match a name prefix? If so, we would need per-team ARN lists in tfvars or tag-based policies.
