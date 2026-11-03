@@ -68,6 +68,7 @@ module "zipline_orchestration" {
     google_project_iam_member.flink,
     google_project_iam_member.eval,
     google_service_account_iam_member.orchestration_wi,
+    google_storage_bucket_iam_member.bucket_grants,
     google_service_account_iam_member.spark_wi,
     google_service_account_iam_member.flink_wi,
     google_service_account_iam_member.eval_wi,
