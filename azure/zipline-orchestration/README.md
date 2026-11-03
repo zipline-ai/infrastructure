@@ -608,3 +608,9 @@ StarRocks deployment stay consistent. Polaris remains available for other servic
 For existing deployments, set `enabled = true` before applying to retain
 Data Explorer. Applying with the default `false` removes the existing StarRocks
 release. A Terraform state migration preserves the release when enabled.
+
+## Conf repository sandbox
+
+Set `orchestration.conf_repo.url` to enable the internal sandbox and repository
+editor configuration. See the [sandbox configuration guide](../../charts/zipline-orchestration/SANDBOX.md)
+for inputs, cloud secret references, and image availability requirements.

@@ -43,6 +43,36 @@ spec:
             - name: FETCHER_BASE_URL
               value: "http://fetcher-service"
             {{- end }}
+            {{- if .Values.orchestration.confRepo.url }}
+            - name: SANDBOX_URL
+              value: "http://sandbox-service:{{ .Values.orchestration.sandbox.port }}"
+            - name: CONF_REPO_URL
+              value: {{ .Values.orchestration.confRepo.url | quote }}
+            - name: CONF_REPO_PATH
+              value: {{ .Values.orchestration.confRepo.path | quote }}
+            - name: CONF_REPO_BRANCH
+              value: {{ .Values.orchestration.confRepo.branch | quote }}
+            - name: ZIPLINE_ENV
+              value: {{ .Values.orchestration.confRepo.ziplineEnv | quote }}
+            - name: CONF_REPO_GITHUB_CLIENT_ID
+              value: {{ .Values.orchestration.confRepo.githubClientId | quote }}
+            - name: CONF_REPO_GITHUB_SCOPE
+              value: {{ .Values.orchestration.confRepo.githubScope | quote }}
+            {{- if .Values.orchestration.confRepo.tokenKey }}
+            - name: CONF_REPO_GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.orchestration.confRepo.credentialsSecret }}
+                  key: {{ .Values.orchestration.confRepo.tokenKey }}
+            {{- end }}
+            {{- if .Values.orchestration.confRepo.clientSecretKey }}
+            - name: CONF_REPO_GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.orchestration.confRepo.credentialsSecret }}
+                  key: {{ .Values.orchestration.confRepo.clientSecretKey }}
+            {{- end }}
+            {{- end }}
             - name: EVAL_URL
               value: "http://eval-service"
             - name: ORIGIN
