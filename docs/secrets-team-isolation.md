@@ -58,6 +58,23 @@ To verify: a `zipline-default` job referencing an ARN under the `aws-databricks`
 
 **Kumar:** With #2232, who creates the Secret in `zipline-<team>`: Terraform or the Hub at team sync? If the Hub does it through a ClusterSecretStore on the Hub role, could a team's `teams.py` name any Hub-readable ARN? What is the plan for Ray, given Python trainers and Hub-side resolution? Would `get` use `resourceNames`? (Pods in the namespace can already mount any Secret there.) Would you be OK with (a) landing first and `k8s://` becoming the path for non-AWS backends?
 
-**Chewy:** Would #186's ClusterSecretStore stay limited to platform-wide secrets like Redis? Does a per-namespace SA-annotation override conflict with the shared-pool work? The Hub role has three secret policies that are not in this repo (`RDSSecretReadAccess`, `DatabricksSpSecretReadAccess`, `ZiplineAuthSecretReadAccess`). Where are those managed? Also, `databricks_client_secret` is a plaintext tfvars input that Terraform writes into Secrets Manager (`irsa.tf:575-593`), so it sits in state. Should we switch to an out-of-band secret plus an ARN input?
+**Chewy — answered 2026-11-02.** The ClusterSecretStore from #186 stays limited to
+platform-wide secrets like Redis, so team secrets do not go through it and the
+recommendation above holds unchanged.
+
+The three Hub-role policies that are not in this repo — `RDSSecretReadAccess`,
+`DatabricksSpSecretReadAccess`, `ZiplineAuthSecretReadAccess` — were almost certainly
+created while Crucible lived in `infra-aws-prod` and were never deleted when it moved.
+Chewy confirmed with Kumar and is removing them. Worth noting the implication for this
+document: the Hub's secret access is then entirely what this repo declares, which is the
+premise the recommendation rests on and could not be assumed before.
+
+The plaintext `databricks_client_secret` tfvars input is an oversight rather than a
+design, and the switch to an out-of-band secret plus an ARN input is being made in
+infrastructure#206. That removes the "sits in Terraform state" problem this document
+raises, so it is no longer an open question here — it is a dependency.
+
+Still open: does a per-namespace SA-annotation override conflict with the shared-pool
+work?
 
 **Piyush:** Should each team get its own Databricks SP and Polaris principal, or is shared fine for now? That decides whether the Databricks policy stays on every team role. Does the Hub check that the submitting user belongs to `metaData.team`? The namespace is taken from the conf (`NodeSubmitter.scala:345-350`). Without that check, any of these options isolates jobs from each other but not users from other teams. Do customers bring existing ARNs that will not match a name prefix? If so, we would need per-team ARN lists in tfvars or tag-based policies.
