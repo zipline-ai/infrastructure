@@ -32,7 +32,7 @@ Research as of 2026-10-09. Code refs: **infra** = `infrastructure@587d359` (orig
 
 | | Isolation | Teams / secrets: Terraform or dynamic? | Work (repo) | What breaks / caveats |
 |---|---|---|---|---|
-| **(a) Per-team IAM roles (IRSA) on per-namespace SAs** | Strong, enforced by AWS, even if the Hub or a conf is wrong | Roles: Terraform, generated from the existing `compute.namespaces` list, so no new onboarding step. Secrets: not enumerated if team policies use a name prefix (`<prefix>/teams/<ns>/*`) or a tag | infra: `for_each` roles + per-namespace SA annotations + narrow the shared trust. chronon/platform: none for Spark/Flink | Ray still resolves in the Hub until moved in-job. Role names are ≤64 chars, so long namespaces need truncate+hash. 2 roles per team (Spark, Flink) |
+| **(a) Per-team IAM roles (IRSA) on per-namespace SAs** | Strong *between jobs*, enforced by AWS even if the Hub or a conf is wrong. Not between *users* on its own: the namespace comes from `metaData.team` in the conf, so without a Hub-side check that the submitter belongs to that team, a user can select another team's namespace and get its role. See section 4 | Roles: Terraform, generated from the existing `compute.namespaces` list, so no new onboarding step. Secrets: not enumerated if team policies use a name prefix (`<prefix>/teams/<ns>/*`) or a tag | infra: `for_each` roles + per-namespace SA annotations + narrow the shared trust. chronon/platform: none for Spark/Flink | Ray still resolves in the Hub until moved in-job. Role names are ≤64 chars, so long namespaces need truncate+hash. 2 roles per team (Spark, Flink) |
 | **(b) `k8s://` provider (chronon#2232) + per-namespace k8s Secrets + RBAC** | Good between jobs (reads only the pod's own namespace). Real strength depends on **who copies which secret into which namespace** | Something must create a Secret per (team, secret): Terraform ExternalSecrets (like #186) or the Hub, which needs new RBAC | chronon: #2232 (+ timeouts). infra: `get secrets` on job Roles, a sync mechanism. platform: Ray | Ray resolves in the Hub, so a `k8s://` ref there would read `zipline-system`. No Python resolver exists for trainers. Secrets get copied into etcd (no customer KMS `encryption_config`, `eks.tf:74`) |
 | **(c) ESO namespaced SecretStore per team** | Strong *only if* each store's identity is a per-team role, i.e. it needs (a) underneath. With today's shared role it gives none | Stores and ExternalSecrets can be created dynamically (Hub) safely, because IAM bounds each namespace | infra: (a) + a store per namespace + ESO RBAC. Consumption via (b) or `secretKeyRef` | Most moving parts. Reverses the Oct 7 "no ESO yet". A **ClusterSecretStore** has one identity for all namespaces: its namespace selector limits who may *use* it, not which secrets each namespace gets |
 | **(d) Leave shared** | None. Every team reads every compute-role secret, plus Hub-readable secrets via the Ray path | n/a | none | Fine only while all teams are internal |
@@ -42,14 +42,34 @@ Variant of (a): **EKS Pod Identity** puts a `kubernetes-namespace` session tag o
 ## 3. Recommendation
 
 Choose **(a) per-team IRSA roles** — agreed by Kumar and Chewy; see section 4. Not
-blocking any customer today, so it can land on its own schedule. It fits the Oct 7 decision: vault-URI refs straight from Secrets Manager, no ESO, no plaintext in Terraform. Team namespaces are already Terraform-enumerated, so it adds no onboarding step. Secrets do not need enumerating, and Spark and Flink need no code change. Keep (b) and (c) for when non-AWS backends or ESO are wanted. If that happens, back them with namespaced SecretStores on the (a) roles, and keep team secrets off a ClusterSecretStore.
+blocking any customer today, so it can land on its own schedule. It fits the Oct 7 decision: vault-URI refs straight from Secrets Manager, no ESO, no plaintext in Terraform. Team namespaces are already Terraform-enumerated, so it adds no onboarding step. Secrets do not need enumerating, and Spark needs no code change.
+
+**Two things (a) does not give you, and the recommendation should not be read as giving:**
+
+*Flink needs wiring, not just a role.* Only `FLINK_`-prefixed env reaches a Flink pod
+(`CrucibleSubmitter.scala:79`), so no `*_VAULT_URI` ref arrives and its Databricks entries
+stay placeholders — while `irsa.tf:618-619` already attaches the Databricks secrets policy
+to the Flink role on the premise that "Flink compute pods need to resolve the vault URI
+refs at job startup". The grant exists for a resolution that cannot happen today. A
+per-team role changes who may read, not that nothing asks. Delivering the refs to Flink
+pods is a prerequisite for Flink to benefit at all, and it is a platform change.
+
+*Per-team IAM bounds jobs, not users.* The namespace is taken from the conf
+(`NodeSubmitter.scala:345-350`), so the AWS enforcement is only as good as the Hub's check
+that the submitting user belongs to `metaData.team`. Until that check exists, (a) isolates
+one team's jobs from another's but does not stop a user choosing another team's namespace.
+That check should land with or before (a), not after. Keep (b) and (c) for when non-AWS backends or ESO are wanted. If that happens, back them with namespaced SecretStores on the (a) roles, and keep team secrets off a ClusterSecretStore.
 
 **Smallest first step (one infra PR, no behavior change):**
 1. `irsa.tf`: for each non-default entry in `compute.namespaces`, create `<prefix>-<ns>-spark` and `-flink` roles. Each trusts `StringEquals sub = system:serviceaccount:<ns>:<sa>` and gets the same base policies as today, the shared Databricks policy, and a team policy on `secret:<prefix>/teams/<ns>/*`.
 2. `compute-rbac.yaml`: give the SA annotation a per-namespace override that falls back to today's value.
 3. Narrow the shared roles' trust from `zipline-*` to `zipline-default`.
 
-To verify: a `zipline-default` job referencing an ARN under the `aws-databricks` prefix should fail loudly with AccessDenied (`JobSecrets.scala:47`).
+To verify: a `zipline-default` job referencing an ARN under
+`<prefix>/teams/aws-databricks/*` should fail loudly with AccessDenied
+(`JobSecrets.scala:47`). It has to be a secret under that team path, not any
+Databricks-related ARN — the shared Databricks policy is attached to every team role, so a
+job reading the shared client-secret ARN succeeds by design and would prove nothing.
 
 **Do alongside (platform), since (a) does not cover it:**
 - Stop resolving Ray secrets in the Hub. Pass the `*_VAULT_URI` refs through and resolve them in the trainer. boto3 already picks up the Spark SA's IRSA role.
