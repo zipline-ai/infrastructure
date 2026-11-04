@@ -358,7 +358,7 @@ locals {
               type             = "GCS"
               allowedLocations = [local.polaris_base_location]
               config = {
-                gcsServiceAccount = "serviceAccount:${google_service_account.polaris_storage.email}"
+                gcsServiceAccount = google_service_account.polaris_storage.email
               }
             }
           }

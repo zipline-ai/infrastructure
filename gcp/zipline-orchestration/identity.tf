@@ -136,10 +136,12 @@ resource "google_service_account_iam_member" "eval_wi" {
   member             = "serviceAccount:${local.wi_pool}[${local.orchestration_namespace}/eval]"
 }
 
-resource "google_service_account_iam_member" "polaris_wi" {
+# Polaris runs as the orchestration KSA and impersonates this GSA to mint
+# downscoped GCS tokens. GCP parity with AWS's orchestration_polaris_storage_assume_role.
+resource "google_service_account_iam_member" "orchestration_polaris_token_creator" {
   service_account_id = google_service_account.polaris_storage.name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${local.wi_pool}[${local.orchestration_namespace}/polaris]"
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.orchestration.email}"
 }
 
 resource "google_service_account_iam_member" "external_secrets_wi" {
