@@ -38,12 +38,15 @@ locals {
       machine_type  = local.cloud_args.compute_machine_type
       capacity_type = "on-demand"
       disk_size_gb  = 100
-      min_count     = 1
-      max_count     = 10
-      initial_count = 1
-      labels        = { "zipline.ai/engine" = "spark", "zipline.ai/workload" = "spark", "zipline.ai/role" = "driver" }
-      taints        = [{ key = "zipline.ai/workload", operator = "Equal", value = "spark", effect = "NoSchedule" }]
-      local_ssd     = false
+      # Let the autoscaler choose zones with capacity instead of requiring a
+      # node in every zone during creation. Preserve the former three-zone max.
+      total_min_count = 1
+      total_max_count = 30
+      location_policy = "ANY"
+      initial_count   = 0
+      labels          = { "zipline.ai/engine" = "spark", "zipline.ai/workload" = "spark", "zipline.ai/role" = "driver" }
+      taints          = [{ key = "zipline.ai/workload", operator = "Equal", value = "spark", effect = "NoSchedule" }]
+      local_ssd       = false
     }
     spark-executor = {
       machine_type  = local.cloud_args.executor_machine_type
@@ -254,8 +257,11 @@ resource "google_container_node_pool" "pools" {
   initial_node_count = each.value.initial_count
 
   autoscaling {
-    min_node_count = each.value.min_count
-    max_node_count = each.value.max_count
+    min_node_count       = try(each.value.min_count, null)
+    max_node_count       = try(each.value.max_count, null)
+    total_min_node_count = try(each.value.total_min_count, null)
+    total_max_node_count = try(each.value.total_max_count, null)
+    location_policy      = try(each.value.location_policy, null)
   }
 
   management {

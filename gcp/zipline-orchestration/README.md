@@ -160,3 +160,22 @@ If you previously configured HMAC storage manually and have an initialized
 StarRocks cluster, inspect its persisted storage volumes before applying. Changing
 FE configuration does not constitute a migration of existing S3-type storage
 volumes to GS. Plan that migration separately; do not delete PVCs or stored data.
+
+## Spark driver capacity placement
+
+The default `spark-driver` pool uses autoscaling location policy `ANY` and
+starts with zero nodes so the autoscaler can select eligible zones with
+available capacity. Its regional total limits are 1–30 nodes, replacing the
+previous 1–10 nodes per zone. The warm-pool workload triggers driver capacity
+provisioning; nodes may concentrate in fewer zones.
+
+Custom `gcp.node_pools` entries replace the entire pool definition. Use
+`total_min_count` and `total_max_count` for regional limits, or `min_count` and
+`max_count` for per-zone limits; do not supply both pairs. `location_policy`
+is optional. For `ANY`, use `initial_count = 0`.
+
+This affects new pool creation and subsequent autoscaling. It does not move
+existing nodes or guarantee recovery of a pool already stuck provisioning.
+Inspect the GKE operation and instance-group errors before retrying a failed
+installation; quota, IP exhaustion, and machine availability need separate
+resolution. No live pool is deleted or recreated by these instructions.
