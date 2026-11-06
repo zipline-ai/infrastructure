@@ -522,7 +522,7 @@ tofu apply "$HOME/.config/zipline-bootstrap/customer.tfplan"
 After apply, configure DNS using the ingress IP and configure kubectl:
 
 ```shell
-tofu output -raw ingress_load_balancer_ip
+tofu output -raw ingress_dns_instructions
 tofu output -raw kubeconfig_command
 # Run the command printed above, then inspect the installation:
 kubectl get pods -n zipline-system
@@ -540,6 +540,7 @@ TLS issuance, and application readiness before submitting jobs.
 | `gke_cluster_name`, `gke_cluster_endpoint` | Inspect the cluster; endpoint output is sensitive. |
 | `kubeconfig_command` | Command to configure kubectl for the cluster. |
 | `ingress_load_balancer_ip`, `ingress_load_balancer_target` | Configure external DNS. |
+| `ingress_dns_instructions` | Display the DNS A record to create for the configured ingress domain and IP. |
 | `cloudsql_connection_name`, `cloudsql_private_ip` | Inspect the private PostgreSQL instance. |
 | `db_credentials_secret_id` | Locate generated credentials in Secret Manager. |
 | `warehouse_bucket`, `artifact_bucket`, `logs_bucket`, `spark_libs_bucket` | Inspect storage names. |
