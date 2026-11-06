@@ -82,3 +82,8 @@ output "fetcher_cosmos_endpoint" {
   description = "Endpoint for the Terraform-managed fetcher Cosmos DB account."
   value       = local.deploy_fetcher ? azurerm_cosmosdb_account.fetcher[0].endpoint : ""
 }
+
+output "postgres_read_replica_fqdn" {
+  description = "Read replica address; null when disabled. Uses the primary database credentials."
+  value       = try(azurerm_postgresql_flexible_server.read_replica[0].fqdn, null)
+}
