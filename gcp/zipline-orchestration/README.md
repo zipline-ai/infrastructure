@@ -195,10 +195,12 @@ Secret Manager ID, despite the field name.
 
 For a secret in the target project, Terraform creates the secret container but
 **does not populate an auth secret version**. If the container already exists,
-import it before apply. Supply its JSON value out of band before expecting the
-authenticated application to become ready. A cross-project reference uses an
-existing container. The deploying identity needs permission to grant access
-there. The wrapper grants orchestration and External Secrets Operator access.
+import it before apply. For a new same-project secret, use the staged bootstrap
+below: create the container first, publish its JSON version, then run the full
+apply. Helm waits for readiness by default, so a full apply before publishing
+the version can time out waiting for authenticated services. A cross-project
+reference uses an existing container. The deploying identity needs permission
+to grant access there. The wrapper grants orchestration and External Secrets Operator access.
 
 The JSON secret must have these properties (include empty values for unused
 providers):
@@ -214,12 +216,37 @@ providers):
 ```
 
 Add `sso-saml-cert` when `orchestration.auth.sso_use_saml = true`. Store the
-values in a protected local file and publish a version using your secret ID:
+values in a protected local `auth-secrets.json` file. With authentication enabled
+and the secret ID configured in tfvars, bootstrap a **new same-project** secret
+from this wrapper directory:
+
+1. Initialize the configured state backend and create only the auth container:
+
+   ```shell
+   tofu init -reconfigure -backend-config=backend.hcl
+   tofu apply -target='google_secret_manager_secret.auth[0]'
+   ```
+
+2. Publish the JSON version, replacing the example project and secret ID:
+
+   ```shell
+   gcloud secrets versions add example-zipline-auth \
+     --project=example-project --data-file=auth-secrets.json
+   ```
+
+3. Run the full plan and apply in [Deploy](#deploy). The targeted apply above is
+   only for bootstrapping the secret; it does not deploy the complete stack.
+
+If the same-project container already exists, import it instead of creating it:
 
 ```shell
-gcloud secrets versions add example-zipline-auth \
-  --project=example-project --data-file=auth-secrets.json
+tofu import 'google_secret_manager_secret.auth[0]' \
+  projects/example-project/secrets/example-zipline-auth
 ```
+
+Initialize the backend before import, and publish a version if one is not already
+populated before running the full apply. For a cross-project reference, populate
+the existing secret in its owning project before the full apply.
 
 Set the matching provider IDs and callback configuration in tfvars:
 
@@ -444,6 +471,8 @@ one-off overrides that should remain local to an environment.
 
 ## Deploy
 
+If auth is enabled, complete the [secret bootstrap](#authentication-and-secret-manager)
+and ensure a populated auth secret version exists **before the full apply**.
 From `gcp/zipline-orchestration`, initialize the backend and review the plan:
 
 ```shell
@@ -453,8 +482,7 @@ tofu plan -out=customer.tfplan
 tofu apply customer.tfplan
 ```
 
-If auth is enabled, ensure the auth secret has a populated version as described
-above. After apply, configure DNS using the ingress IP and configure kubectl:
+After apply, configure DNS using the ingress IP and configure kubectl:
 
 ```shell
 tofu output -raw ingress_load_balancer_ip
