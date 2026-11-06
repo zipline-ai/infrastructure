@@ -317,18 +317,14 @@ locals {
       persistence = {
         storageClass = local.cloud_args.storage_class
       }
-      # §9.5: StarRocks reaches GCS over the S3 XML interop API, authenticated
-      # by HMAC keys. The HMAC key material lives in state + in the SR CR
-      # (R11); keep the bucket-scoped GSA so rotation is a bounded blast.
+      # FE and CN use the orchestration KSA. GKE's metadata server supplies
+      # its bound GSA credentials through the Compute Engine credential API.
       feConfig = {
-        run_mode                            = "shared_data"
-        cloud_native_storage_type           = "S3"
-        aws_s3_path                         = "${local.cloud_args.warehouse_bucket}/dataexplorer"
-        aws_s3_region                       = local.cloud_args.region
-        aws_s3_endpoint                     = "https://storage.googleapis.com"
-        aws_s3_use_aws_sdk_default_behavior = false
-        aws_s3_use_instance_profile         = false
-        enable_load_volume_from_conf        = true
+        run_mode                                   = "shared_data"
+        cloud_native_storage_type                  = "GS"
+        gcp_gcs_path                               = "${local.cloud_args.warehouse_bucket}/dataexplorer"
+        gcp_gcs_use_compute_engine_service_account = true
+        enable_load_volume_from_conf               = true
       }
       awsGlueCatalog = {
         enabled = false
