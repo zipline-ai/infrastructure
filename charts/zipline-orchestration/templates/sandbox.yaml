@@ -40,6 +40,8 @@ spec:
               value: {{ .Values.auth.enabled | quote }}
             - name: AUTH_JWKS_URL
               value: "http://orchestration-ui-service/api/auth/jwks"
+            - name: AUTH_JWT_AUDIENCE
+              value: {{ .Values.auth.url | quote }}
             - name: SANDBOX_ZIPLINE_CLI
               value: {{ .Values.orchestration.sandbox.cli | quote }}
           ports:

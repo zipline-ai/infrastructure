@@ -12,7 +12,7 @@ def render(repo=None, auth=False):
         "global": {"customer_name": "test", "version": "test"},
         "database": {"host": "postgres"},
         "compute": {"objectStore": {"bucket": "test"}},
-        "auth": {"enabled": auth},
+        "auth": {"enabled": auth, "url": "https://demo.example"},
         "polaris": {"bootstrap": {"rbac": {"catalog": {"storage": {"type": "S3"}}}}},
         "orchestration": {
             "hub": {"image": "hub", "verticleClass": "test"},
@@ -49,6 +49,7 @@ class SandboxTest(unittest.TestCase):
                 env = {e["name"]: e["value"] for e in sandbox["env"]}
                 self.assertEqual(env["AUTH_ENABLED"], str(auth).lower())
                 self.assertEqual(env["AUTH_JWKS_URL"], "http://orchestration-ui-service/api/auth/jwks")
+                self.assertEqual(env["AUTH_JWT_AUDIENCE"], "https://demo.example")
                 self.assertEqual(env["SANDBOX_ZIPLINE_CLI"], "source")
                 service = next(d for d in docs if d["metadata"]["name"] == "sandbox-service")
                 self.assertEqual(service["spec"]["type"], "ClusterIP")
