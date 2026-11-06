@@ -1,0 +1,144 @@
+{{- if .Values.orchestration.rolloutRestart.enabled }}
+{{- $name := printf "%s-rollout-restart" (include "zipline-orchestration.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- $deployments := list "zipline-orchestration-hub" "zipline-orchestration-ui" "zipline-eval" }}
+{{- if .Values.global.deploy_fetcher }}
+{{- $deployments = append $deployments "zipline-fetcher" }}
+{{- end }}
+{{- if .Values.orchestration.confRepo.url }}
+{{- $deployments = append $deployments "zipline-sandbox" }}
+{{- end }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames:
+      {{- toYaml $deployments | nindent 6 }}
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+data:
+  kubeconfig: |
+    apiVersion: v1
+    kind: Config
+    clusters:
+      - name: cluster
+        cluster:
+          server: https://kubernetes.default.svc
+          certificate-authority: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    users:
+      - name: restart
+        user:
+          tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    contexts:
+      - name: restart
+        context:
+          cluster: cluster
+          user: restart
+    current-context: restart
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.orchestration.rolloutRestart.schedule | quote }}
+  timeZone: {{ .Values.orchestration.rolloutRestart.timeZone | quote }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 300
+      template:
+        spec:
+          serviceAccountName: {{ $name }}
+          automountServiceAccountToken: true
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restart
+              image: {{ .Values.orchestration.rolloutRestart.image | default (printf "registry.k8s.io/kubectl:v%s.%s.0" .Capabilities.KubeVersion.Major (trimSuffix "+" .Capabilities.KubeVersion.Minor)) | quote }}
+              command: ["kubectl"]
+              args:
+                - --kubeconfig=/etc/kubeconfig/kubeconfig
+                - --namespace={{ .Release.Namespace }}
+                - --request-timeout=30s
+                - --cache-dir=/tmp/cache
+                - rollout
+                - restart
+                - deployment
+                {{- range $deployments }}
+                - {{ . }}
+                {{- end }}
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: kubeconfig
+                  mountPath: /etc/kubeconfig
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: kubeconfig
+              configMap:
+                name: {{ $name }}
+            - name: tmp
+              emptyDir: {}
+{{- end }}
