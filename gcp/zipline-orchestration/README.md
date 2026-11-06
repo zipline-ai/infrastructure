@@ -480,12 +480,14 @@ covered by a typed input above.
 | `orchestration.hub.data_quality_metrics_dataset` | Hub should publish data-quality metrics to a specific dataset. |
 | `orchestration.ui.origin` | The public UI origin differs from `https://<ingress.domain>`. |
 | `orchestration.deployment.deploy_fetcher` | The optional fetcher service should be deployed. |
-| `orchestration.values` | Raw Helm values should be merged before provider values. |
-| `orchestration.extra_values` | Raw Helm values should be merged after typed and provider values. |
-| `orchestration.extra_values_yaml` | Raw Helm values are easier to provide as YAML strings. |
+| `orchestration.values` | Ignored by the GCP wrapper, which supplies its own provider values. Use `orchestration.extra_values` for application-chart overrides. |
+| `orchestration.extra_values` | List of Helm value objects for the application chart, merged after typed and provider values. |
+| `orchestration.extra_values_yaml` | List of YAML strings for application-chart overrides, merged after `extra_values`. |
 
 Prefer typed inputs over raw Helm values. Use `extra_values` for intentional
-one-off overrides that should remain local to an environment.
+one-off overrides that should remain local to an environment. Both
+`extra_values` and `extra_values_yaml` apply only to the application chart;
+they do not configure the separate StarRocks Helm release.
 
 ## Deploy
 
