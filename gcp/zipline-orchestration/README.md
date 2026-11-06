@@ -91,26 +91,6 @@ prefix = "zipline-orchestration/example"
 Restrict access to state: it contains generated database credentials and the
 GCS HMAC credentials used by Data Explorer.
 
-### Optional shared configuration storage
-
-If your organization uses the repository's configuration scripts, run these
-from this wrapper directory:
-
-```shell
-../../pull_crucible_config.sh gcp
-../../diff_crucible_config.sh gcp
-../../push_crucible_config.sh gcp
-```
-
-Pull replaces local configuration; save local edits before using it. These
-scripts require `jq`, use **GCS**, and default to bucket
-`zipline-crucible-vars` and key
-`gcp/zipline-orchestration/crucible.auto.tfvars.json`. Override
-`CRUCIBLE_CONFIG_BUCKET`, `CRUCIBLE_CONFIG_KEY`, and `CRUCIBLE_CONFIG_ROOT`
-for your organization. The config bucket must already exist. It is separate
-from the state bucket; an AWS S3 bucket with the same name does not supply it.
-The JSON tfvars must contain both `orchestration` and `gcp` objects.
-
 ## Required Inputs
 
 | Field | Purpose |
