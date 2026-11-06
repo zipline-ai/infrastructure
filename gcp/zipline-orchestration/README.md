@@ -216,8 +216,19 @@ providers):
 ```
 
 Add `sso-saml-cert` when `orchestration.auth.sso_use_saml = true`. Store the
-values in a protected local `auth-secrets.json` file. With authentication enabled
-and the secret ID configured in tfvars, bootstrap a **new same-project** secret
+values in `$HOME/.config/zipline-bootstrap/auth-secrets.json`, outside the
+repository. Create the private directory and file before editing the JSON:
+
+```shell
+umask 077
+mkdir -p "$HOME/.config/zipline-bootstrap"
+chmod 700 "$HOME/.config/zipline-bootstrap"
+touch "$HOME/.config/zipline-bootstrap/auth-secrets.json"
+chmod 600 "$HOME/.config/zipline-bootstrap/auth-secrets.json"
+```
+
+Keep this directory outside any Git checkout. With authentication enabled and
+the secret ID configured in tfvars, bootstrap a **new same-project** secret
 from this wrapper directory:
 
 1. Initialize the configured state backend and create only the auth container:
@@ -231,7 +242,8 @@ from this wrapper directory:
 
    ```shell
    gcloud secrets versions add example-zipline-auth \
-     --project=example-project --data-file=auth-secrets.json
+     --project=example-project \
+     --data-file="$HOME/.config/zipline-bootstrap/auth-secrets.json"
    ```
 
 3. Run the full plan and apply in [Deploy](#deploy). The targeted apply above is
@@ -493,13 +505,18 @@ they do not configure the separate StarRocks Helm release.
 
 If auth is enabled, complete the [secret bootstrap](#authentication-and-secret-manager)
 and ensure a populated auth secret version exists **before the full apply**.
-From `gcp/zipline-orchestration`, initialize the backend and review the plan:
+Saved plans can contain secret values. Store them in the same private directory
+outside any Git checkout. From `gcp/zipline-orchestration`, initialize the
+backend and review the plan:
 
 ```shell
+umask 077
+mkdir -p "$HOME/.config/zipline-bootstrap"
+chmod 700 "$HOME/.config/zipline-bootstrap"
 tofu init -reconfigure -backend-config=backend.hcl
 tofu validate
-tofu plan -out=customer.tfplan
-tofu apply customer.tfplan
+tofu plan -out="$HOME/.config/zipline-bootstrap/customer.tfplan"
+tofu apply "$HOME/.config/zipline-bootstrap/customer.tfplan"
 ```
 
 After apply, configure DNS using the ingress IP and configure kubectl:
