@@ -43,6 +43,14 @@ A starting configuration looks like this. Replace the project, domain, version,
 and bucket names with your own values. GCS bucket names must be globally unique;
 the artifact, warehouse, and logs buckets are created by this stack.
 
+**Use this minimal example only in an isolated evaluation environment with
+external network access restricted.** It leaves authentication disabled and
+configures no TLS certificate, while the wrapper creates a public load
+balancer. Before public deployment, enable authentication and populate its
+Secret Manager values as described in [Authentication and Secret Manager](#authentication-and-secret-manager),
+and configure a TLS certificate as described in [Ingress and TLS](#ingress-and-tls).
+Verify both authentication and HTTPS before allowing public access.
+
 ```hcl
 orchestration = {
   deployment = {
