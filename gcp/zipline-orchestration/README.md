@@ -123,3 +123,40 @@ until §3.3 lands and `hub-gcp` is rebuilt.
 Set `orchestration.conf_repo.url` to enable the internal sandbox and repository
 editor configuration. See the [sandbox configuration guide](../../charts/zipline-orchestration/SANDBOX.md)
 for inputs, cloud secret references, and image availability requirements.
+## Data Explorer
+
+Data Explorer is disabled by default. To enable it, add `data_explorer` to the
+existing `orchestration` object in your environment's tfvars:
+
+```hcl
+orchestration = {
+  # Existing settings...
+  data_explorer = {
+    enabled = true
+  }
+}
+```
+
+StarRocks uses native GCS shared-data storage (`cloud_native_storage_type = "GS"`)
+at `gs://<gcp.warehouse_bucket>/dataexplorer`. FE and CN pods use the orchestration
+Kubernetes service account, which is bound to the orchestration Google service
+account through GKE Workload Identity. The GKE metadata server supplies short-lived
+credentials through the Compute Engine credential API. No HMAC keys or service
+account private keys are needed. The existing warehouse bucket IAM grant provides
+object access; installation waits for the bucket grants and identity binding.
+
+This requires StarRocks 3.5.1 or newer; the shared module currently pins 4.1.3.
+See the [StarRocks GCS configuration](https://docs.starrocks.io/docs/administration/configuration/FE_parameters/shared_lake_other/#gcp_gcs_use_compute_engine_service_account)
+and [GKE metadata authentication](https://docs.cloud.google.com/kubernetes-engine/docs/concepts/workload-identity#metadata-server).
+Polaris catalog authentication and credential vending remain separate from
+StarRocks' own shared-data storage authentication.
+
+After enabling in a test environment, verify that FE and CN pods become ready,
+the `starrocks-catalog-init` job succeeds, and `SHOW STORAGE VOLUMES` / `DESC STORAGE
+VOLUME builtin_storage_volume` report native GCS storage. Query a known table in
+`zipline_catalog` to verify Polaris credential vending and GCS reads end to end.
+
+If you previously configured HMAC storage manually and have an initialized
+StarRocks cluster, inspect its persisted storage volumes before applying. Changing
+FE configuration does not constitute a migration of existing S3-type storage
+volumes to GS. Plan that migration separately; do not delete PVCs or stored data.
