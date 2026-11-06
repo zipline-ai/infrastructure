@@ -441,8 +441,26 @@ The shared module installs common Kubernetes addons by default.
 | `orchestration.addons.install_flink_operator` | `true` | Flink operator is installed elsewhere or not needed. |
 | `orchestration.addons.install_opentelemetry_operator` | `false` | OpenTelemetry operator should be installed. |
 | `orchestration.addons.install_metrics_server` | `false` | Metrics Server is not already installed in the cluster and should be managed by this wrapper. |
-| `orchestration.addons.external_secrets_operator_values` | `{}` | The External Secrets Operator Helm release needs custom values. |
+| `orchestration.addons.external_secrets_operator_values` | GCP Workload Identity annotation | Customize ESO Helm values; preserve `serviceAccount.annotations["iam.gke.io/gcp-service-account"]` as shown below. |
 | `orchestration.addons.cert_manager_values` | `{}` | The cert-manager Helm release needs custom values. |
+
+Custom `orchestration.addons.external_secrets_operator_values` replace the
+wrapper's ESO defaults, including when set to `{}`. Preserve the service account
+Workload Identity annotation so ESO can access Secret Manager. Its value must be
+`<customer_name>-eso@<project_id>.iam.gserviceaccount.com`, derived from
+`orchestration.deployment.customer_name` and `gcp.project_id` in
+[identity.tf](identity.tf). For the starter configuration, include this inside
+`orchestration.addons`:
+
+```hcl
+external_secrets_operator_values = {
+  serviceAccount = {
+    annotations = {
+      "iam.gke.io/gcp-service-account" = "example-eso@example-project.iam.gserviceaccount.com"
+    }
+  }
+}
+```
 
 ### Runtime and Advanced Helm Overrides
 
