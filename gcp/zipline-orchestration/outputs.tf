@@ -98,3 +98,12 @@ output "ingress_load_balancer_target" {
   description = "Provider-neutral DNS target for the public ingress controller."
   value       = module.zipline_orchestration.ingress_load_balancer_target
 }
+
+output "ingress_dns_instructions" {
+  description = "DNS configuration needed to route the configured domain to ingress."
+  value = try(trimspace(var.orchestration.ingress.domain), "") != "" ? (
+    "Create a DNS A record for ${var.orchestration.ingress.domain} pointing to ${local.ingress_lb_ip}."
+    ) : (
+    "No ingress domain is configured. Set orchestration.ingress.domain, apply, then create a DNS A record pointing that domain to ${local.ingress_lb_ip}."
+  )
+}
