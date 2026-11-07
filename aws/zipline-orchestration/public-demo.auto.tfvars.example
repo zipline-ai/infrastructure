@@ -18,6 +18,24 @@ orchestration = {
     origin = "https://try.zipline.ai"
   }
 
+  conf_repo = {
+    url         = "https://github.com/zipline-ai/zipline-demo-quickstart"
+    path        = "configs"
+    branch      = "main"
+    zipline_env = "default"
+  }
+
+  sandbox = {
+    cli          = "latest"
+    nodeSelector = { "zipline.ai/node-pool" = "system" }
+    tolerations = [{
+      key      = "zipline.ai/node-pool"
+      operator = "Equal"
+      value    = "system"
+      effect   = "NoSchedule"
+    }]
+  }
+
   hub = {
     env = [
       {
@@ -49,6 +67,11 @@ orchestration = {
 
   values = {
     orchestration = {
+      rolloutRestart = {
+        enabled  = true
+        schedule = "0 11 * * *"
+        timeZone = "Etc/UTC"
+      }
       fetcher = {
         replicas = 1
         resources = {

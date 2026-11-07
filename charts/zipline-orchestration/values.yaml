@@ -363,6 +363,14 @@ domains:
 
 # Orchestration services configuration
 orchestration:
+  # Restart services to pick up mutable tags such as nightly.
+  rolloutRestart:
+    enabled: false
+    schedule: "0 11 * * *"
+    timeZone: "Etc/UTC"
+    # Empty selects the official kubectl image matching the cluster's minor version.
+    image: ""
+
   hub:
     image: ""
     verticleClass: ""
@@ -411,6 +419,7 @@ orchestration:
 
   sandbox:
     image: ziplineai/sandbox
+    tag: "" # Empty follows global.version.
     port: 8000
     cli: source
     nodeSelector: {}
