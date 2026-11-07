@@ -154,9 +154,13 @@ resource "google_service_account_iam_member" "external_secrets_wi" {
 # Project-level IAM
 # ---------------------------------------------------------------------------
 
-# Orchestration GSA roles (§7.1).
+# Orchestration GSA roles (§7.1). Hub, UI and eval share this GSA, as they share
+# the orchestration IRSA role on AWS. BigQuery is read-only, matching its Glue Get*.
 resource "google_project_iam_member" "orchestration" {
   for_each = toset([
+    "roles/bigquery.dataViewer",
+    "roles/bigquery.jobUser",
+    "roles/bigquery.readSessionUser",
     "roles/bigtable.user",
     "roles/cloudsql.client",
     "roles/monitoring.metricWriter",
