@@ -415,6 +415,20 @@ orchestration:
     cli: source
     nodeSelector: {}
     tolerations: []
+    # Requires a CNI that enforces Kubernetes NetworkPolicy.
+    egress:
+      image: ubuntu/squid:6.13-25.04_beta
+      allowedHosts:
+        - github.com
+        - pypi.org
+        - files.pythonhosted.org
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: "1"
+          memory: 512Mi
     resources:
       requests:
         cpu: "500m"

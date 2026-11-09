@@ -169,3 +169,8 @@ The URL points back to the UI as reached by the sandbox, using the UI Service's
 port 80. Set `orchestration.agents.llm_proxy_url` to override that URL.
 When `enable` is false or omitted, neither variable is added.
 This configures the UI only; it does not provision agent runtime services.
+
+Sandbox networking now uses an allowlisted egress proxy and NetworkPolicies.
+Read the [network isolation prerequisites](../../charts/zipline-orchestration/SANDBOX.md#required-cluster-setup)
+before enabling agents: the cluster must enforce NetworkPolicy. The chart does
+not enable the cluster's policy engine.
