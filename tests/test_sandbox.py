@@ -7,7 +7,7 @@ import yaml
 from test_fetcher_metrics import CHART
 
 
-def render(repo=None, auth=False, sandbox=None):
+def render(repo=None, auth=False):
     values = {
         "global": {"customer_name": "test", "version": "test"},
         "database": {"host": "postgres"},
@@ -18,7 +18,6 @@ def render(repo=None, auth=False, sandbox=None):
             "hub": {"image": "hub", "verticleClass": "test"},
             "eval": {"image": "eval"},
             "confRepo": repo or {},
-            "sandbox": sandbox or {},
         },
     }
     result = subprocess.run(
@@ -70,59 +69,3 @@ class SandboxTest(unittest.TestCase):
         env = {e["name"] for e in container(docs, "zipline-orchestration-ui")["env"]}
         self.assertNotIn("CONF_REPO_GITHUB_TOKEN", env)
         self.assertNotIn("CONF_REPO_GITHUB_CLIENT_SECRET", env)
-
-
-class SandboxNetworkTest(unittest.TestCase):
-    def test_no_network_resources_without_repo(self):
-        docs = render()
-        self.assertFalse(any(d["metadata"]["name"].startswith("sandbox-") for d in docs))
-
-    def test_proxy_and_network_policy(self):
-        docs = render({"url": "https://github.com/example/conf"})
-        sandbox = container(docs, "zipline-sandbox")
-        env = {e["name"]: e["value"] for e in sandbox["env"]}
-        for key in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
-            self.assertEqual(env[key], "http://sandbox-egress:3128")
-        self.assertIn("orchestration-ui-service", env["no_proxy"].split(","))
-        self.assertEqual(env["NO_PROXY"], env["no_proxy"])
-        policies = {d["metadata"]["name"]: d["spec"] for d in docs if d["kind"] == "NetworkPolicy"}
-        policy = policies["sandbox-isolation"]
-        self.assertEqual(set(policy["policyTypes"]), {"Ingress", "Egress"})
-        self.assertEqual(policy["ingress"], [{"from": [{"podSelector": {"matchLabels": {"app": "zipline-ui"}}}], "ports": [{"protocol": "TCP", "port": 8000}]}])
-        self.assertEqual(len(policy["egress"]), 3)
-        dns = policy["egress"][0]
-        self.assertEqual(dns["to"], [{
-            "namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "kube-system"}},
-            "podSelector": {"matchLabels": {"k8s-app": "kube-dns"}},
-        }])
-        self.assertEqual(dns["ports"], [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}])
-        self.assertEqual(policy["egress"][1]["ports"], [{"protocol": "TCP", "port": 3000}])
-        self.assertEqual(policy["egress"][2]["ports"], [{"protocol": "TCP", "port": 3128}])
-        destinations = [peer for rule in policy["egress"] for peer in rule["to"]]
-        self.assertFalse(any("ipBlock" in peer for peer in destinations))
-        self.assertIn({"podSelector": {"matchLabels": {"app": "sandbox-egress"}}}, destinations)
-        self.assertIn({"podSelector": {"matchLabels": {"app": "zipline-ui"}}}, destinations)
-        proxy_policy = policies["sandbox-egress-isolation"]
-        self.assertEqual(proxy_policy["ingress"], [{
-            "from": [{"podSelector": {"matchLabels": {"app": "zipline-sandbox"}}}],
-            "ports": [{"protocol": "TCP", "port": 3128}],
-        }])
-        self.assertEqual(len(proxy_policy["egress"]), 2)
-        self.assertEqual(proxy_policy["egress"][1]["ports"], [{"protocol": "TCP", "port": 443}])
-        public = next(peer["ipBlock"] for rule in proxy_policy["egress"] for peer in rule["to"] if "ipBlock" in peer)
-        self.assertIn("169.254.0.0/16", public["except"])
-        self.assertIn("10.0.0.0/8", public["except"])
-        config = next(d for d in docs if d["kind"] == "ConfigMap" and d["metadata"]["name"] == "sandbox-egress")
-        self.assertEqual(config["data"]["allowed-hosts.txt"].splitlines(), ["github.com", "pypi.org", "files.pythonhosted.org"])
-        self.assertIn("http_access deny all", config["data"]["squid.conf"])
-        self.assertIn("http_access deny !CONNECT", config["data"]["squid.conf"])
-        self.assertIn("http_access deny CONNECT !https", config["data"]["squid.conf"])
-
-    def test_custom_hosts_and_ports(self):
-        docs = render({"url": "https://git.example.com/conf"}, sandbox={
-            "port": 9001, "egress": {"allowedHosts": ["git.example.com", "packages.example.com"]},
-        })
-        config = next(d for d in docs if d["kind"] == "ConfigMap" and d["metadata"]["name"] == "sandbox-egress")
-        self.assertEqual(config["data"]["allowed-hosts.txt"].splitlines(), ["git.example.com", "packages.example.com"])
-        policy = next(d for d in docs if d["kind"] == "NetworkPolicy" and d["metadata"]["name"] == "sandbox-isolation")
-        self.assertEqual(policy["spec"]["ingress"][0]["ports"][0]["port"], 9001)

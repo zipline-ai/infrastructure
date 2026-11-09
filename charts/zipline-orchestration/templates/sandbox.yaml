@@ -16,7 +16,6 @@ spec:
       labels:
         app: zipline-sandbox
     spec:
-      automountServiceAccountToken: false
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -37,18 +36,6 @@ spec:
           imagePullPolicy: Always
           args: ["uvicorn", "zipline_sandbox.app:app", "--host", "0.0.0.0", "--port", {{ .Values.orchestration.sandbox.port | quote }}]
           env:
-            - name: http_proxy
-              value: "http://sandbox-egress:3128"
-            - name: https_proxy
-              value: "http://sandbox-egress:3128"
-            - name: HTTP_PROXY
-              value: "http://sandbox-egress:3128"
-            - name: HTTPS_PROXY
-              value: "http://sandbox-egress:3128"
-            - name: no_proxy
-              value: "localhost,127.0.0.1,orchestration-ui-service,orchestration-ui-service.{{ .Release.Namespace }},orchestration-ui-service.{{ .Release.Namespace }}.svc,orchestration-ui-service.{{ .Release.Namespace }}.svc.cluster.local"
-            - name: NO_PROXY
-              value: "localhost,127.0.0.1,orchestration-ui-service,orchestration-ui-service.{{ .Release.Namespace }},orchestration-ui-service.{{ .Release.Namespace }}.svc,orchestration-ui-service.{{ .Release.Namespace }}.svc.cluster.local"
             - name: AUTH_ENABLED
               value: {{ .Values.auth.enabled | quote }}
             - name: AUTH_JWKS_URL
