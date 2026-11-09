@@ -513,3 +513,9 @@ release. A Terraform state migration preserves the release when enabled.
 Set `orchestration.conf_repo.url` to enable the internal sandbox and repository
 editor configuration. See the [sandbox configuration guide](../../charts/zipline-orchestration/SANDBOX.md)
 for inputs, cloud secret references, and image availability requirements.
+
+## Sandbox network isolation
+
+Sandbox networking uses an allowlisted egress proxy and NetworkPolicies.
+See the [sandbox network guide](../../charts/zipline-orchestration/SANDBOX.md#sandbox-network-isolation)
+for configuration, cluster enforcement, and rollout considerations.

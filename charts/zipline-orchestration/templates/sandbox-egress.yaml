@@ -1,0 +1,95 @@
+{{- if .Values.orchestration.confRepo.url }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sandbox-egress
+  namespace: {{ .Release.Namespace }}
+data:
+  allowed-hosts.txt: |
+    {{- range .Values.orchestration.sandbox.egress.allowedHosts }}
+    {{ . }}
+    {{- end }}
+  squid.conf: |
+    http_port 3128
+    acl allowed dstdomain "/etc/squid/allowed-hosts.txt"
+    acl CONNECT method CONNECT
+    acl https port 443
+    http_access deny CONNECT !https
+    http_access deny !CONNECT
+    http_access allow allowed
+    http_access deny all
+    cache deny all
+    access_log /var/log/squid/access.log
+    cache_log /var/log/squid/cache.log
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandbox-egress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sandbox-egress
+  template:
+    metadata:
+      labels:
+        app: sandbox-egress
+      annotations:
+        checksum/config: {{ toJson .Values.orchestration.sandbox.egress.allowedHosts | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.orchestration.sandbox.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.orchestration.sandbox.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: squid
+          image: {{ .Values.orchestration.sandbox.egress.image | quote }}
+          ports:
+            - name: proxy
+              containerPort: 3128
+          resources:
+            {{- toYaml .Values.orchestration.sandbox.egress.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/squid/squid.conf
+              subPath: squid.conf
+              readOnly: true
+            - name: config
+              mountPath: /etc/squid/allowed-hosts.txt
+              subPath: allowed-hosts.txt
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: proxy
+          livenessProbe:
+            tcpSocket:
+              port: proxy
+            initialDelaySeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: sandbox-egress
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandbox-egress
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app: sandbox-egress
+  ports:
+    - name: proxy
+      port: 3128
+      targetPort: proxy
+{{- end }}
