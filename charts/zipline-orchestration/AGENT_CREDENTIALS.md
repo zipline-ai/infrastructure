@@ -27,7 +27,7 @@ Use these reference formats:
 | --- | --- | --- |
 | AWS Secrets Manager | Full secret ARN | JSON field name, if the secret stores an object |
 | Azure Key Vault | Secret name in the configured vault | Omit for a secret containing the API key directly |
-| GCP Secret Manager | Secret ID or `projects/<project>/secrets/<name>` | JSON field name, if the secret stores an object |
+| GCP Secret Manager | Secret ID | JSON field name, if the secret stores an object |
 
 For example, two keys stored in one JSON secret can share the same `key` and
 use `property = "anthropic"` and `property = "openai"` respectively. Either
