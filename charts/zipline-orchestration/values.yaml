@@ -466,13 +466,15 @@ ingress-nginx-ui:
       default: false
       controllerValue: "k8s.io/ingress-nginx-ui"
     ingressClass: nginx-ui
+    # A config reload briefly runs the old and new nginx workers side by side; at 256Mi the
+    # controller was OOM-killed on reloads once crucible-gcp had a few more ingresses
     resources:
       requests:
         cpu: 50m
-        memory: 128Mi
+        memory: 256Mi
       limits:
         cpu: 200m
-        memory: 256Mi
+        memory: 1Gi
     service:
       annotations: {}
     admissionWebhooks:
