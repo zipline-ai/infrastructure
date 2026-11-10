@@ -513,3 +513,12 @@ release. A Terraform state migration preserves the release when enabled.
 Set `orchestration.conf_repo.url` to enable the internal sandbox and repository
 editor configuration. See the [sandbox configuration guide](../../charts/zipline-orchestration/SANDBOX.md)
 for inputs, cloud secret references, and image availability requirements.
+
+## Agents UI configuration
+
+Set `orchestration.agents.enable = true` to add `AGENTS=true` and
+`AGENTS_LLM_PROXY_URL=http://orchestration-ui-service` to the UI container.
+The URL points back to the UI as reached by the sandbox, using the UI Service's
+port 80. Set `orchestration.agents.llm_proxy_url` to override that URL.
+When `enable` is false or omitted, neither variable is added.
+This configures the UI only; it does not provision agent runtime services.

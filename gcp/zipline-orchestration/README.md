@@ -160,3 +160,12 @@ If you previously configured HMAC storage manually and have an initialized
 StarRocks cluster, inspect its persisted storage volumes before applying. Changing
 FE configuration does not constitute a migration of existing S3-type storage
 volumes to GS. Plan that migration separately; do not delete PVCs or stored data.
+
+## Agents UI configuration
+
+Set `orchestration.agents.enable = true` to add `AGENTS=true` and
+`AGENTS_LLM_PROXY_URL=http://orchestration-ui-service` to the UI container.
+The URL points back to the UI as reached by the sandbox, using the UI Service's
+port 80. Set `orchestration.agents.llm_proxy_url` to override that URL.
+When `enable` is false or omitted, neither variable is added.
+This configures the UI only; it does not provision agent runtime services.

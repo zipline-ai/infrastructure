@@ -811,6 +811,10 @@ locals {
         origin = local.ui.origin
         env = concat(
           local.orchestration.metrics_provider == "" ? [] : [{ name = "METRICS_PROVIDER", value = local.orchestration.metrics_provider }],
+          try(local.orchestration.agents.enable, false) ? [
+            { name = "AGENTS", value = "true" },
+            { name = "AGENTS_LLM_PROXY_URL", value = try(local.orchestration.agents.llm_proxy_url, "http://orchestration-ui-service") },
+          ] : [],
           try(local.orchestration.provider_ui_env, []),
           try(local.orchestration.ui_env, []),
         )
