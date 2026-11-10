@@ -100,6 +100,10 @@ locals {
   secret_ids_to_grant = distinct(compact(concat(
     local.auth_enabled ? [local.auth_secret_id] : [],
     try(local.cloud_args.extra_secret_ids, []),
+    try(var.orchestration.agents.enable, false) ? compact([
+      try(var.orchestration.agents.anthropic_api_key_remote_ref.key, ""),
+      try(var.orchestration.agents.openai_api_key_remote_ref.key, ""),
+    ]) : [],
     trimspace(try(var.orchestration.conf_repo.url, "")) == "" ? [] : compact([
       try(var.orchestration.conf_repo.github_token_remote_ref.key, ""),
       try(var.orchestration.conf_repo.github_client_secret_remote_ref.key, ""),

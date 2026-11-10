@@ -263,6 +263,10 @@ locals {
   )
   extra_external_secret_arns = distinct(compact(concat(
     try(local.cloud_args.extra_secret_arns, []),
+    try(var.orchestration.agents.enable, false) ? compact([
+      try(var.orchestration.agents.anthropic_api_key_remote_ref.key, ""),
+      try(var.orchestration.agents.openai_api_key_remote_ref.key, ""),
+    ]) : [],
     trimspace(try(var.orchestration.conf_repo.url, "")) == "" ? [] : compact([
       try(var.orchestration.conf_repo.github_token_remote_ref.key, ""),
       try(var.orchestration.conf_repo.github_client_secret_remote_ref.key, ""),
