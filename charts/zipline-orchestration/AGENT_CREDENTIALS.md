@@ -44,5 +44,9 @@ secrets can require additional grants on the remote secret or encryption key.
 
 Create the cloud secret values before applying. With
 `orchestration.secrets.external_secrets_enabled = false`, provision the Kubernetes
-Secret yourself using the same name and keys. Secret rotation updates the
-Kubernetes Secret; restart the UI pods to load changed environment values.
+Secret yourself using the same name and keys. For rotation, update that Kubernetes
+Secret with the rotated value before restarting the UI pods.
+
+When External Secrets is enabled, rotate the value in the cloud secret store,
+wait for External Secrets Operator to sync it into the Kubernetes Secret, then
+restart the UI pods to load the changed environment values.
