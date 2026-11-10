@@ -1,0 +1,189 @@
+{
+  "observed_date": "2026-11-10",
+  "account": "345594603419",
+  "regions": {
+    "us-west-2": {
+      "offerings": [
+        {
+          "InstanceType": "g6e.xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-west-2a"
+        },
+        {
+          "InstanceType": "p4d.24xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-west-2a"
+        },
+        {
+          "InstanceType": "p4d.24xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-west-2b"
+        },
+        {
+          "InstanceType": "p4d.24xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-west-2c"
+        },
+        {
+          "InstanceType": "g6e.xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-west-2b"
+        },
+        {
+          "InstanceType": "g6e.xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-west-2c"
+        },
+        {
+          "InstanceType": "g6e.xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-west-2d"
+        },
+        {
+          "InstanceType": "p4d.24xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-west-2d"
+        }
+      ],
+      "quotas": [
+        {
+          "QuotaName": "Running On-Demand G and VT instances",
+          "QuotaCode": "L-DB2E81BA",
+          "Value": 384.0
+        },
+        {
+          "QuotaName": "Running On-Demand P instances",
+          "QuotaCode": "L-417A185B",
+          "Value": 384.0
+        },
+        {
+          "QuotaName": "All P Spot Instance Requests",
+          "QuotaCode": "L-7212CCBC",
+          "Value": 384.0
+        },
+        {
+          "QuotaName": "All G and VT Spot Instance Requests",
+          "QuotaCode": "L-3819A6DF",
+          "Value": 0.0
+        }
+      ],
+      "prices": {
+        "g6e.xlarge": [
+          {
+            "usd_per_hour": 1.861,
+            "effective_date": "2026-11-01T00:00:00Z",
+            "description": "$1.861 per On Demand Linux g6e.xlarge Instance Hour"
+          }
+        ],
+        "p4d.24xlarge": [
+          {
+            "usd_per_hour": 21.95764,
+            "effective_date": "2026-11-01T00:00:00Z",
+            "description": "$21.95764 per On Demand Linux p4d.24xlarge Instance Hour"
+          }
+        ],
+        "m6i.2xlarge": [
+          {
+            "usd_per_hour": 0.384,
+            "effective_date": "2026-11-01T00:00:00Z",
+            "description": "$0.384 per On Demand Linux m6i.2xlarge Instance Hour"
+          }
+        ]
+      },
+      "running_gpu_instances": []
+    },
+    "us-east-1": {
+      "offerings": [
+        {
+          "InstanceType": "g6e.xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-east-1c"
+        },
+        {
+          "InstanceType": "p4d.24xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-east-1c"
+        },
+        {
+          "InstanceType": "g6e.xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-east-1b"
+        },
+        {
+          "InstanceType": "g6e.xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-east-1d"
+        },
+        {
+          "InstanceType": "p4d.24xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-east-1a"
+        },
+        {
+          "InstanceType": "p4d.24xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-east-1b"
+        },
+        {
+          "InstanceType": "g6e.xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-east-1a"
+        },
+        {
+          "InstanceType": "p4d.24xlarge",
+          "LocationType": "availability-zone",
+          "Location": "us-east-1d"
+        }
+      ],
+      "quotas": [
+        {
+          "QuotaName": "Running On-Demand P instances",
+          "QuotaCode": "L-417A185B",
+          "Value": 384.0
+        },
+        {
+          "QuotaName": "Running On-Demand G and VT instances",
+          "QuotaCode": "L-DB2E81BA",
+          "Value": 384.0
+        },
+        {
+          "QuotaName": "All G and VT Spot Instance Requests",
+          "QuotaCode": "L-3819A6DF",
+          "Value": 0.0
+        },
+        {
+          "QuotaName": "All P Spot Instance Requests",
+          "QuotaCode": "L-7212CCBC",
+          "Value": 384.0
+        }
+      ],
+      "prices": {
+        "g6e.xlarge": [
+          {
+            "usd_per_hour": 1.861,
+            "effective_date": "2026-11-01T00:00:00Z",
+            "description": "$1.861 per On Demand Linux g6e.xlarge Instance Hour"
+          }
+        ],
+        "p4d.24xlarge": [
+          {
+            "usd_per_hour": 21.957642,
+            "effective_date": "2026-11-01T00:00:00Z",
+            "description": "$21.957642 per On Demand Linux p4d.24xlarge Instance Hour"
+          }
+        ],
+        "m6i.2xlarge": [
+          {
+            "usd_per_hour": 0.384,
+            "effective_date": "2026-11-01T00:00:00Z",
+            "description": "$0.384 per On Demand Linux m6i.2xlarge Instance Hour"
+          }
+        ]
+      },
+      "running_gpu_instances": []
+    }
+  },
+  "source": "AWS Pricing GetProducts, EC2 DescribeInstanceTypeOfferings/DescribeInstances and ServiceQuotas ListServiceQuotas; live read-only calls",
+  "capacity_warning": "An offering and unused quota do not establish allocatable capacity; no reservation or launch was attempted.",
+  "excluded_pricing_records": "Zero-dollar Capacity Block OS line items were excluded: they omit the separately purchased reservation and are not a free instance quote."
+}

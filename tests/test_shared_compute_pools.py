@@ -181,12 +181,12 @@ class SharedComputePoolTest(unittest.TestCase):
         single = evaluate()
         multiple = evaluate(("default", "analytics", "data-science"))
         self.assertEqual(single, multiple)
-        self.assertEqual(set(single["pools"]), SHARED_POOLS | {"system"})
+        self.assertEqual(set(single["pools"]), SHARED_POOLS | {"system", "ray-control", "ray-worker"})
         self.assertEqual(evaluate(("analytics",))["pools"], single["pools"])
 
     def test_rendered_pools_separate_spark_capacity_and_share_flink_capacity(self):
         pools = render_pools(evaluate()["pools"])
-        self.assertEqual(set(pools), SHARED_POOLS | {"system"})
+        self.assertEqual(set(pools), SHARED_POOLS | {"system", "ray-control", "ray-worker"})
         roles = {"spark-driver": "driver", "spark-executor": "executor"}
         limits = {"spark-driver": {"cpu": "100", "memory": "400Gi"},
                   "spark-executor": {"cpu": "1000", "memory": "4000Gi"},
@@ -307,7 +307,7 @@ class SharedComputePoolTest(unittest.TestCase):
             "spark-driver": {"limits": {"cpu": "20"}, "requirements": requirements},
             "flink": {"enabled": False},
         }})["pools"])
-        self.assertEqual(set(pools), {"system", "spark-driver", "spark-executor"})
+        self.assertEqual(set(pools), {"system", "spark-driver", "spark-executor", "ray-control", "ray-worker"})
         self.assertEqual(pools["spark-driver"]["spec"]["limits"], {"cpu": "20"})
         self.assertEqual(pools["spark-driver"]["spec"]["template"]["spec"]["requirements"], requirements)
         self.assertEqual(pools["spark-driver"]["spec"]["template"]["metadata"]["labels"]["zipline.ai/engine"], "spark")

@@ -1,0 +1,12 @@
+namespace: zipline-s6e11-dev
+team: s6e11-dev
+serviceAccount: spark-operator-spark
+roleArn: ""
+submitterGroup: zipline:s6e11-dev
+profile: s6e11-l40s
+workerNodes: 1
+gpus: 1
+maxDeadlineSeconds: 1800
+quota: {}
+workerCPU: 2
+workerMemory: 24Gi

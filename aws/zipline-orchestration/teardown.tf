@@ -28,15 +28,35 @@ resource "terraform_data" "controller_resource_cleanup" {
       RG='${self.triggers_replace.region}'
 
       # Idempotent: on a repeat destroy the cluster may already be gone.
-      if ! aws eks describe-cluster --name "$CN" --region "$RG" >/dev/null 2>&1; then
-        echo "cluster $CN not found; nothing to clean up"; exit 0
+      if ! CLUSTER_CHECK=$(aws eks describe-cluster --name "$CN" --region "$RG" --query cluster.status --output text 2>&1); then
+        if [[ "$CLUSTER_CHECK" == *ResourceNotFoundException* ]]; then
+          echo "cluster $CN not found; nothing to clean up"; exit 0
+        fi
+        echo "Cannot verify cluster status; refusing reset" >&2; exit 1
       fi
 
       KUBE="$(mktemp)"; trap 'rm -f "$KUBE"' EXIT
       if ! aws eks update-kubeconfig --name "$CN" --region "$RG" --kubeconfig "$KUBE" >/dev/null 2>&1; then
-        echo "could not fetch kubeconfig for $CN; skipping in-cluster cleanup"; exit 0
+        echo "could not fetch kubeconfig for $CN; refusing reset" >&2; exit 1
       fi
       export KUBECONFIG="$KUBE"
+
+      # The kept development namespace is an opt-in reset interlock. Do not
+      # block legacy CPU-only clusters where that namespace never existed.
+      if ! TRAINING_NS=$(kubectl get namespace zipline-s6e11-dev --ignore-not-found -o name); then
+        echo "Cannot verify development namespace; refusing reset" >&2; exit 1
+      fi
+      if [ -n "$TRAINING_NS" ]; then
+        if ! TRAINING_JOBS=$(kubectl get rayjobs.ray.io -n zipline-s6e11-dev -o name); then
+          echo "Cannot verify development training jobs; refusing reset" >&2; exit 1
+        fi
+        if ! TRAINING_PODS=$(kubectl get pods -n zipline-s6e11-dev -o name); then
+          echo "Cannot verify development training pods; refusing reset" >&2; exit 1
+        fi
+        if [ -n "$TRAINING_JOBS$TRAINING_PODS" ]; then
+          echo "Training resources remain; cancel named jobs and preserve evidence before reset" >&2; exit 1
+        fi
+      fi
 
       echo "Stopping Karpenter provisioning and draining its nodes..."
       kubectl delete nodepools.karpenter.sh --all --ignore-not-found --wait=false || true
@@ -124,6 +144,9 @@ resource "terraform_data" "controller_resource_cleanup" {
   #     the NLB. Referencing count=0 network resources (customer-supplied VPC) is
   #     a harmless empty set.
   depends_on = [
+    helm_release.gpu_training_namespace,
+    helm_release.gpu_training_nodepools,
+    helm_release.nvidia_device_plugin,
     helm_release.karpenter,
     helm_release.karpenter_nodepools,
     helm_release.aws_load_balancer_controller,

@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "observed_date": "2026-11-10",
+  "deployment_status": "proposed_not_applied",
+  "platform": {
+    "pr": "https://github.com/zipline-ai/platform/pull/1461",
+    "commit": "c883f570745449e883417ef66a5bb2ee35231eee",
+    "modified": false
+  },
+  "verified": {
+    "account": "345594603419",
+    "region": "us-west-2",
+    "cluster": "public-demo-eks",
+    "cluster_version": "1.36",
+    "availability_zones": [
+      "us-west-2a",
+      "us-west-2b"
+    ],
+    "namespace_derivation": "team s6e11-dev -> zipline-s6e11-dev",
+    "ray_service_account_source": "SparkConfigBuilder.sparkServiceAccount",
+    "karpenter_version": "1.13.0",
+    "kuberay_version": "1.7.0",
+    "kuberay_installations": [
+      "kuberay-operator",
+      "zipline-system"
+    ],
+    "nvidia_device_plugin_present": false,
+    "allocatable_gpu_count": 0,
+    "data_bucket_exists": "zipline-public-demo-curated",
+    "nvidia_ami": {
+      "id": "ami-0e3d4bd8ae097dc7e",
+      "name": "amazon-eks-node-al2023-x86_64-nvidia-1.36-v20261107"
+    }
+  },
+  "proposed": {
+    "namespace": "zipline-s6e11-dev",
+    "team": "s6e11-dev",
+    "service_accounts": [
+      "spark-operator-spark"
+    ],
+    "workload_role": "arn:aws:iam::345594603419:role/public-demo-s6e11-training",
+    "submitter_role": "arn:aws:iam::345594603419:role/public-demo-s6e11-submitter",
+    "retained_bucket": "zipline-public-demo-training-345594603419",
+    "data_root": "s3://zipline-public-demo-training-345594603419/s6e11/input/",
+    "model_artifact_base_uri": "s3://zipline-public-demo-training-345594603419/s6e11/controllers/<persistent-controller-id>",
+    "run_root_suffix": "/runs/<workflow_id>/<step_id>/<attempt>/",
+    "registry": "345594603419.dkr.ecr.us-west-2.amazonaws.com/public-demo/s6e11-training",
+    "image_digest": null,
+    "archive_hash": null,
+    "dataset_manifest": null,
+    "controller_id": null,
+    "profiles": {
+      "s6e11-l40s": {
+        "instance_type": "g6e.xlarge",
+        "node_limits": {
+          "cpu": 4,
+          "memory": "32Gi",
+          "nvidia.com/gpu": 1
+        },
+        "maximum_worker_resources": {
+          "cpu": "2",
+          "memory": "24Gi",
+          "nvidia.com/gpu": 1,
+          "ephemeral_storage": "100Gi",
+          "shared_memory": "8Gi"
+        },
+        "namespace_quota": {
+          "requests.cpu": "8",
+          "limits.cpu": "8",
+          "requests.memory": "40Gi",
+          "limits.memory": "40Gi",
+          "requests.nvidia.com/gpu": "1",
+          "count/rayjobs.ray.io": "1",
+          "count/rayclusters.ray.io": "1",
+          "pods": "4"
+        },
+        "selectors": {
+          "zipline.ai/engine": "ray",
+          "zipline.ai/execution-profile": "s6e11-l40s",
+          "kubernetes.io/arch": "amd64",
+          "zipline.ai/role": "control for head/submitter; worker for worker"
+        },
+        "taints": [
+          "zipline.ai/workload=ray-s6e11-l40s:NoSchedule",
+          "kubernetes.io/arch=amd64:NoSchedule"
+        ],
+        "ray_conf": {
+          "ray.placement.profile": "s6e11-l40s",
+          "ray.worker.gpus": "1",
+          "ray.worker.replicas": "1",
+          "ray.worker.cpu": "2",
+          "ray.worker.memory": "24Gi",
+          "ray.worker.ephemeral-storage": "100Gi",
+          "ray.worker.shm": "8Gi",
+          "ray.head.cpu": "2",
+          "ray.head.memory": "8Gi",
+          "ray.architecture": "amd64",
+          "ray.timeout.seconds": "1800",
+          "ray.region": "us-west-2"
+        }
+      },
+      "s6e11-a100": {
+        "instance_type": "p4d.24xlarge",
+        "node_limits": {
+          "cpu": 96,
+          "memory": "1152Gi",
+          "nvidia.com/gpu": 8
+        },
+        "maximum_worker_resources": {
+          "cpu": "88",
+          "memory": "1024Gi",
+          "nvidia.com/gpu": 8,
+          "ephemeral_storage": "1000Gi",
+          "shared_memory": "64Gi"
+        },
+        "namespace_quota": {
+          "requests.cpu": "94",
+          "limits.cpu": "94",
+          "requests.memory": "1040Gi",
+          "limits.memory": "1040Gi",
+          "requests.nvidia.com/gpu": "8",
+          "count/rayjobs.ray.io": "1",
+          "count/rayclusters.ray.io": "1",
+          "pods": "4"
+        },
+        "selectors": {
+          "zipline.ai/engine": "ray",
+          "zipline.ai/execution-profile": "s6e11-a100",
+          "kubernetes.io/arch": "amd64",
+          "zipline.ai/role": "control for head/submitter; worker for worker"
+        },
+        "taints": [
+          "zipline.ai/workload=ray-s6e11-a100:NoSchedule",
+          "kubernetes.io/arch=amd64:NoSchedule"
+        ],
+        "ray_conf": {
+          "ray.placement.profile": "s6e11-a100",
+          "ray.worker.gpus": "8",
+          "ray.worker.replicas": "1",
+          "ray.worker.cpu": "88",
+          "ray.worker.memory": "1024Gi",
+          "ray.worker.ephemeral-storage": "1000Gi",
+          "ray.worker.shm": "64Gi",
+          "ray.head.cpu": "2",
+          "ray.head.memory": "8Gi",
+          "ray.architecture": "amd64",
+          "ray.timeout.seconds": "1800",
+          "ray.region": "us-west-2"
+        }
+      }
+    },
+    "enabled_profiles_at_once": 1,
+    "concurrent_rayjobs": 1,
+    "head": {
+      "instance_type": "m6i.2xlarge",
+      "node_cpu": 8,
+      "node_memory": "32Gi",
+      "pod_cpu": "2",
+      "pod_memory": "8Gi",
+      "gpus": 0
+    },
+    "deadline_seconds": 1800,
+    "startup_deadline_seconds": 900,
+    "cluster_cleanup_ttl_seconds": 120,
+    "rayjob_metadata_ttl_seconds": 21600
+  },
+  "local_docker_contract": {
+    "env": {
+      "CRUCIBLE_RAY_GPU_PROFILES": "s6e11-l40s",
+      "CRUCIBLE_EXECUTION_REGION": "us-west-2",
+      "CRUCIBLE_DEFAULT_NAMESPACE": "zipline-s6e11-dev",
+      "CRUCIBLE_SPARK_SERVICE_ACCOUNT": "spark-operator-spark"
+    },
+    "aws_identity": "Assume proposed submitter role; source credentials stay outside image",
+    "kubeconfig": "isolated read-only mount with exec authentication",
+    "metadata": "local Postgres, separate persistent development volume; export DB and run index before resets",
+    "production_hub_credentials": false,
+    "cleanup_verticle": "omit unrelated AWSCleanupVerticle",
+    "run_isolation": "persistent controller prefix; Platform must verify collision-free job adoption/cancellation after DB resets"
+  },
+  "image_requirements": {
+    "architecture": "linux/amd64",
+    "ray": "2.55.1",
+    "image_reference": "ECR @sha256 digest",
+    "cpu_head_startable": true,
+    "host_driver": "AL2023 NVIDIA v20261107; exact loaded driver must be checked with nvidia-smi",
+    "cuda": "CUDA 12.x >=525.60.13 baseline or CUDA13 >=580; PTX/features may require newer driver; verify exact torch/CUDA pair",
+    "checkpoint_storage": "S3 only; NVMe/root and /dev/shm are ephemeral"
+  },
+  "prerequisites": [
+    "full non-destructive plan with authorized Cloudflare/image-pull credentials",
+    "reconcile stale datasource inputs without applying unrelated resources",
+    "choose one authoritative KubeRay installation/leader scope",
+    "provision retained bucket/registry before compute opt-in",
+    "verify admitted fixtures, device registration, CUDA and deadline cleanup in paid smoke",
+    "persist controller ID and approve budget",
+    "two-node requires separately validated EFA/NCCL networking; disabled by default"
+  ],
+  "live_paid_tests_run": false
+}

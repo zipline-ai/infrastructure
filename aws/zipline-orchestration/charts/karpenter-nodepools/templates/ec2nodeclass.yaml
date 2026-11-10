@@ -1,4 +1,5 @@
-{{- $class := .Values.ec2NodeClass | default dict -}}
+{{- $classes := concat (list (.Values.ec2NodeClass | default dict)) (.Values.ec2NodeClasses | default list) -}}
+{{- range $class := $classes -}}
 {{- $name := get $class "name" -}}
 {{- if $name }}
 {{- $amiFamily := coalesce (get $class "amiFamily") (get $class "ami_family") -}}
@@ -12,7 +13,7 @@
 {{- $blockDeviceMappings := coalesce (get $class "blockDeviceMappings") (get $class "block_device_mappings") -}}
 {{- $instanceStorePolicy := coalesce (get $class "instanceStorePolicy") (get $class "instance_store_policy") -}}
 {{- $userData := coalesce (get $class "userData") (get $class "user_data") -}}
-apiVersion: karpenter.k8s.aws/v1
+{{ printf "\n---\n" }}apiVersion: karpenter.k8s.aws/v1
 kind: EC2NodeClass
 metadata:
   name: {{ $name | quote }}
@@ -61,4 +62,5 @@ spec:
   userData: |
 {{ . | nindent 4 }}
   {{- end }}
+{{- end }}
 {{- end }}

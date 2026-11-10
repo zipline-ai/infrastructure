@@ -1,0 +1,46 @@
+{
+  "status": "partial_targeted_plan_only_not_for_apply",
+  "backend": {
+    "bucket": "zipline-public-demo-opentofu-state",
+    "key": "state/orchestration/terraform.tfstate",
+    "region": "us-west-2",
+    "workspace": "default"
+  },
+  "changes": [
+    "aws_eks_access_entry.gpu_submitter[0] will be created",
+    "aws_iam_role.gpu_submitter[0] will be created",
+    "aws_iam_role.gpu_training[0] will be created",
+    "aws_iam_role.spark_compute_execution will be updated in-place",
+    "aws_iam_role_policy.gpu_submitter_cluster[0] will be created",
+    "aws_iam_role_policy.gpu_submitter_logs[0] will be created",
+    "aws_iam_role_policy.gpu_submitter_storage[0] will be created",
+    "aws_iam_role_policy.gpu_training_storage[0] will be created",
+    "helm_release.gpu_training_nodepools[0] will be created",
+    "helm_release.nvidia_device_plugin[0] will be created"
+  ],
+  "summary": [
+    "Plan: 9 to add, 1 to change, 0 to destroy."
+  ],
+  "limitations": [
+    "Full plan failed: missing Cloudflare authentication and intentionally removed image-pull token.",
+    "GPU namespace Helm release and reset guard excluded from this targeted plan.",
+    "JSON export failed on pre-existing Cloudflare state attribute include_shadow_metadata with the existing provider lockfile; action summary extracted from text plan.",
+    "The sole existing-resource update excludes the development SA from the shared Spark role trust. No other dependency changes were planned."
+  ],
+  "retained_storage_plan": {
+    "backend_key": "state/datasources/terraform.tfstate",
+    "workspace": "default",
+    "changes": [
+      "aws_ecr_repository.training[0] will be created",
+      "aws_s3_bucket.training[0] will be created",
+      "aws_s3_bucket_lifecycle_configuration.training[0] will be created",
+      "aws_s3_bucket_public_access_block.training[0] will be created",
+      "aws_s3_bucket_server_side_encryption_configuration.training[0] will be created",
+      "aws_s3_bucket_versioning.training[0] will be created"
+    ],
+    "summary": [
+      "Plan: 6 to add, 0 to change, 0 to destroy."
+    ],
+    "coverage": "Only six new training bucket/ECR resources. Existing datasource config not applied or reconciled."
+  }
+}

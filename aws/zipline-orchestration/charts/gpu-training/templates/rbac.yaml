@@ -1,0 +1,91 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: training-submitter
+  namespace: {{ .Values.namespace }}
+rules:
+  - apiGroups: [ray.io]
+    resources: [rayjobs]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [ray.io]
+    resources: [rayclusters]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods, pods/log, services, events]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: training-submitter
+  namespace: {{ .Values.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: training-submitter
+subjects:
+  - kind: Group
+    name: {{ .Values.submitterGroup }}
+    apiGroup: rbac.authorization.k8s.io
+---
+# Ray's in-tree autoscaler uses the same SA as head, worker and submitter.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: training-autoscaler
+  namespace: {{ .Values.namespace }}
+rules:
+  - apiGroups: [ray.io]
+    resources: [rayclusters]
+    verbs: [get, list, watch, update, patch]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: training-autoscaler
+  namespace: {{ .Values.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: training-autoscaler
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceAccount }}
+    namespace: {{ .Values.namespace }}
+---
+# Platform's informer cache is cluster-wide. This read-only exception is needed
+# until Platform implements a namespace-scoped informer; no cluster writes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: s6e11-training-watch
+rules:
+  - apiGroups: [ray.io]
+    resources: [rayjobs]
+    verbs: [get, list, watch]
+  - apiGroups: [sparkoperator.k8s.io]
+    resources: [sparkapplications]
+    verbs: [get, list, watch]
+  - apiGroups: [flink.apache.org]
+    resources: [flinkdeployments]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [namespaces]
+    resourceNames: [{{ .Values.namespace }}]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: s6e11-training-watch
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: s6e11-training-watch
+subjects:
+  - kind: Group
+    name: {{ .Values.submitterGroup }}
+    apiGroup: rbac.authorization.k8s.io

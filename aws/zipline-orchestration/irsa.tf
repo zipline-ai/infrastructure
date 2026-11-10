@@ -244,6 +244,16 @@ data "aws_iam_policy_document" "spark_compute_assume_role" {
         "system:serviceaccount:${local.compute_namespace_prefix}*:${local.spark_service_account}",
       ]
     }
+    # The development SA has its own restricted role; exclude it from this
+    # legacy wildcard trust, even when a caller explicitly requests this ARN.
+    dynamic "condition" {
+      for_each = var.gpu_training.enabled ? [1] : []
+      content {
+        test     = "StringNotEquals"
+        variable = "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:sub"
+        values   = ["system:serviceaccount:${local.gpu_namespace}:${local.spark_service_account}"]
+      }
+    }
     condition {
       test     = "StringEquals"
       variable = "${replace(aws_iam_openid_connect_provider.eks.url, "https://", "")}:aud"

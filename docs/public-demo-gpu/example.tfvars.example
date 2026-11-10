@@ -1,0 +1,22 @@
+# Merge with the verified existing backend/config; this file is NOT an apply approval.
+gpu_training = {
+  enabled              = true
+  profile              = "s6e11-l40s"
+  instance_type        = "g6e.xlarge"
+  availability_zones   = ["us-west-2a", "us-west-2b"]
+  capacity_type        = "on-demand"
+  worker_nodes         = 1
+  ami_release          = "v20261107"
+  max_deadline_seconds = 1800
+  data_bucket          = "zipline-public-demo-training-345594603419"
+  data_prefix          = "s6e11/input/"
+  retained_bucket      = "zipline-public-demo-training-345594603419"
+  # Persist a real controller ID before first run; rotate only with explicit recovery.
+  controller_prefix       = "s6e11/controllers/replace-with-persistent-id/"
+  submitter_principal_arn = "arn:aws:iam::345594603419:user/cristian@zipline.ai"
+}
+# For the eight-GPU profile, change BOTH profile=s6e11-a100 and
+# instance_type=p4d.24xlarge. Keep worker_nodes=1. Two-node capacity requires
+# worker_nodes=2, one AZ, multi_node_validated=true AFTER separate network validation.
+# Persistent datasource input (a different state/module):
+# training_artifact_bucket = "zipline-public-demo-training-345594603419"

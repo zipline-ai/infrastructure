@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    zipline.ai/namespace-type: compute
+    zipline.ai/team: {{ .Values.team }}
+    zipline.ai/gpu-training: "true"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.serviceAccount }}
+  namespace: {{ .Values.namespace }}
+  annotations:
+    eks.amazonaws.com/role-arn: {{ required "roleArn is required" .Values.roleArn | quote }}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: training
+  namespace: {{ .Values.namespace }}
+spec:
+  hard:
+    {{- toYaml .Values.quota | nindent 4 }}
+---
+# KubeRay injects autoscaler/init containers and the submitter omits a CPU limit.
+# Defaults make quota enforcement compatible without imposing all node RAM on pods.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: training-defaults
+  namespace: {{ .Values.namespace }}
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "1"
+        memory: 1Gi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
