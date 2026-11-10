@@ -418,6 +418,31 @@ locals {
     }
   }
 
+  agents_remote_refs = {
+    for name, ref in {
+      AGENTS_ANTHROPIC_API_KEY = try(local.orchestration.agents.anthropic_api_key_remote_ref, {})
+      AGENTS_OPENAI_API_KEY    = try(local.orchestration.agents.openai_api_key_remote_ref, {})
+    } : name => ref if try(local.orchestration.agents.enable, false) && try(ref.key, "") != ""
+  }
+  agents_external_secret = {
+    name = "agents-provider-credentials"
+    spec = {
+      refreshInterval = local.secrets.refresh_interval
+      secretStoreRef = {
+        name = local.secrets.secret_store.name
+        kind = local.secrets.secret_store.kind
+      }
+      target = {
+        name           = "agents-provider-credentials"
+        creationPolicy = "Owner"
+      }
+      data = [for name, ref in local.agents_remote_refs : {
+        secretKey = name
+        remoteRef = ref
+      }]
+    }
+  }
+
   hub_env = concat(
     local.hub.data_quality_metrics_dataset == "" ? [] : [
       {
@@ -484,6 +509,7 @@ locals {
 
   external_secret_targets = concat(
     [local.database_external_secret],
+    length(local.agents_remote_refs) > 0 ? [local.agents_external_secret] : [],
     length(local.conf_repo_remote_refs) > 0 ? [local.conf_repo_external_secret] : [],
     local.auth_enabled ? [local.auth_external_secret] : [],
     local.secrets.extra_external_secrets,
@@ -815,6 +841,15 @@ locals {
             { name = "AGENTS", value = "true" },
             { name = "AGENTS_LLM_PROXY_URL", value = try(local.orchestration.agents.llm_proxy_url, "http://orchestration-ui-service") },
           ] : [],
+          [for name, ref in local.agents_remote_refs : {
+            name = name
+            valueFrom = {
+              secretKeyRef = {
+                name = "agents-provider-credentials"
+                key  = name
+              }
+            }
+          }],
           try(local.orchestration.provider_ui_env, []),
           try(local.orchestration.ui_env, []),
         )
