@@ -1,8 +1,10 @@
 # Agent provider credentials
 
 The AWS, Azure, and GCP Terraform wrappers accept optional deployment-level
-provider key references under `orchestration.agents`. Secret values stay in the
-cloud secret store; do not pass them through Terraform or Helm.
+provider key references under `orchestration.agents`. External Secrets Operator
+copies the values from the cloud secret store into a Kubernetes Secret, and the
+UI container receives them as environment variables through `secretKeyRef`.
+Pass only secret references through Terraform or Helm, never secret values.
 
 ```hcl
 orchestration = {
