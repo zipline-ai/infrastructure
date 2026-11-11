@@ -36,6 +36,7 @@ locals {
     ingress_load_balancer_ip            = ""
     ingress_traffic_policy              = "Cluster"
     gke_deletion_protection             = true
+    gke_cost_allocation                 = true
     bucket_force_destroy                = false
     # Cloud SQL knobs
     database_name                       = "execution_info"
