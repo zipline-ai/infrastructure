@@ -109,10 +109,13 @@ Phase 1 lands infra + a healthy chart; live workloads unlock in later phases:
 - Phase 2 (batch) needs the GCP platform PR (§3.3 items 1–5) + arm64 image
   manifest for `ziplineai/spark:nightly` (§3.3 item 8).
 - Phase 3 (online fetcher) uses what Phase 2 wires.
-- Phase 4 (streaming/Flink) needs the Flink jar set published to
-  `gs://zipline-spark-libs/spark-4.1.3/libs/`, Chronon-side `"gcp"` entry in
-  `FlinkConfigBuilder.spark4CloudAdditionalJarNames` (§3.3 item 6), GCS
-  connector in the Flink image (§3.3 item 7), arm64 Flink image (§3.3 item 8).
+- Phase 4 (streaming/Flink) needs:
+  - The Spark 4 helper jars from `FlinkConfigBuilder.spark4AdditionalJarNames`
+    in `gs://zipline-spark-libs/spark-4.1.3/libs/`. Nothing publishes these
+    yet, on GCP or AWS; upload them from Maven Central.
+  - `gcp.kv_bulk_uploader = "spark"` when teams write output to Polaris.
+  - A Pub/Sub subscription per stack. A subscription hands each message to
+    one reader, so two stacks reading one topic need separate subscriptions.
 - Phase 5 (Ray training) needs Ray history collector wiring.
 
 Hub pod should start cleanly in Phase 1 but any job submission will fail

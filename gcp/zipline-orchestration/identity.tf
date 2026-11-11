@@ -190,13 +190,15 @@ resource "google_project_iam_member" "spark" {
   member  = "serviceAccount:${google_service_account.spark.email}"
 }
 
-# Flink GSA roles. Pub/Sub publisher is additive on top of what the plan lists
-# — most streaming sources live outside this stack, but the fetcher may publish
-# into Pub/Sub when offloaded. If unused, no cost.
+# Flink GSA roles. Pub/Sub sources need subscriber, plus viewer for the
+# schema lookup in pubsub_schema serde (pubsub.schemas.get). Project-wide, like
+# the AWS Flink role's Kinesis read.
 resource "google_project_iam_member" "flink" {
   for_each = toset([
     "roles/bigtable.user",
     "roles/logging.logWriter",
+    "roles/pubsub.subscriber",
+    "roles/pubsub.viewer",
   ])
 
   project = local.cloud_args.project_id
