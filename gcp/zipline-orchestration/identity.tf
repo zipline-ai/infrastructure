@@ -190,14 +190,15 @@ resource "google_project_iam_member" "spark" {
   member  = "serviceAccount:${google_service_account.spark.email}"
 }
 
-# Flink GSA roles. Pub/Sub sources need subscriber, plus viewer for the
-# schema lookup in pubsub_schema serde (pubsub.schemas.get). Project-wide, like
-# the AWS Flink role's Kinesis read.
+# Flink GSA roles. Pub/Sub editor so jobs can create their own subscriptions
+# (pubsub.subscriptions.create) as well as consume; viewer for the schema
+# lookup in pubsub_schema serde (pubsub.schemas.get). Project-wide, like the
+# AWS Flink role's Kinesis read.
 resource "google_project_iam_member" "flink" {
   for_each = toset([
     "roles/bigtable.user",
     "roles/logging.logWriter",
-    "roles/pubsub.subscriber",
+    "roles/pubsub.editor",
     "roles/pubsub.viewer",
   ])
 
