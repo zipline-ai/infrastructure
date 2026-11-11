@@ -1,3 +1,7 @@
+# Each CR below is keyed on the cluster's endpoint as well as its name: a cluster rebuilt under
+# the same name takes the CRs with it, and a name-only trigger would not change, so nothing would
+# reapply them. The endpoint is a new address for a new cluster.
+#
 # GMP PodMonitoring / ClusterPodMonitoring CRs. The chart exposes hub, fetcher,
 # kube-state-metrics and operator metrics through pod annotations (hub_prometheus_pod_annotations
 # in locals.tf and the chart's own prometheus.io defaults). GMP does not read Prometheus-style
@@ -59,7 +63,14 @@ locals {
     spec = {
       selector = { matchLabels = { "app.kubernetes.io/name" = "kube-state-metrics" } }
       endpoints = [{
-        port     = "8080"
+        # The port *name*, not the number. yamlencode renders `"8080"` as a quoted string, and the
+        # CR's port field is an IntOrString — so a quoted number is read as a port named "8080",
+        # nothing matches, and kube-state-metrics is never scraped. Observed on crucible-gke: the
+        # CR sat applied for over two hours with no target in GMP while the two operator CRs
+        # beside it, which use port names, had theirs. kube-state-metrics exposes `http` (8080,
+        # the kube_* families) and `metrics` (8081, its own self-metrics); `http` is the one the
+        # dashboards need, and naming it also makes the choice between the two explicit.
+        port     = "http"
         interval = "30s"
         path     = "/metrics"
       }]
@@ -125,6 +136,7 @@ locals {
 resource "terraform_data" "podmonitoring_hub" {
   triggers_replace = {
     cluster   = google_container_cluster.main.name
+    endpoint  = google_container_cluster.main.endpoint
     region    = local.cloud_args.region
     project   = local.cloud_args.project_id
     namespace = local.orchestration_namespace
@@ -161,11 +173,12 @@ YAML
 
 resource "terraform_data" "clusterpodmonitoring_kube_state_metrics" {
   triggers_replace = {
-    cluster = google_container_cluster.main.name
-    region  = local.cloud_args.region
-    project = local.cloud_args.project_id
-    name    = "zipline-kube-state-metrics"
-    yaml    = local.clusterpodmonitoring_kube_state_metrics_yaml
+    cluster  = google_container_cluster.main.name
+    endpoint = google_container_cluster.main.endpoint
+    region   = local.cloud_args.region
+    project  = local.cloud_args.project_id
+    name     = "zipline-kube-state-metrics"
+    yaml     = local.clusterpodmonitoring_kube_state_metrics_yaml
   }
 
   provisioner "local-exec" {
@@ -200,11 +213,12 @@ resource "terraform_data" "clusterpodmonitoring_operators" {
   for_each = local.operator_clusterpodmonitorings
 
   triggers_replace = {
-    cluster = google_container_cluster.main.name
-    region  = local.cloud_args.region
-    project = local.cloud_args.project_id
-    name    = each.key
-    yaml    = each.value
+    cluster  = google_container_cluster.main.name
+    endpoint = google_container_cluster.main.endpoint
+    region   = local.cloud_args.region
+    project  = local.cloud_args.project_id
+    name     = each.key
+    yaml     = each.value
   }
 
   provisioner "local-exec" {
@@ -239,6 +253,7 @@ resource "terraform_data" "podmonitoring_fetcher" {
 
   triggers_replace = {
     cluster   = google_container_cluster.main.name
+    endpoint  = google_container_cluster.main.endpoint
     region    = local.cloud_args.region
     project   = local.cloud_args.project_id
     namespace = local.orchestration_namespace
