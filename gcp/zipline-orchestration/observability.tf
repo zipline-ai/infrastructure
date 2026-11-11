@@ -27,6 +27,31 @@ locals {
     }
   })
 
+  # kube-state-metrics ships with the chart and is enabled on every cloud, but its only
+  # discovery mechanism there is the prometheus.io/scrape pod annotations, which AWS's AMP
+  # pod_exporter job reads and GMP ignores. Without this CR the kube_* series exist nowhere
+  # on GCP, and /monitor/crucible — which queries kube_node_info, kube_pod_info,
+  # kube_pod_status_phase, kube_pod_status_ready and kube_resourcequota — renders empty.
+  #
+  # Port 8080 rather than the "http" port name: 8080 is the value the annotations already
+  # pin on the AWS path, so the two clouds scrape the same endpoint.
+  podmonitoring_kube_state_metrics_yaml = yamlencode({
+    apiVersion = "monitoring.googleapis.com/v1"
+    kind       = "PodMonitoring"
+    metadata = {
+      name      = "zipline-kube-state-metrics"
+      namespace = local.orchestration_namespace
+    }
+    spec = {
+      selector = { matchLabels = { "app.kubernetes.io/name" = "kube-state-metrics" } }
+      endpoints = [{
+        port     = "8080"
+        interval = "30s"
+        path     = "/metrics"
+      }]
+    }
+  })
+
   podmonitoring_fetcher_yaml = yamlencode({
     apiVersion = "monitoring.googleapis.com/v1"
     kind       = "PodMonitoring"
@@ -53,6 +78,43 @@ resource "terraform_data" "podmonitoring_hub" {
     namespace = local.orchestration_namespace
     name      = "zipline-hub"
     yaml      = local.podmonitoring_hub_yaml
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -euo pipefail
+      KUBE="$(mktemp)"; trap 'rm -f "$KUBE"' EXIT
+      KUBECONFIG="$KUBE" gcloud container clusters get-credentials '${self.triggers_replace.cluster}' --region '${self.triggers_replace.region}' --project '${self.triggers_replace.project}' >/dev/null
+      KUBECONFIG="$KUBE" kubectl apply -f - <<'YAML'
+${self.triggers_replace.yaml}
+YAML
+    EOT
+  }
+
+  provisioner "local-exec" {
+    when        = destroy
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set +e
+      KUBE="$(mktemp)"; trap 'rm -f "$KUBE"' EXIT
+      KUBECONFIG="$KUBE" gcloud container clusters get-credentials '${self.triggers_replace.cluster}' --region '${self.triggers_replace.region}' --project '${self.triggers_replace.project}' >/dev/null 2>&1 || exit 0
+      KUBECONFIG="$KUBE" kubectl delete podmonitoring.monitoring.googleapis.com '${self.triggers_replace.name}' -n '${self.triggers_replace.namespace}' --ignore-not-found 2>/dev/null || true
+      exit 0
+    EOT
+  }
+
+  depends_on = [module.zipline_orchestration]
+}
+
+resource "terraform_data" "podmonitoring_kube_state_metrics" {
+  triggers_replace = {
+    cluster   = google_container_cluster.main.name
+    region    = local.cloud_args.region
+    project   = local.cloud_args.project_id
+    namespace = local.orchestration_namespace
+    name      = "zipline-kube-state-metrics"
+    yaml      = local.podmonitoring_kube_state_metrics_yaml
   }
 
   provisioner "local-exec" {
