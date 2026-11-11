@@ -1,9 +1,11 @@
-# Admission is independent of the laptop. Quota bounds concurrent RayJobs, and
-# this policy bounds each accepted topology/deadline. It is not a dollar cap.
+# Validate RayCluster writes as well as RayJobs: the in-tree autoscaler shares
+# the training SA, and KubeRay preserves edits to generated RayClusters.
+{{- range $resource := list "rayjobs" "rayclusters" }}
+---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
-  name: s6e11-training
+  name: s6e11-training-{{ $resource }}
 spec:
   failurePolicy: Fail
   matchConstraints:
@@ -11,35 +13,109 @@ spec:
       - apiGroups: [ray.io]
         apiVersions: [v1]
         operations: [CREATE, UPDATE]
-        resources: [rayjobs]
+        resources: [{{ $resource }}]
   matchConditions:
     - name: development-namespace
-      expression: "request.namespace == '{{ .Values.namespace }}'"
+      expression: "request.namespace == '{{ $.Values.namespace }}'"
   variables:
     - name: cluster
+{{- if eq $resource "rayjobs" }}
       expression: object.spec.rayClusterSpec
+{{- else }}
+      expression: object.spec
+{{- end }}
     - name: head
       expression: variables.cluster.headGroupSpec.template.spec
-    - name: submitter
-      expression: object.spec.submitterPodTemplate.spec
+    - name: controls
+{{- if eq $resource "rayjobs" }}
+      expression: "[variables.head, object.spec.submitterPodTemplate.spec]"
+{{- else }}
+      expression: "[variables.head]"
+{{- end }}
+    - name: pods
+      expression: "variables.controls + variables.cluster.workerGroupSpecs.map(w, w.template.spec)"
   validations:
-    - expression: "variables.cluster.workerGroupSpecs.all(w, quantity(w.template.spec.containers[0].resources.limits['cpu']).compareTo(quantity('{{ .Values.workerCPU }}')) <= 0 && quantity(w.template.spec.containers[0].resources.limits['memory']).compareTo(quantity('{{ .Values.workerMemory }}')) <= 0)"
+    - expression: "variables.pods.all(p, !has(p.terminationGracePeriodSeconds) || (p.terminationGracePeriodSeconds >= 0 && p.terminationGracePeriodSeconds <= 120))"
+      message: "Training pod termination grace must not exceed 120 seconds."
+{{- if eq $resource "rayjobs" }}
+    - expression: "request.operation != 'CREATE' || !has(object.metadata.finalizers) || size(object.metadata.finalizers) == 0"
+      message: "Submit RayJobs without custom finalizers; KubeRay owns cleanup."
+{{- end }}
+    - expression: "!has(variables.cluster.gcsFaultToleranceOptions) && (!has(object.metadata.annotations) || !('ray.io/ft-enabled' in object.metadata.annotations) || object.metadata.annotations['ray.io/ft-enabled'] != 'true')"
+      message: "These fixed-topology profiles do not support GCS fault tolerance or external Redis cleanup."
+{{- if eq $resource "rayjobs" }}
+    - expression: "request.operation != 'UPDATE' || object.spec == oldObject.spec"
+      message: "Development RayJob specs are immutable; cancel by named deletion and submit a new job."
+{{- end }}
+    - expression: "(!has(object.spec.managedBy) || object.spec.managedBy == 'ray.io/kuberay-operator') && (!has(variables.cluster.managedBy) || variables.cluster.managedBy == 'ray.io/kuberay-operator')"
+      message: "KubeRay must remain the controller responsible for deadlines and cleanup."
+{{- if eq $resource "rayjobs" }}
+    - expression: "((!has(object.spec.suspend) || !object.spec.suspend) && (!has(object.spec.shutdownAfterJobFinishes) || !object.spec.shutdownAfterJobFinishes) && (!has(object.spec.ttlSecondsAfterFinished) || object.spec.ttlSecondsAfterFinished == 0))"
+      message: "Use the reviewed deletion rules without conflicting shutdown, suspend or legacy TTL settings."
+{{- end }}
+    - expression: "request.operation != 'UPDATE' || !(request.userInfo.username == 'system:serviceaccount:{{ $.Values.namespace }}:{{ $.Values.serviceAccount }}' || '{{ $.Values.submitterGroup }}' in request.userInfo.groups) || (has(object.metadata.ownerReferences) == has(oldObject.metadata.ownerReferences) && (!has(object.metadata.ownerReferences) || object.metadata.ownerReferences == oldObject.metadata.ownerReferences) && has(object.metadata.finalizers) == has(oldObject.metadata.finalizers) && (!has(object.metadata.finalizers) || object.metadata.finalizers == oldObject.metadata.finalizers))"
+      message: "Workload and submitter identities must preserve ownership and finalizers so deadline cleanup remains effective."
+    - expression: "variables.pods.all(p, (!has(p.hostNetwork) || !p.hostNetwork) && (!has(p.hostPID) || !p.hostPID) && (!has(p.hostIPC) || !p.hostIPC) && (!has(p.volumes) || p.volumes.all(v, !has(v.hostPath))) && (p.containers + (has(p.initContainers) ? p.initContainers : [])).all(c, !has(c.securityContext) || !has(c.securityContext.privileged) || !c.securityContext.privileged))"
+      message: "Host namespaces, hostPath volumes and privileged training containers are forbidden."
+    - expression: "variables.pods.all(p, !has(p.nodeName) && (!has(p.schedulerName) || p.schedulerName == 'default-scheduler') && p.nodeSelector['zipline.ai/engine'] == 'ray')"
+      message: "Use the default scheduler and Ray placement; direct node binding is forbidden."
+    - expression: "variables.cluster.workerGroupSpecs.all(w, quantity(w.template.spec.containers[0].resources.limits['cpu']).compareTo(quantity('{{ $.Values.workerCPU }}')) <= 0 && quantity(w.template.spec.containers[0].resources.limits['memory']).compareTo(quantity('{{ $.Values.workerMemory }}')) <= 0)"
       message: "Worker resources must leave the reviewed system/DaemonSet overhead."
-    - expression: "has(object.spec.activeDeadlineSeconds) && object.spec.activeDeadlineSeconds >= 60 && object.spec.activeDeadlineSeconds <= {{ .Values.maxDeadlineSeconds }} && has(object.spec.preRunningDeadlineSeconds) && object.spec.preRunningDeadlineSeconds <= 900 && object.spec.preRunningDeadlineSeconds <= object.spec.activeDeadlineSeconds"
+{{- if eq $resource "rayjobs" }}
+    - expression: "(has(object.spec.activeDeadlineSeconds) && object.spec.activeDeadlineSeconds >= 60 && object.spec.activeDeadlineSeconds <= {{ $.Values.maxDeadlineSeconds }} && has(object.spec.preRunningDeadlineSeconds) && object.spec.preRunningDeadlineSeconds <= 900 && object.spec.preRunningDeadlineSeconds <= object.spec.activeDeadlineSeconds)"
       message: "Training must have bounded startup and active deadlines."
-    - expression: "object.spec.backoffLimit == 0 && object.spec.submissionMode == 'K8sJobMode' && !has(object.spec.clusterSelector)"
+{{- end }}
+{{- if eq $resource "rayjobs" }}
+    - expression: "(object.spec.backoffLimit == 0 && object.spec.submissionMode == 'K8sJobMode' && !has(object.spec.clusterSelector))"
       message: "Use a new fixed-topology cluster without automatic job retries."
-    - expression: "has(object.spec.deletionStrategy) && ['SUCCEEDED', 'Failed'].all(s, object.spec.deletionStrategy.deletionRules.exists(r, r.policy == 'DeleteCluster' && r.condition.ttlSeconds <= 120 && ((has(r.condition.jobStatus) && r.condition.jobStatus == s) || (has(r.condition.jobDeploymentStatus) && r.condition.jobDeploymentStatus == s))))"
+{{- end }}
+{{- if eq $resource "rayjobs" }}
+    - expression: "(has(object.spec.deletionStrategy) && ['SUCCEEDED', 'Failed'].all(s, object.spec.deletionStrategy.deletionRules.exists(r, r.policy == 'DeleteCluster' && r.condition.ttlSeconds <= 120 && ((has(r.condition.jobStatus) && r.condition.jobStatus == s) || (has(r.condition.jobDeploymentStatus) && r.condition.jobDeploymentStatus == s)))))"
       message: "DeleteCluster rules must cover success and deployment failure within 120 seconds."
-    - expression: "[variables.head, variables.submitter].all(p, p.serviceAccountName == '{{ .Values.serviceAccount }}' && p.nodeSelector['zipline.ai/execution-profile'] == '{{ .Values.profile }}' && p.nodeSelector['zipline.ai/role'] == 'control' && p.nodeSelector['kubernetes.io/arch'] == 'amd64' && p.containers.all(c, !has(c.resources.limits) || !('nvidia.com/gpu' in c.resources.limits)))"
+{{- end }}
+    - expression: "variables.controls.all(p, p.serviceAccountName == '{{ $.Values.serviceAccount }}' && p.nodeSelector['zipline.ai/execution-profile'] == '{{ $.Values.profile }}' && p.nodeSelector['zipline.ai/role'] == 'control' && p.nodeSelector['kubernetes.io/arch'] == 'amd64' && p.containers.all(c, !has(c.resources.limits) || !('nvidia.com/gpu' in c.resources.limits)))"
       message: "Head and submitter must use the scoped SA on AMD64 CPU control nodes."
-    - expression: "size(variables.cluster.workerGroupSpecs) == 1 && variables.cluster.workerGroupSpecs.all(w, w.replicas == {{ .Values.workerNodes }} && w.minReplicas == w.replicas && w.maxReplicas == w.replicas && w.template.spec.serviceAccountName == '{{ .Values.serviceAccount }}' && w.template.spec.nodeSelector['zipline.ai/execution-profile'] == '{{ .Values.profile }}' && w.template.spec.nodeSelector['zipline.ai/role'] == 'worker' && w.template.spec.nodeSelector['kubernetes.io/arch'] == 'amd64' && w.template.spec.containers[0].resources.requests['nvidia.com/gpu'] == '{{ .Values.gpus }}' && w.template.spec.containers[0].resources.limits['nvidia.com/gpu'] == '{{ .Values.gpus }}')"
+    - expression: "size(variables.cluster.workerGroupSpecs) == 1 && variables.cluster.workerGroupSpecs.all(w, w.replicas == {{ $.Values.workerNodes }} && w.minReplicas == w.replicas && w.maxReplicas == w.replicas && w.template.spec.serviceAccountName == '{{ $.Values.serviceAccount }}' && w.template.spec.nodeSelector['zipline.ai/execution-profile'] == '{{ $.Values.profile }}' && w.template.spec.nodeSelector['zipline.ai/role'] == 'worker' && w.template.spec.nodeSelector['kubernetes.io/arch'] == 'amd64' && w.template.spec.containers[0].resources.requests['nvidia.com/gpu'] == '{{ $.Values.gpus }}' && w.template.spec.containers[0].resources.limits['nvidia.com/gpu'] == '{{ $.Values.gpus }}')"
       message: "Use the selected fixed GPU worker topology and scoped service account."
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding
 metadata:
-  name: s6e11-training
+  name: s6e11-training-{{ $resource }}
 spec:
-  policyName: s6e11-training
+  policyName: s6e11-training-{{ $resource }}
+  validationActions: [Deny]
+{{- end }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: s6e11-training-delete
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [ray.io]
+        apiVersions: [v1]
+        operations: [DELETE]
+        resources: [rayjobs, rayclusters]
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [DELETE]
+        resources: [pods]
+  matchConditions:
+    - name: development-namespace
+      expression: "request.namespace == '{{ .Values.namespace }}'"
+  validations:
+    - expression: "(!has(request.options.propagationPolicy) || request.options.propagationPolicy != 'Orphan') && (!has(request.options.orphanDependents) || !request.options.orphanDependents)"
+      message: "Orphan deletion is forbidden; cancellation must cascade to training resources."
+    - expression: "request.resource.resource != 'pods' || !has(request.options.gracePeriodSeconds) || (request.options.gracePeriodSeconds >= 0 && request.options.gracePeriodSeconds <= 120)"
+      message: "Pod deletion cannot extend training termination grace beyond 120 seconds."
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: s6e11-training-delete
+spec:
+  policyName: s6e11-training-delete
   validationActions: [Deny]

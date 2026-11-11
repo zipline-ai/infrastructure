@@ -101,8 +101,41 @@ class GPUTrainingTest(unittest.TestCase):
         self.assertTrue(all(set(r['verbs']) <= {'get','list','watch'} for r in cluster['rules']))
         policy=next(d for d in docs if d['kind']=='ValidatingAdmissionPolicy')
         self.assertEqual(policy['spec']['failurePolicy'],'Fail')
-        self.assertIn('1800',policy['spec']['validations'][1]['expression'])
+        self.assertTrue(any('1800' in v['expression'] for v in policy['spec']['validations']))
         self.assertIn('nvidia.com/gpu',policy['spec']['validations'][-1]['expression'])
+
+    def test_network_policy_requires_verified_enforcement(self):
+        settings={'enabled':True,'availability_zones':['us-west-2a'],
+                  'retained_bucket':'test-retained','data_bucket':'test-data',
+                  'controller_prefix':'s6e11/controllers/test/',
+                  'submitter_principal_arn':'arn:aws:iam::123456789012:role/test'}
+        with self.assertRaisesRegex(ValueError,'NetworkPolicy enforcement'):evaluate(settings)
+        self.assertTrue(evaluate({**settings,'network_policy_enforcement_verified':True})['enabled'])
+        docs=render(AWS/'charts/gpu-training',{'roleArn':'arn:aws:iam::123456789012:role/test'})
+        ns=next(d for d in docs if d['kind']=='Namespace')
+        self.assertEqual(ns['metadata']['labels']['pod-security.kubernetes.io/enforce'],'baseline')
+        policy=next(d for d in docs if d['kind']=='NetworkPolicy')['spec']
+        self.assertEqual(set(policy['policyTypes']),{'Ingress','Egress'})
+        self.assertEqual(policy['egress'][-1]['ports'],[{'protocol':'TCP','port':443}])
+        self.assertEqual(policy['ingress'][1]['ports'],[{'protocol':'TCP','port':8265}])
+
+    def test_preflight_separates_submitter_and_admin(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder=Path(tmp)
+            (folder/'aws').write_text('#!/bin/bash\n[[ "$1" != sts ]] || echo 345594603419\nexit 0\n')
+            (folder/'kubectl').write_text("""#!/bin/bash
+echo "$*" >> "$COMMAND_LOG"
+if [[ "$*" == *'auth can-i'* && "$*" == *zipline-default* && "$OVERPRIVILEGED" != true ]]; then exit 1; fi
+exit 0
+""")
+            for name in ['aws','kubectl']:(folder/name).chmod(0o755)
+            for args,overprivileged in [([],False),(['--admin'],False),([],True)]:
+                log=folder/'commands';log.write_text('')
+                result=subprocess.run(['bash',str(ROOT/'scripts/public-demo-gpu-preflight.sh'),*args],
+                    text=True,capture_output=True,env={**os.environ,'PATH':str(folder)+':'+os.environ['PATH'],
+                    'COMMAND_LOG':str(log),'OVERPRIVILEGED':str(overprivileged).lower()})
+                self.assertEqual(result.returncode==0,not overprivileged,result.stderr)
+                self.assertEqual('get ds -A' in log.read_text(),args==['--admin'])
 
     def test_plugin_placement_does_not_need_nfd(self):
         plugin=evaluate()['plugin']

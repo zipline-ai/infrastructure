@@ -73,3 +73,55 @@ CPU/DaemonSet overhead, cancellation, Hub-offline deadline cleanup and node
 termination. The exact checks are in the runbook. The two-node EFA/NCCL path is
 not implemented or validated. No availability guarantee or benchmark speedup is
 claimed.
+
+## Independent review follow-up
+
+A reviewer agent with no inherited conversation reviewed the implementation and
+Platform source independently. PR comments were also read: only CodeRabbit's
+"draft PR not reviewed" notice was present; no inline review findings existed.
+The reviewer found real admission/privilege and preflight defects; these were
+fixed rather than treated as covered by the earlier render tests:
+
+- Apply typed admission to both RayJobs and generated RayClusters. Workload-SA
+  RayCluster patches can no longer change identity, placement or GPU topology.
+- Enforce baseline Pod Security and reject host namespaces, privileged containers,
+  hostPath volumes, direct node binding and alternate schedulers in templates.
+- Keep RayJob specs immutable after creation; require KubeRay management, the
+  reviewed deadlines and deletion rules. Reject incompatible legacy shutdown/TTL,
+  suspend and GCS fault-tolerance modes.
+- Preserve ownership/finalizers for submitter/workload updates; forbid custom
+  RayJob finalizers at creation and orphan deletion. Operators can still manage
+  their own lifecycle metadata. Valid autoscaler scaleStrategy updates remain allowed.
+- Split preflight into scoped-submitter and `--admin` runs; grant only the missing
+  namespace diagnostic reads. Default mode rejects unexpected production access.
+- Add namespace NetworkPolicy and a disabled-by-default prerequisite gate. A live
+  read found `aws-eks-nodeagent --enable-network-policy=false` and standard mode.
+  The current cluster therefore **cannot enable these profiles** until enforcement
+  from the first packet and cross-namespace rejection are actually verified.
+  No production CNI configuration was changed.
+
+Actual Kubernetes enforcement was tested in a disposable **local kind v1.35.0** cluster
+using the pinned KubeRay 1.7.0 CRDs, no Ray operator, no GPU workload and no EKS
+writes. Eight integration tests pass: valid RayJob/RayCluster requests; unsafe
+RayJob templates; invalid RayCluster changes; impersonated autoscaler metadata
+bypasses versus valid updates; submitter lifecycle mutations/orphan DELETE versus
+normal cancellation; scoped diagnostic reads; Pod Security rejection of an
+operator-created privileged Pod; and capped Pod DELETE grace. Template termination
+grace and caller DELETE overrides are limited to 120 seconds, preventing preStop
+hooks from extending a job allocation indefinitely. All three policies type-check without warnings.
+The checked-in `tests/gpu_admission_smoke.py` refuses any context other than
+`kind-gpu-review`; it is separate from ordinary unit-test discovery.
+
+The installed kubectl client is 1.31 (outside the supported client/server skew);
+all asserted checks were actual server-side admission responses. The target EKS
+cluster is 1.36, and final target-cluster acceptance remains a deployment check.
+These tests validate API enforcement, not GPU runtime, CNI traffic enforcement,
+or KubeRay's actual reconciliation timing. The local cluster is removed after
+validation. The earlier targeted plans describe commit `0c6903b`; they are
+historical previews, **not current apply artifacts**. The enabled example now
+intentionally fails validation until the network prerequisite is satisfied.
+
+Final independent re-review found no remaining concrete findings in these fixes.
+The repository suite now passes **45 tests**; the separate kind suite passes
+**8 integration tests**. CNI enforcement/cross-namespace traffic validation remains
+an explicit unresolved deployment prerequisite, not a passed check.

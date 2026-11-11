@@ -8,6 +8,12 @@ metadata:
     zipline.ai/namespace-type: compute
     zipline.ai/team: {{ .Values.team }}
     zipline.ai/gpu-training: "true"
+    # Ray images may run as root, but may not escape into the node. Apply this
+    # to operator-created pods too, not just the submitted RayJob templates.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce-version: v1.30
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/audit-version: v1.30
 ---
 apiVersion: v1
 kind: ServiceAccount

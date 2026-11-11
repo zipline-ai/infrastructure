@@ -30,7 +30,9 @@
     "nvidia_ami": {
       "id": "ami-0e3d4bd8ae097dc7e",
       "name": "amazon-eks-node-al2023-x86_64-nvidia-1.36-v20261107"
-    }
+    },
+    "network_policy_enforcement_enabled": false,
+    "network_policy_enforcing_mode": "standard"
   },
   "proposed": {
     "namespace": "zipline-s6e11-dev",
@@ -162,7 +164,11 @@
     "deadline_seconds": 1800,
     "startup_deadline_seconds": 900,
     "cluster_cleanup_ttl_seconds": 120,
-    "rayjob_metadata_ttl_seconds": 21600
+    "rayjob_metadata_ttl_seconds": 21600,
+    "network_policy_enforcement_verified": false,
+    "pod_security": "baseline v1.30",
+    "rayjob_spec_mutation": "forbidden after creation; cancel with named cascading deletion",
+    "max_pod_termination_grace_seconds": 120
   },
   "local_docker_contract": {
     "env": {
@@ -188,6 +194,7 @@
     "checkpoint_storage": "S3 only; NVMe/root and /dev/shm are ephemeral"
   },
   "prerequisites": [
+    "approve CNI enforcement, then prove cross-namespace denial from first packet before setting network_policy_enforcement_verified=true",
     "full non-destructive plan with authorized Cloudflare/image-pull credentials",
     "reconcile stale datasource inputs without applying unrelated resources",
     "choose one authoritative KubeRay installation/leader scope",
@@ -196,5 +203,6 @@
     "persist controller ID and approve budget",
     "two-node requires separately validated EFA/NCCL networking; disabled by default"
   ],
-  "live_paid_tests_run": false
+  "live_paid_tests_run": false,
+  "review_status": "Independent review fixes included; current network-enforcement prerequisite unsatisfied"
 }

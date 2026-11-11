@@ -1,0 +1,53 @@
+# This only protects workloads when the cluster CNI enforces NetworkPolicy.
+# gpu_training.network_policy_enforcement_verified is an explicit prerequisite.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: training-isolation
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: {}
+    # KubeRay queries the head Jobs API to reconcile and enforce deadlines.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace | quote }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kuberay-operator
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kuberay-operator
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: kuberay-operator
+      ports:
+        - protocol: TCP
+          port: 8265
+  egress:
+    - to:
+        - podSelector: {}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # EKS API, S3, STS and registry HTTPS. Other namespaces' unauthenticated
+    # Ray Jobs/GCS/client ports (8265/6379/10001) are intentionally unreachable.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443

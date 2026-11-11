@@ -1,16 +1,19 @@
 # Merge with the verified existing backend/config; this file is NOT an apply approval.
 gpu_training = {
-  enabled              = true
-  profile              = "s6e11-l40s"
-  instance_type        = "g6e.xlarge"
-  availability_zones   = ["us-west-2a", "us-west-2b"]
-  capacity_type        = "on-demand"
-  worker_nodes         = 1
-  ami_release          = "v20261107"
-  max_deadline_seconds = 1800
-  data_bucket          = "zipline-public-demo-training-345594603419"
-  data_prefix          = "s6e11/input/"
-  retained_bucket      = "zipline-public-demo-training-345594603419"
+  # Leave false until CNI enforcement + cross-namespace/startup rejection are proven.
+  # With enabled=true this intentionally fails validation on the current cluster.
+  network_policy_enforcement_verified = false
+  enabled                             = true
+  profile                             = "s6e11-l40s"
+  instance_type                       = "g6e.xlarge"
+  availability_zones                  = ["us-west-2a", "us-west-2b"]
+  capacity_type                       = "on-demand"
+  worker_nodes                        = 1
+  ami_release                         = "v20261107"
+  max_deadline_seconds                = 1800
+  data_bucket                         = "zipline-public-demo-training-345594603419"
+  data_prefix                         = "s6e11/input/"
+  retained_bucket                     = "zipline-public-demo-training-345594603419"
   # Persist a real controller ID before first run; rotate only with explicit recovery.
   controller_prefix       = "s6e11/controllers/replace-with-persistent-id/"
   submitter_principal_arn = "arn:aws:iam::345594603419:user/cristian@zipline.ai"

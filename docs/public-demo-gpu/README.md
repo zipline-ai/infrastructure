@@ -12,6 +12,25 @@ plan coverage and limitations. Values under `proposed` are **not provisioned**.
 
 ## Verified environment and open prerequisites
 
+**Additional deployment blocker found in independent review:** the current
+`aws-eks-nodeagent` runs with `--enable-network-policy=false` and standard mode.
+The namespace NetworkPolicy in this PR is not enforcement by itself. Enabling
+training now requires `network_policy_enforcement_verified=true`, default false,
+only after an approved CNI configuration and connectivity tests prove isolation
+from the first packet. The example deliberately leaves this false. Do not set it
+to bypass a failed prerequisite. CNI changes affect cluster networking and belong
+in a separately reviewed deployment plan; none were made here.
+
+The policy permits intra-development-namespace traffic, CoreDNS, outbound HTTPS
+for AWS APIs, and KubeRay operator ingress on 8265. It blocks access to other
+namespaces' unauthenticated Ray Jobs/GCS/client ports. Verify both ClusterIP and
+pod-IP rejection with controller-owned CPU probe pods, including startup, while
+same-namespace Ray traffic, DNS, HTTPS and operator access remain usable. Use
+strict policy initialization or equivalent tested deny-from-first-packet behavior;
+standard-mode initial allow windows are not sufficient. A policy-object read or a
+version check cannot substitute for this test. No traffic enforcement is claimed
+from the local kind admission tests.
+
 Read-only AWS and Kubernetes inspection verified account `345594603419`,
 `public-demo-eks`, `us-west-2`, EKS 1.36; subnets are in `us-west-2a` (`usw2-az1`)
 and `us-west-2b` (`usw2-az2`). Both proposed instance types have offerings in both
@@ -59,6 +78,13 @@ adds 6 CPU/16 GiB to worker capacity for these containers and injected helpers.
 G6e aggregate quota is 8 CPU/40 GiB/1 GPU; P4d is 94 CPU/1040 GiB/8 GPU;
 two P4d is 182 CPU/2064 GiB/16 GPU. Requests and CPU/memory limits are separate
 quota entries; extended GPU quota uses Kubernetes' `requests.nvidia.com/gpu`.
+
+Admission also validates RayCluster writes by the shared autoscaler SA, preserves
+cleanup ownership/finalizers, and rejects orphan deletion. RayJob specs are
+immutable after submission; cancellation uses named cascading deletion. Pod
+termination grace and caller DELETE grace overrides are capped at 120 seconds. Baseline
+Pod Security prevents host-network/hostPath/privileged pods, including those
+created by the operator. The supported path has no GCS fault tolerance.
 
 Quota admits at most one RayJob and one RayCluster. Completed RayJobs remain up
 to six hours under Platform's policy and consume the object-count quota; after
@@ -192,8 +218,8 @@ After explicit approval: first reconcile backend/config and operator ownership;
 review full plans showing only intended changes; create retained storage/registry;
 publish/verify image and archive through their owners; enable one profile and
 namespace; validate admission/device registration; then authorize the bounded run.
-Run `scripts/public-demo-gpu-preflight.sh` with the intended role (admin inventory
-checks require a separate infrastructure reader). It writes only a temp kubeconfig.
+Run `scripts/public-demo-gpu-preflight.sh` with the scoped submitter role, then
+run it separately with `--admin` using infrastructure-reader credentials. It writes only a temp kubeconfig.
 Never use a partial plan as the apply artifact. Re-plan immediately before approval.
 
 Rollback: stop local submissions, cancel each named dev RayJob, verify RayClusters,

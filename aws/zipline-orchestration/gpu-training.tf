@@ -2,24 +2,29 @@
 variable "gpu_training" {
   description = "Development Ray GPU capacity. Enabling requires reviewed identity, retention and budget inputs."
   type = object({
-    enabled                 = optional(bool, false)
-    profile                 = optional(string, "s6e11-l40s")
-    instance_type           = optional(string, "g6e.xlarge")
-    availability_zones      = optional(list(string), [])
-    capacity_type           = optional(string, "on-demand")
-    worker_nodes            = optional(number, 1)
-    multi_node_validated    = optional(bool, false)
-    ami_release             = optional(string, "v20261107")
-    max_deadline_seconds    = optional(number, 1800)
-    retained_bucket         = optional(string, "")
-    data_bucket             = optional(string, "")
-    data_prefix             = optional(string, "s6e11/input/")
-    controller_prefix       = optional(string, "")
-    submitter_principal_arn = optional(string, "")
-    kms_key_arns            = optional(list(string), [])
-    glue_resource_arns      = optional(list(string), [])
+    enabled                             = optional(bool, false)
+    network_policy_enforcement_verified = optional(bool, false)
+    profile                             = optional(string, "s6e11-l40s")
+    instance_type                       = optional(string, "g6e.xlarge")
+    availability_zones                  = optional(list(string), [])
+    capacity_type                       = optional(string, "on-demand")
+    worker_nodes                        = optional(number, 1)
+    multi_node_validated                = optional(bool, false)
+    ami_release                         = optional(string, "v20261107")
+    max_deadline_seconds                = optional(number, 1800)
+    retained_bucket                     = optional(string, "")
+    data_bucket                         = optional(string, "")
+    data_prefix                         = optional(string, "s6e11/input/")
+    controller_prefix                   = optional(string, "")
+    submitter_principal_arn             = optional(string, "")
+    kms_key_arns                        = optional(list(string), [])
+    glue_resource_arns                  = optional(list(string), [])
   })
   default = {}
+  validation {
+    condition     = !var.gpu_training.enabled || var.gpu_training.network_policy_enforcement_verified
+    error_message = "Before enabling GPU training, verify CNI NetworkPolicy enforcement and cross-namespace rejection from the first packet. The current public-demo CNI has policy enforcement disabled; creating a NetworkPolicy alone is insufficient."
+  }
   validation {
     condition = contains(["s6e11-l40s", "s6e11-a100"], var.gpu_training.profile) && (
       (var.gpu_training.profile == "s6e11-l40s" && var.gpu_training.instance_type == "g6e.xlarge") ||

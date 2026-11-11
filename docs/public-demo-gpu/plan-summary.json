@@ -1,5 +1,5 @@
 {
-  "status": "partial_targeted_plan_only_not_for_apply",
+  "status": "historical_partial_preview_for_0c6903b_superseded_by_independent_review",
   "backend": {
     "bucket": "zipline-public-demo-opentofu-state",
     "key": "state/orchestration/terraform.tfstate",
@@ -22,6 +22,7 @@
     "Plan: 9 to add, 1 to change, 0 to destroy."
   ],
   "limitations": [
+    "Current enabled example intentionally fails until network_policy_enforcement_verified is proven. These plans predate admission/network-policy hardening; regenerate full plans after prerequisites.",
     "Full plan failed: missing Cloudflare authentication and intentionally removed image-pull token.",
     "GPU namespace Helm release and reset guard excluded from this targeted plan.",
     "JSON export failed on pre-existing Cloudflare state attribute include_shadow_metadata with the existing provider lockfile; action summary extracted from text plan.",
