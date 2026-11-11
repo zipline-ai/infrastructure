@@ -63,6 +63,9 @@ locals {
     bigtable_storage_target_gib         = 2560
     bigtable_deletion_protection        = true
     secret_deletion_protection          = true
+    # Bigtable bulk loader passed to jobs as UPLOADER. Set "spark" when teams write
+    # output to Polaris: the default BigQuery loader can't read Polaris tables.
+    kv_bulk_uploader                    = ""
     # DNS / Cloudflare (optional)
     cloudflare_record_name              = ""
   }, var.gcp)
@@ -174,6 +177,9 @@ locals {
       { name = "GCP_BIGTABLE_INSTANCE_ID", value = local.bigtable_instance_name },
       { name = "CRUCIBLE_FLINK_JARS_BASE_PATH", value = local.flink_jars_base_path },
       { name = "LOG_PROVIDER", value = "gcp" },
+    ],
+    trimspace(local.cloud_args.kv_bulk_uploader) == "" ? [] : [
+      { name = "KV_BULK_UPLOADER", value = trimspace(local.cloud_args.kv_bulk_uploader) },
     ],
     [{
       name = "OC_CREDENTIAL"
