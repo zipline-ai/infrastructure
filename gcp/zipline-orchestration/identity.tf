@@ -1,5 +1,8 @@
 locals {
-  wi_pool = "${local.cloud_args.project_id}.svc.id.goog"
+  # Read from the cluster, not built from the project ID: GKE creates the pool
+  # with the project's first Workload Identity cluster, and in a fresh project
+  # binding before then fails with "Identity Pool does not exist".
+  wi_pool = google_container_cluster.main.workload_identity_config[0].workload_pool
 
   # §7.2 bucket grant map:
   #   - orchestration/eval get objectAdmin on owned; objectViewer on shared +
