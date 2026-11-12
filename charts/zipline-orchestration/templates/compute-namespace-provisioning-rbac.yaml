@@ -1,0 +1,73 @@
+{{- if and .Values.compute.rbac.create .Values.compute.rbac.namespaceProvisioning.enabled }}
+# Lets the Hub create a compute namespace per team when a team is written, instead of the namespace
+# set being a static list in this chart's values.
+#
+# It can create the objects in the mounted compute-namespace template and bind the three compute
+# ClusterRoles — and nothing else. In particular it holds none of the rules it binds: the Hub's own
+# access to a namespace arrives through the compute-submitter RoleBinding it creates there, exactly
+# as it does for the namespaces this chart renders.
+#
+# That is the whole reason the per-namespace setup lives in the chart. The alternative — the Hub
+# building these objects itself — meant it had to hold the union of every rule it granted
+# cluster-wide, because Kubernetes will not let a subject create a Role carrying permissions it
+# does not have. That grant included creating pods in any namespace, kube-system included.
+# Binding an existing ClusterRole needs only `bind` on that ClusterRole, which is far narrower.
+#
+# Off by default. A namespace under the compute prefix inherits the wildcarded compute execution
+# role, so widening who can create one stays a deliberate per-deployment decision.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "zipline-orchestration.fullname" . }}-namespace-provisioner
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+rules:
+  # Namespaces are created, never updated or deleted: archiving a team must not take a namespace
+  # with running work in it.
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch", "create"]
+  # The rest of the template's objects. Create-only for the same reason — the chart owns their
+  # content, and the Hub only stamps out what it is given.
+  - apiGroups: [""]
+    resources: ["serviceaccounts", "limitranges"]
+    verbs: ["get", "list", "watch", "create"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["rolebindings"]
+    verbs: ["get", "list", "watch", "create"]
+  - apiGroups: [""]
+    resources: ["resourcequotas"]
+    verbs: ["get", "list", "watch", "create"]
+  # The team quota is the one object the Hub owns outright rather than stamping out: it exists to
+  # be retuned, and a cleared one has to actually go or a stale ResourceQuota keeps enforcing a
+  # limit somebody just removed. Pinned by name, so the chart's own zipline-compute quota and the
+  # per-mode quotas stay out of reach.
+  - apiGroups: [""]
+    resources: ["resourcequotas"]
+    resourceNames: ["zipline-team"]
+    verbs: ["update", "patch", "delete"]
+  # Binding a ClusterRole requires `bind` on it. Named individually: this is what replaces holding
+  # the union of their rules, and it cannot be used to grant anything else.
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles"]
+    resourceNames:
+      - {{ include "zipline-orchestration.fullname" . }}-spark-driver
+      - {{ include "zipline-orchestration.fullname" . }}-flink-jobmanager
+      - {{ include "zipline-orchestration.fullname" . }}-compute-submitter
+    verbs: ["bind"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "zipline-orchestration.fullname" . }}-namespace-provisioner
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "zipline-orchestration.fullname" . }}-namespace-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "zipline-orchestration.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

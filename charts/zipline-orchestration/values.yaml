@@ -64,6 +64,16 @@ compute:
     annotations: {}
   rbac:
     create: true
+    # Let the Hub create a compute namespace per team on team sync, rather than the namespaces
+    # below being the whole set. Off by default: a zipline- prefixed namespace inherits the
+    # wildcarded compute execution role, so widening who can create one is a deliberate choice.
+    # Pair with compute.teamNamespaceReconcile.enabled, which switches it on in the Hub.
+    namespaceProvisioning:
+      enabled: false
+  # Hub-side half of the switch above. Both have to be on for anything to happen: this one tells
+  # the Hub to reconcile, the one above gives it permission to.
+  teamNamespaceReconcile:
+    enabled: false
   sparkDefaults:
     eventLogDir: ""
     imagePullPolicy: "Always"

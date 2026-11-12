@@ -1,0 +1,82 @@
+{{- if .Values.compute.rbac.create }}
+# The rules a compute namespace grants, held as ClusterRoles rendered once rather than as Roles
+# rendered per namespace. Each namespace gets RoleBindings to these — see the
+# computeNamespaceResources helper — so the rules are namespace-scoped in effect while living in
+# exactly one place.
+#
+# Why they moved: the Hub provisions namespaces for teams created at runtime, and the alternative
+# was the Hub carrying copies of these rules. A copy drifts. The first one already did — it gave
+# the Flink service account the Spark driver's rules and omitted `apps: deployments`, which the
+# JobManager reads before creating each TaskManager, so Flink jobs would have come up with no
+# TaskManagers and hung.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "zipline-orchestration.fullname" . }}-spark-driver
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "zipline-orchestration.fullname" . }}-flink-jobmanager
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # The operator runs in native mode, where the JobManager reads its own Deployment before creating
+  # each TaskManager pod. Without this the JobManager starts and no TaskManagers ever appear.
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "zipline-orchestration.fullname" . }}-compute-submitter
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["sparkapplications"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["sparkapplications/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["flink.apache.org"]
+    resources: ["flinkdeployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["flink.apache.org"]
+    resources: ["flinkdeployments/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: ["ray.io"]
+    resources: ["rayjobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["ray.io"]
+    resources: ["rayjobs/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["get", "create"]
+  - apiGroups: [""]
+    resources: ["services", "configmaps", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
+{{- end }}

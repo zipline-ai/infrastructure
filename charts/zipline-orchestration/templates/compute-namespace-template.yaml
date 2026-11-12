@@ -1,0 +1,24 @@
+{{- if and .Values.compute.rbac.create .Values.compute.rbac.namespaceProvisioning.enabled }}
+# What the Hub stamps out for a team created at runtime.
+#
+# The same helper compute-rbac.yaml renders per namespace in values, rendered once here with a
+# placeholder where the namespace name goes. The Hub mounts this, substitutes the name, and applies
+# the documents.
+#
+# The point is that the Hub holds no Kubernetes knowledge of its own: no RBAC rules, no service
+# account annotations, no quota or LimitRange values. Those are chart concerns and they stay here,
+# so a namespace the Hub creates and a namespace the chart renders cannot drift — and adding a rule
+# is one edit in one place rather than one in the chart and one in Scala.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "zipline-orchestration.fullname" . }}-compute-namespace-template
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+    app.kubernetes.io/component: compute
+data:
+  namespacePlaceholder: {{ include "zipline-orchestration.computeNamespacePlaceholder" . | quote }}
+  resources.yaml: |
+    {{- include "zipline-orchestration.computeNamespaceResources" (dict "root" . "namespace" (include "zipline-orchestration.computeNamespacePlaceholder" .) "overrides" dict) | nindent 4 }}
+{{- end }}
