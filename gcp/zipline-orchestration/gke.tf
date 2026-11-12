@@ -211,6 +211,12 @@ resource "google_container_cluster" "main" {
     }
   }
 
+  # Splits node cost by namespace and pod label in the Cloud Billing BigQuery
+  # export, for per-team chargeback.
+  cost_management_config {
+    enabled = local.cloud_args.gke_cost_allocation
+  }
+
   cluster_autoscaling {
     autoscaling_profile = local.cloud_args.autoscaling_profile
     # We define pool-level autoscaling (min/max per pool) in

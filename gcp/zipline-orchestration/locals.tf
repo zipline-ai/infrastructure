@@ -19,7 +19,10 @@ locals {
     autoscaling_profile                 = "OPTIMIZE_UTILIZATION"
     storage_class                       = "premium-rwo"
     logging_components                  = ["APISERVER", "CONTROLLER_MANAGER", "SCHEDULER", "SYSTEM_COMPONENTS", "WORKLOADS"]
-    monitoring_components               = ["SYSTEM_COMPONENTS", "APISERVER", "SCHEDULER", "CONTROLLER_MANAGER", "STORAGE", "HPA", "POD", "DAEMONSET", "DEPLOYMENT", "STATEFULSET"]
+    # CADVISOR/KUBELET are what put container_cpu_* / container_memory_* in GMP at all — the
+    # AWS stack gets them from the `cadvisor` job in aws/zipline-orchestration/observability.tf,
+    # and /monitor/crucible's container CPU-throttling and working-set charts read them.
+    monitoring_components               = ["SYSTEM_COMPONENTS", "APISERVER", "SCHEDULER", "CONTROLLER_MANAGER", "STORAGE", "HPA", "POD", "DAEMONSET", "DEPLOYMENT", "STATEFULSET", "CADVISOR", "KUBELET"]
     shared_warehouse_bucket             = ""
     additional_data_buckets             = []
     additional_flink_buckets            = []
@@ -36,6 +39,7 @@ locals {
     ingress_load_balancer_ip            = ""
     ingress_traffic_policy              = "Cluster"
     gke_deletion_protection             = true
+    gke_cost_allocation                 = true
     bucket_force_destroy                = false
     # Cloud SQL knobs
     database_name                       = "execution_info"
@@ -62,6 +66,9 @@ locals {
     bigtable_storage_target_gib         = 2560
     bigtable_deletion_protection        = true
     secret_deletion_protection          = true
+    # Bigtable bulk loader passed to jobs as UPLOADER. Set "spark" when teams write
+    # output to Polaris: the default BigQuery loader can't read Polaris tables.
+    kv_bulk_uploader                    = ""
     # DNS / Cloudflare (optional)
     cloudflare_record_name              = ""
   }, var.gcp)
@@ -173,6 +180,9 @@ locals {
       { name = "GCP_BIGTABLE_INSTANCE_ID", value = local.bigtable_instance_name },
       { name = "CRUCIBLE_FLINK_JARS_BASE_PATH", value = local.flink_jars_base_path },
       { name = "LOG_PROVIDER", value = "gcp" },
+    ],
+    trimspace(local.cloud_args.kv_bulk_uploader) == "" ? [] : [
+      { name = "KV_BULK_UPLOADER", value = trimspace(local.cloud_args.kv_bulk_uploader) },
     ],
     [{
       name = "OC_CREDENTIAL"
@@ -317,18 +327,14 @@ locals {
       persistence = {
         storageClass = local.cloud_args.storage_class
       }
-      # §9.5: StarRocks reaches GCS over the S3 XML interop API, authenticated
-      # by HMAC keys. The HMAC key material lives in state + in the SR CR
-      # (R11); keep the bucket-scoped GSA so rotation is a bounded blast.
+      # FE and CN use the orchestration KSA. GKE's metadata server supplies
+      # its bound GSA credentials through the Compute Engine credential API.
       feConfig = {
-        run_mode                            = "shared_data"
-        cloud_native_storage_type           = "S3"
-        aws_s3_path                         = "${local.cloud_args.warehouse_bucket}/dataexplorer"
-        aws_s3_region                       = local.cloud_args.region
-        aws_s3_endpoint                     = "https://storage.googleapis.com"
-        aws_s3_use_aws_sdk_default_behavior = false
-        aws_s3_use_instance_profile         = false
-        enable_load_volume_from_conf        = true
+        run_mode                                   = "shared_data"
+        cloud_native_storage_type                  = "GS"
+        gcp_gcs_path                               = "${local.cloud_args.warehouse_bucket}/dataexplorer"
+        gcp_gcs_use_compute_engine_service_account = true
+        enable_load_volume_from_conf               = true
       }
       awsGlueCatalog = {
         enabled = false
@@ -358,7 +364,7 @@ locals {
               type             = "GCS"
               allowedLocations = [local.polaris_base_location]
               config = {
-                gcsServiceAccount = "serviceAccount:${google_service_account.polaris_storage.email}"
+                gcsServiceAccount = google_service_account.polaris_storage.email
               }
             }
           }
@@ -405,6 +411,13 @@ locals {
         nodeSelector = local.system_node_selector
         tolerations  = local.system_node_tolerations
       }
+    }
+
+    nodepoolExporter = {
+      enabled      = true
+      clusterName  = local.cluster_name
+      nodeSelector = local.system_node_selector
+      tolerations  = local.system_node_tolerations
     }
 
     "ingress-nginx-ui" = {

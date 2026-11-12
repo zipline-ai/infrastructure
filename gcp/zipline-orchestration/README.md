@@ -577,3 +577,58 @@ and external DNS configuration instead.
 Set `orchestration.conf_repo.url` to enable the repository editor and sandbox.
 See the [sandbox configuration guide](../../charts/zipline-orchestration/SANDBOX.md)
 for inputs, cloud secret references, and image availability requirements.
+## Data Explorer
+
+Data Explorer is disabled by default. To enable it, add `data_explorer` to the
+existing `orchestration` object in your environment's tfvars:
+
+```hcl
+orchestration = {
+  # Existing settings...
+  data_explorer = {
+    enabled = true
+  }
+}
+```
+
+StarRocks uses native GCS shared-data storage (`cloud_native_storage_type = "GS"`)
+at `gs://<gcp.warehouse_bucket>/dataexplorer`. FE and CN pods use the orchestration
+Kubernetes service account, which is bound to the orchestration Google service
+account through GKE Workload Identity. The GKE metadata server supplies short-lived
+credentials through the Compute Engine credential API. No HMAC keys or service
+account private keys are needed. The existing warehouse bucket IAM grant provides
+object access; installation waits for the bucket grants and identity binding.
+
+This requires StarRocks 3.5.1 or newer; the shared module currently pins 4.1.3.
+See the [StarRocks GCS configuration](https://docs.starrocks.io/docs/administration/configuration/FE_parameters/shared_lake_other/#gcp_gcs_use_compute_engine_service_account)
+and [GKE metadata authentication](https://docs.cloud.google.com/kubernetes-engine/docs/concepts/workload-identity#metadata-server).
+Polaris catalog authentication and credential vending remain separate from
+StarRocks' own shared-data storage authentication.
+
+After enabling in a test environment, verify that FE and CN pods become ready,
+the `starrocks-catalog-init` job succeeds, and `SHOW STORAGE VOLUMES` / `DESC STORAGE
+VOLUME builtin_storage_volume` report native GCS storage. Query a known table in
+`zipline_catalog` to verify Polaris credential vending and GCS reads end to end.
+
+If you previously configured HMAC storage manually and have an initialized
+StarRocks cluster, inspect its persisted storage volumes before applying. Changing
+FE configuration does not constitute a migration of existing S3-type storage
+volumes to GS. Plan that migration separately; do not delete PVCs or stored data.
+
+## Agents UI configuration
+
+Set `orchestration.agents.enable = true` to add `AGENTS=true` and
+`AGENTS_LLM_PROXY_URL=http://orchestration-ui-service` to the UI container.
+The URL points back to the UI as reached by the sandbox, using the UI Service's
+port 80. Set `orchestration.agents.llm_proxy_url` to override that URL.
+When `enable` is false or omitted, neither variable is added.
+This configures the UI only; it does not provision agent runtime services.
+
+### Agent provider API keys
+
+Set `orchestration.agents.anthropic_api_key_remote_ref` and/or
+`orchestration.agents.openai_api_key_remote_ref` to cloud secret references.
+When agents are enabled, External Secrets syncs these into the UI through
+`secretKeyRef` as `AGENTS_ANTHROPIC_API_KEY` and `AGENTS_OPENAI_API_KEY`.
+See [provider credential configuration](../../charts/zipline-orchestration/AGENT_CREDENTIALS.md)
+for reference formats and examples. Both references are optional.

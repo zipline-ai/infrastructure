@@ -1,0 +1,52 @@
+# Agent provider credentials
+
+The AWS, Azure, and GCP Terraform wrappers accept optional deployment-level
+provider key references under `orchestration.agents`. External Secrets Operator
+copies the values from the cloud secret store into a Kubernetes Secret, and the
+UI container receives them as environment variables through `secretKeyRef`.
+Pass only secret references through Terraform or Helm, never secret values.
+
+```hcl
+orchestration = {
+  # Include the other required orchestration inputs.
+  agents = {
+    enable = true
+    anthropic_api_key_remote_ref = {
+      key = "<cloud-secret-reference>"
+    }
+    openai_api_key_remote_ref = {
+      key = "<cloud-secret-reference>"
+    }
+  }
+}
+```
+
+Use these reference formats:
+
+| Cloud | `key` | `property` |
+| --- | --- | --- |
+| AWS Secrets Manager | Full secret ARN | JSON field name, if the secret stores an object |
+| Azure Key Vault | Secret name in the configured vault | Omit for a secret containing the API key directly |
+| GCP Secret Manager | Secret ID | JSON field name, if the secret stores an object |
+
+For example, two keys stored in one JSON secret can share the same `key` and
+use `property = "anthropic"` and `property = "openai"` respectively. Either
+provider reference can be omitted; agents can still use user-configured keys.
+When agents are disabled, these references are ignored.
+
+External Secrets Operator creates `agents-provider-credentials` in the release
+namespace. Its configured keys are `AGENTS_ANTHROPIC_API_KEY` and
+`AGENTS_OPENAI_API_KEY`. The UI reads each through `secretKeyRef`; credentials
+are not configured on the sandbox. AWS and GCP grant the existing External
+Secrets identity access to these references. Azure uses the existing Key Vault
+Secrets User role and vault. Customer-managed KMS keys or cross-account/project
+secrets can require additional grants on the remote secret or encryption key.
+
+Create the cloud secret values before applying. With
+`orchestration.secrets.external_secrets_enabled = false`, provision the Kubernetes
+Secret yourself using the same name and keys. For rotation, update that Kubernetes
+Secret with the rotated value before restarting the UI pods.
+
+When External Secrets is enabled, rotate the value in the cloud secret store,
+wait for External Secrets Operator to sync it into the Kubernetes Secret, then
+restart the UI pods to load the changed environment values.
