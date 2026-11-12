@@ -575,6 +575,24 @@ spark-operator:
     rbac:
       create: false
 
+# Node-pool autoscaler limits for the monitor's Node Pools section. GKE only: the exporter reads
+# kube-system/cluster-autoscaler-status, which Karpenter-based clusters do not have, so it is
+# disabled by default and switched on through GCP provider values.
+nodepoolExporter:
+  enabled: false
+  image: python:3.12-slim
+  port: 9101
+  # Used to turn the managed instance group id (gke-<cluster>-<pool>-<hash>-grp) into a pool name.
+  clusterName: ""
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 96Mi
+  nodeSelector: {}
+  tolerations: []
+
 kube-state-metrics:
   enabled: true
   # Scraped by the existing pod_exporter AMP job via these annotations.
@@ -586,7 +604,10 @@ kube-state-metrics:
   # Hub Monitor queries can group by team / engine / role / nodepool.
   metricLabelsAllowlist:
     - "pods=[zipline.ai/team,zipline.ai/engine,zipline.ai/role,zipline.ai/workload,zipline.ai/mode,crucible.ai/type]"
-    - "nodes=[karpenter.sh/nodepool,karpenter.sh/capacity-type,zipline.ai/team,zipline.ai/node-pool]"
+    # GKE labels are here alongside Karpenter's so the monitor's node-pool charts can read the
+    # same dimension on every provider (nodes carry cloud.google.com/gke-nodepool; spot nodes
+    # add cloud.google.com/gke-spot). Harmless on clusters that never set them.
+    - "nodes=[karpenter.sh/nodepool,karpenter.sh/capacity-type,zipline.ai/team,zipline.ai/node-pool,cloud.google.com/gke-nodepool,cloud.google.com/gke-spot]"
     - "namespaces=[zipline.ai/team,zipline.ai/namespace-type]"
   resources:
     requests:

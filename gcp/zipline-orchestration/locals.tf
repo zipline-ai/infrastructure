@@ -413,6 +413,13 @@ locals {
       }
     }
 
+    nodepoolExporter = {
+      enabled      = true
+      clusterName  = local.cluster_name
+      nodeSelector = local.system_node_selector
+      tolerations  = local.system_node_tolerations
+    }
+
     "ingress-nginx-ui" = {
       controller = {
         nodeSelector = merge({ "kubernetes.io/os" = "linux" }, local.system_node_selector)
