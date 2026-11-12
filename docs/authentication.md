@@ -82,8 +82,6 @@ state and plan artifacts as credentials.
 1. Create a Secrets Manager secret in the deployment's AWS region containing a
    JSON object with the hyphenated keys above. Include `sso-saml-cert` for SAML.
 2. Set `aws.auth_secret_arn` to its ARN in the existing `aws` configuration.
-   Alternatively set `orchestration.auth.secrets_arn`. Use one reference to avoid
-   ambiguity; the AWS-specific field is preferred by the wrapper's lookup.
 3. Leave `aws.auth_secret_values` empty. A nonempty values map makes the wrapper
    create and use a new secret instead.
 4. Confirm the workload can read the secret and, for a customer-managed encryption
