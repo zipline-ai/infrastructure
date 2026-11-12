@@ -1,6 +1,7 @@
 # Destroy-time cleanup for AWS resources created by in-cluster controllers rather
 # than by tofu: the ingress-nginx LoadBalancer Service (which the aws-load-balancer
-# controller backs with an NLB) and Karpenter-provisioned EC2 nodes. Neither is in
+# controller backs with an NLB), Karpenter-provisioned EC2 nodes, and the EBS
+# volumes the CSI driver provisions for PVCs. None of these is in
 # tofu state, so a plain `tofu destroy` leaves them running; their ENIs then keep
 # public IPs mapped in the VPC and block internet-gateway detach and subnet/VPC
 # deletion (DependencyViolation), while their buckets stay populated.
@@ -101,11 +102,39 @@ resource "terraform_data" "controller_resource_cleanup" {
         svc_left=$${svc_left:-0}; nc_left=$${nc_left:-0}; ec2nc_left=$${ec2nc_left:-0}
         echo "  attempt $i/90: loadbalancer services=$svc_left, karpenter nodeclaims=$nc_left, ec2nodeclasses=$ec2nc_left"
         if [ "$svc_left" -eq 0 ] && [ "$nc_left" -eq 0 ] && [ "$ec2nc_left" -eq 0 ]; then
-          echo "controller-managed resources cleaned up"; exit 0
+          echo "controller-managed resources cleaned up"; break
+        fi
+        if [ "$i" -eq 90 ]; then
+          echo "WARNING: cleanup did not converge in 15m; VPC teardown may fail on lingering ENIs. Re-run 'tofu destroy'." >&2
         fi
         sleep 10
       done
-      echo "WARNING: cleanup did not converge in 15m; VPC teardown may fail on lingering ENIs. Re-run 'tofu destroy'." >&2
+
+      # PersistentVolumeClaims outlive their StatefulSets and helm releases, and
+      # once the cluster is gone nothing deletes the EBS volumes behind them. The
+      # nightly infratest cycle leaked ~850 volumes (15 TB) this way. Delete every
+      # PVC now, while the EBS CSI driver is still running (depends_on), so it
+      # deletes the volumes of PVs with reclaimPolicy=Delete. pvc-protection only
+      # counts scheduled pods, so deleting the pods that mount a claim releases it;
+      # any replacement pod stays Pending on the terminating claim.
+      echo "Deleting PVCs so the EBS CSI driver removes their volumes..."
+      kubectl delete pvc --all --all-namespaces --wait=false >/dev/null 2>&1 || true
+      kubectl get pods -A -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{" "}{range .spec.volumes[*]}{.persistentVolumeClaim.claimName}{end}{"\n"}{end}' 2>/dev/null \
+        | awk 'NF >= 3 {print $1" "$2}' \
+        | while read -r ns pod; do
+            kubectl delete pod "$pod" -n "$ns" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+          done
+      echo "Waiting up to 10m for dynamically provisioned volumes to be deleted..."
+      for i in $(seq 1 60); do
+        pv_left=$(kubectl get pv -o jsonpath='{range .items[?(@.spec.persistentVolumeReclaimPolicy=="Delete")]}{.metadata.name}{"\n"}{end}' 2>/dev/null | grep -c . || true)
+        pv_left=$${pv_left:-0}
+        echo "  attempt $i/60: persistent volumes left=$pv_left"
+        if [ "$pv_left" -eq 0 ]; then
+          echo "persistent volumes cleaned up"; exit 0
+        fi
+        sleep 10
+      done
+      echo "WARNING: some PVs were not deleted in 10m; their EBS volumes may be left behind (status=available)." >&2
       exit 0
     EOT
   }
@@ -123,10 +152,13 @@ resource "terraform_data" "controller_resource_cleanup" {
   #     DescribeInstances i/o timeout) and can never terminate the nodes or delete
   #     the NLB. Referencing count=0 network resources (customer-supplied VPC) is
   #     a harmless empty set.
+  #   - EBS CSI driver add-on and its IAM policy: alive to delete PVC volumes.
   depends_on = [
     helm_release.karpenter,
     helm_release.karpenter_nodepools,
     helm_release.aws_load_balancer_controller,
+    aws_eks_addon.aws_ebs_csi_driver,
+    aws_iam_role_policy_attachment.ebs_csi_driver,
     module.zipline_orchestration,
     aws_route_table_association.public,
     aws_route_table.public,
