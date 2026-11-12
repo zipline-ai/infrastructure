@@ -23,9 +23,17 @@ locals {
       namespace = local.orchestration_namespace
     }
     spec = {
-      selector = { matchLabels = { app = "hub" } }
+      # The chart labels the Hub pod `app: orchestration-hub`, not `app: hub` — this selected
+      # nothing for the life of the file, and `up{job="zipline-hub"}` had no target on
+      # crucible-gke. The fetcher's selector happens to match its pod, which is why only it
+      # reported and the gap went unnoticed.
+      selector = { matchLabels = { app = "orchestration-hub" } }
       endpoints = [{
-        port     = tostring(local.hub_metrics_port)
+        # The port name, for the same reason as kube-state-metrics below: tostring of a number
+        # renders a quoted string into an IntOrString, which is read as a port *named* "8905".
+        # The Hub container names this port `metrics`. Fixing the selector alone left it with
+        # still no target; both had to change.
+        port     = "metrics"
         interval = "30s"
         path     = "/metrics"
       }]
@@ -37,9 +45,6 @@ locals {
   # pod_exporter job reads and GMP ignores. Without this CR the kube_* series exist nowhere
   # on GCP, and /monitor/crucible — which queries kube_node_info, kube_pod_info,
   # kube_pod_status_phase, kube_pod_status_ready and kube_resourcequota — renders empty.
-  #
-  # Port 8080 rather than the "http" port name: 8080 is the value the annotations already
-  # pin on the AWS path, so the two clouds scrape the same endpoint.
   #
   # ClusterPodMonitoring, not PodMonitoring: KSM is a cluster-wide exporter, and its
   # namespace is not something this file should depend on.
