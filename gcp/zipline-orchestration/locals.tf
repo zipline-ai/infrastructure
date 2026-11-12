@@ -19,7 +19,10 @@ locals {
     autoscaling_profile                 = "OPTIMIZE_UTILIZATION"
     storage_class                       = "premium-rwo"
     logging_components                  = ["APISERVER", "CONTROLLER_MANAGER", "SCHEDULER", "SYSTEM_COMPONENTS", "WORKLOADS"]
-    monitoring_components               = ["SYSTEM_COMPONENTS", "APISERVER", "SCHEDULER", "CONTROLLER_MANAGER", "STORAGE", "HPA", "POD", "DAEMONSET", "DEPLOYMENT", "STATEFULSET"]
+    # CADVISOR/KUBELET are what put container_cpu_* / container_memory_* in GMP at all — the
+    # AWS stack gets them from the `cadvisor` job in aws/zipline-orchestration/observability.tf,
+    # and /monitor/crucible's container CPU-throttling and working-set charts read them.
+    monitoring_components               = ["SYSTEM_COMPONENTS", "APISERVER", "SCHEDULER", "CONTROLLER_MANAGER", "STORAGE", "HPA", "POD", "DAEMONSET", "DEPLOYMENT", "STATEFULSET", "CADVISOR", "KUBELET"]
     shared_warehouse_bucket             = ""
     additional_data_buckets             = []
     additional_flink_buckets            = []
