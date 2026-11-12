@@ -60,6 +60,28 @@ cp public-demo.auto.tfvars.example public-demo.auto.tfvars
 ../../push_public_demo_config.sh
 ```
 
+The public-demo example records the October 14 stats-prefix patch:
+
+- `orchestration.values.orchestration.hub.imageOverride` pins the full ECR digest
+  for `prefix-d7b84d527-redis-d958ecac0-spark4` (Platform `d7b84d527`, Chronon
+  `crf-redis-password` at `d958ecac0`). This Hub image is built for amd64.
+- `orchestration.values.compute.sparkImage` and the Hub's `CRUCIBLE_JAR_URI`
+  select the matching `redis-auth-d958ecac0` Spark image and library JAR.
+- `aws.kv_table_prefix = "PUBLIC_DEMO_"` reaches both Hub and Fetcher, including
+  when Redis is enabled.
+
+Keep these settings in the existing private `public-demo.auto.tfvars`; do not
+replace its environment-specific settings with the example. Back up that private
+config with `../../push_public_demo_config.sh`, then use the usual `tofu plan`
+and reviewed `tofu apply` workflow. The example contains no credentials. Remove
+the Hub image override and update the Spark image/JAR together when a release
+includes both fixes.
+
+The pinned Hub still forwards `REDIS_PASSWORD` in submission arguments. This
+configuration preserves the checkout's Spark `secretKeyRef` wiring, but removing
+the plaintext argument also requires a separate Platform change; image pinning
+does not resolve that exposure.
+
 The public demo should keep datasource buckets in
 `../public-demo-datasources` and reset only this orchestration layer weekly.
 

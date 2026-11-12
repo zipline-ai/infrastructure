@@ -41,7 +41,7 @@ spec:
       {{- end }}
       containers:
         - name: orchestration-hub
-          image: "{{ required "orchestration.hub.image is required" .Values.orchestration.hub.image }}:{{ include "zipline-orchestration.spark4Version" . }}"
+          image: {{ include "zipline-orchestration.hubImage" . | quote }}
           imagePullPolicy: Always
           env:
             - name: VERTICLE_CLASS

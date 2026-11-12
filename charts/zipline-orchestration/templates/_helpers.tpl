@@ -42,21 +42,30 @@ Spark 4 image; immutable and release tags use the explicit -spark4 suffix.
 {{- end -}}
 {{- end }}
 
-{{/* Crucible supports only the shared Spark 4 compute images. */}}
+{{/* A complete Hub image reference can pin a hotfix without changing other services. */}}
+{{- define "zipline-orchestration.hubImage" -}}
+{{- if .Values.orchestration.hub.imageOverride -}}
+{{- .Values.orchestration.hub.imageOverride -}}
+{{- else -}}
+{{- printf "%s:%s" (required "orchestration.hub.image is required" .Values.orchestration.hub.image) (include "zipline-orchestration.spark4Version" .) -}}
+{{- end -}}
+{{- end }}
+
+{{/* Spark overrides must use a compatible Spark 4 image. */}}
 {{- define "zipline-orchestration.sparkImage" -}}
-{{- "ziplineai/spark:nightly" -}}
+{{- .Values.compute.sparkImage | default "ziplineai/spark:nightly" -}}
 {{- end }}
 
 {{- define "zipline-orchestration.flinkImage" -}}
 {{- "ziplineai/flink:1.20.3-spark4" -}}
 {{- end }}
 
-{{/* Prevent runtime env from bypassing the fixed Crucible compute images. */}}
+{{/* Keep compute image selection in chart values rather than duplicate runtime env entries. */}}
 {{- define "zipline-orchestration.validateComputeImageEnv" -}}
 {{- range concat (.Values.runtime.env | default list) (.Values.orchestration.hub.env | default list) -}}
 {{- $name := .name | default "" -}}
 {{- if or (eq $name "CRUCIBLE_SPARK_IMAGE") (eq $name "CRUCIBLE_FLINK_IMAGE") -}}
-{{- fail (printf "%s is fixed by the Crucible chart and cannot be overridden" $name) -}}
+{{- fail (printf "%s is managed by the Crucible chart and cannot be overridden through env" $name) -}}
 {{- end -}}
 {{- end -}}
 {{- end }}
