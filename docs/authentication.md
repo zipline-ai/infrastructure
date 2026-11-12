@@ -127,7 +127,7 @@ created secret uses the hyphenated names in the table.
    The Azure wrapper does not populate these application auth credentials for you.
 5. Apply the configuration and check ESO readiness before testing login.
 
-See [Azure secrets](../azure/zipline-orchestration/README.md#secrets).
+See [Azure secrets](../azure/zipline-orchestration/README.md#key-vault-and-secrets).
 
 ## Google OAuth
 
