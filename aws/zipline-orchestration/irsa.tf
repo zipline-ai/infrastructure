@@ -279,6 +279,22 @@ data "aws_iam_policy_document" "spark_compute_s3_policy" {
       ]
     ])
   }
+
+  dynamic "statement" {
+    for_each = local.cloud_args.shared_warehouse_bucket != "" ? [1] : []
+    content {
+      effect = "Allow"
+      actions = [
+        "s3:GetBucketLocation",
+        "s3:GetObject",
+        "s3:ListBucket",
+      ]
+      resources = [
+        "arn:aws:s3:::${local.cloud_args.shared_warehouse_bucket}",
+        "arn:aws:s3:::${local.cloud_args.shared_warehouse_bucket}/*",
+      ]
+    }
+  }
 }
 
 resource "aws_iam_policy" "spark_compute_s3" {
