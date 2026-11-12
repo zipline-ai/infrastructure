@@ -9,18 +9,8 @@
 {{- $labels := merge (dict) ($defaults.labels | default dict) ($namespace.labels | default dict) }}
 {{- $annotations := merge (dict) ($defaults.annotations | default dict) ($namespace.annotations | default dict) }}
 {{- $quota := $namespace.resourceQuota | default ($defaults.resourceQuota | default dict) }}
-{{- $quotaEnabled := true }}
-{{- if hasKey $quota "enabled" }}
-{{- $quotaEnabled = $quota.enabled }}
-{{- end }}
 {{- $quotaHard := $quota.hard | default dict }}
 {{- $modeQuotas := get ($root.Values.compute.modeResourceQuotas | default dict) $name | default dict }}
-{{- $limitRange := $namespace.limitRange | default ($defaults.limitRange | default dict) }}
-{{- $limitRangeEnabled := true }}
-{{- if hasKey $limitRange "enabled" }}
-{{- $limitRangeEnabled = $limitRange.enabled }}
-{{- end }}
-{{- $limitRangeHasSpec := or (gt (len ($limitRange.default | default dict)) 0) (gt (len ($limitRange.defaultRequest | default dict)) 0) (gt (len ($limitRange.min | default dict)) 0) (gt (len ($limitRange.max | default dict)) 0) (gt (len ($limitRange.maxLimitRequestRatio | default dict)) 0) }}
 ---
 apiVersion: v1
 kind: Namespace

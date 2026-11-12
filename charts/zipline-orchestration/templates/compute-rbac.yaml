@@ -9,6 +9,6 @@
 # teams created at runtime — so a static namespace and a Hub-created one cannot differ.
 {{- range $namespace := $namespaces }}
 {{- $jobNamespace := $namespace.name | default (include "zipline-orchestration.computeDefaultNamespace" $root) }}
-{{- include "zipline-orchestration.computeNamespaceResources" (dict "root" $root "namespace" $jobNamespace "team" $namespace.team "overrides" $namespace) }}
+{{- include "zipline-orchestration.computeNamespaceResources" (dict "root" $root "namespace" $jobNamespace "overrides" $namespace) }}
 {{- end }}
 {{- end }}

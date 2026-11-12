@@ -1,4 +1,4 @@
-{{- if and .Values.compute.rbac.create .Values.compute.rbac.namespaceProvisioning.enabled }}
+{{- if and .Values.compute.rbac.create .Values.compute.teamNamespaces.enabled }}
 # Lets the Hub create a compute namespace per team when a team is written, instead of the namespace
 # set being a static list in this chart's values.
 #

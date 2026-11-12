@@ -12,7 +12,6 @@ renders, because both come from here.
 Call with a dict of:
   root      the chart context
   namespace the namespace name, or the placeholder token for the template
-  team      optional team label value
   overrides optional per-namespace dict from .Values.compute.namespaces (quota, limitRange, …)
 */}}
 {{- define "zipline-orchestration.computeNamespaceResources" -}}

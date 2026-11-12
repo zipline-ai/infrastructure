@@ -1,4 +1,4 @@
-{{- if and .Values.compute.rbac.create .Values.compute.rbac.namespaceProvisioning.enabled }}
+{{- if and .Values.compute.rbac.create .Values.compute.teamNamespaces.enabled }}
 # What the Hub stamps out for a team created at runtime.
 #
 # The same helper compute-rbac.yaml renders per namespace in values, rendered once here with a

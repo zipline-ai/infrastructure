@@ -253,7 +253,6 @@ reachable.
 {{- end -}}
 {{- end }}
 
-
 {{/*
 The token the compute-namespace template carries where a namespace name goes, which the Hub
 replaces before applying. Defined once and published in the ConfigMap itself, so the Hub reads it

@@ -16,7 +16,7 @@ spec:
       app: orchestration-hub
   template:
     metadata:
-      {{- $provisioning := and .Values.compute.rbac.create .Values.compute.rbac.namespaceProvisioning.enabled }}
+      {{- $provisioning := and .Values.compute.rbac.create .Values.compute.teamNamespaces.enabled }}
       {{- if or .Values.orchestration.hub.podAnnotations $provisioning }}
       annotations:
         {{- with .Values.orchestration.hub.podAnnotations }}
@@ -89,8 +89,8 @@ spec:
               value: {{ include "zipline-orchestration.sparkImage" . | quote }}
             - name: CRUCIBLE_SPARK_SERVICE_ACCOUNT
               value: "{{ .Values.compute.serviceAccount.sparkName }}"
-            {{- if .Values.compute.teamNamespaceReconcile.enabled }}
-            - name: CRUCIBLE_TEAM_NAMESPACE_RECONCILE_ENABLED
+            {{- if .Values.compute.teamNamespaces.enabled }}
+            - name: CRUCIBLE_TEAM_NAMESPACES_ENABLED
               value: "true"
             {{- /* Where the mounted template lives. Everything a compute namespace contains is in
                    there — service accounts and their workload-identity annotations, RoleBindings,
@@ -175,13 +175,13 @@ spec:
               port: {{ .Values.orchestration.hub.port }}
             initialDelaySeconds: 10
             periodSeconds: 5
-          {{- if and .Values.compute.rbac.create .Values.compute.rbac.namespaceProvisioning.enabled }}
+          {{- if and .Values.compute.rbac.create .Values.compute.teamNamespaces.enabled }}
           volumeMounts:
             - name: compute-namespace-template
               mountPath: /etc/zipline/compute-namespace
               readOnly: true
           {{- end }}
-      {{- if and .Values.compute.rbac.create .Values.compute.rbac.namespaceProvisioning.enabled }}
+      {{- if and .Values.compute.rbac.create .Values.compute.teamNamespaces.enabled }}
       volumes:
         - name: compute-namespace-template
           configMap:
