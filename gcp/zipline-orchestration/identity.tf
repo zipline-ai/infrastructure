@@ -115,24 +115,16 @@ resource "google_service_account_iam_member" "orchestration_wi" {
   member             = "serviceAccount:${local.wi_pool}[${local.orchestration_namespace}/${local.orchestration_service_account}]"
 }
 
-# Spark/Flink KSAs live in per-team compute namespaces (orchestration.compute.
-# namespaces), and the Hub creates a namespace per team on team sync — so the
-# set is no longer known at apply time and a for_each over it cannot cover it.
+# One cluster-scoped principalSet per GSA, because the Hub creates a namespace
+# per team on team sync: the set is not known at apply time, so a for_each over
+# it cannot cover it. The namespace-scoped principalSet form is rejected on the
+# default WI pool; the kubernetes.cluster form is not.
 #
-# One cluster-scoped principalSet per GSA covers every namespace in the cluster
-# instead. An earlier comment here held that the default WI pool rejects
-# principalSet members; that is true of the *namespace*-scoped form, but the
-# kubernetes.cluster form below is accepted — verified on crucible-gke, where a
-# KSA in a namespace with no binding of its own minted a token for the bound
-# GSA. This is the impersonation model (roles/iam.workloadIdentityUser), not
-# direct resource access, so the Cloud Storage restrictions on that variant do
-# not apply.
-#
-# The trade-off, taken deliberately: this covers every namespace in the cluster
-# — kube-system included — not just the zipline- prefixed ones. The alternative,
-# the Hub writing an IAM binding per namespace, needs read-modify-write with
-# etag retries, tolerates propagation delay on a new namespace's first job, and
-# breaks silently if this file ever moves to google_service_account_iam_binding.
+# The trade-off, taken deliberately: this covers every namespace in the cluster,
+# kube-system included. Having the Hub write a binding per namespace instead
+# needs read-modify-write with etag retries, tolerates propagation delay on a
+# new namespace's first job, and breaks silently if this file ever moves to
+# google_service_account_iam_binding.
 resource "google_service_account_iam_member" "spark_wi" {
   service_account_id = google_service_account.spark.name
   role               = "roles/iam.workloadIdentityUser"
