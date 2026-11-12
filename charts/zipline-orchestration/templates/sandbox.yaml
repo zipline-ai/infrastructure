@@ -32,7 +32,7 @@ spec:
         fsGroup: 1001
       containers:
         - name: sandbox
-          image: "{{ .Values.orchestration.sandbox.image }}:{{ .Values.global.version }}"
+          image: "{{ .Values.orchestration.sandbox.image }}:{{ .Values.orchestration.sandbox.tag | default .Values.global.version }}"
           imagePullPolicy: Always
           args: ["uvicorn", "zipline_sandbox.app:app", "--host", "0.0.0.0", "--port", {{ .Values.orchestration.sandbox.port | quote }}]
           env:
@@ -40,6 +40,8 @@ spec:
               value: {{ .Values.auth.enabled | quote }}
             - name: AUTH_JWKS_URL
               value: "http://orchestration-ui-service/api/auth/jwks"
+            - name: AUTH_JWT_AUDIENCE
+              value: {{ .Values.auth.url | default (include "zipline-orchestration.uiOrigin" .) | quote }}
             - name: SANDBOX_ZIPLINE_CLI
               value: {{ .Values.orchestration.sandbox.cli | quote }}
           ports:
