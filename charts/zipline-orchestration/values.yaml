@@ -588,6 +588,46 @@ kube-state-metrics:
     - "pods=[zipline.ai/team,zipline.ai/engine,zipline.ai/role,zipline.ai/workload,zipline.ai/mode,crucible.ai/type]"
     - "nodes=[karpenter.sh/nodepool,karpenter.sh/capacity-type,zipline.ai/team,zipline.ai/node-pool]"
     - "namespaces=[zipline.ai/team,zipline.ai/namespace-type]"
+  rbac:
+    extraRules:
+      - apiGroups: ["karpenter.sh"]
+        resources: ["nodeclaims"]
+        verbs: ["list", "watch"]
+  # Karpenter's own metrics don't say why a NodeClaim failed to launch
+  # (e.g. UnfulfillableCapacity); the Launched condition reason does.
+  customResourceState:
+    enabled: true
+    config:
+      kind: CustomResourceStateMetrics
+      spec:
+        resources:
+          - groupVersionKind: {group: karpenter.sh, version: v1, kind: NodeClaim}
+            metricNamePrefix: karpenter_nodeclaim
+            labelsFromPath:
+              nodeclaim: [metadata, name]
+              nodepool: [metadata, labels, karpenter.sh/nodepool]
+              capacity_type: [metadata, labels, karpenter.sh/capacity-type]
+              instance_type: [metadata, labels, node.kubernetes.io/instance-type]
+              zone: [metadata, labels, topology.kubernetes.io/zone]
+            metrics:
+              - name: status_condition
+                help: "NodeClaim status conditions; 1 for the condition's current status, with Karpenter's reason."
+                each:
+                  type: StateSet
+                  stateSet:
+                    path: [status, conditions]
+                    labelName: status
+                    list: ["True", "False", "Unknown"]
+                    valueFrom: [status]
+                    labelsFromPath:
+                      type: [type]
+                      reason: [reason]
+              - name: created_timestamp_seconds
+                help: "NodeClaim creation time (unix seconds)."
+                each:
+                  type: Gauge
+                  gauge:
+                    path: [metadata, creationTimestamp]
   resources:
     requests:
       cpu: 50m
