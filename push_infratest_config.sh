@@ -2,26 +2,18 @@
 set -euo pipefail
 
 # Uploads the git-ignored infratest orchestration config (backend + tfvars) from
-# aws/zipline-orchestration/ to S3. Run this after editing the local config so the
-# nightly AWS e2e workflow picks it up. Minimal mirror of push_crucible_config.sh.
+# <cloud>/zipline-orchestration/. Run this after editing the local config so the
+# nightly e2e workflow picks it up. Minimal mirror of push_crucible_config.sh.
+# Usage: push_infratest_config.sh [aws|gcp]   (default: aws)
 
-bucket="${INFRATEST_CONFIG_BUCKET:-infratest-opentofu-state}"
-prefix="${INFRATEST_CONFIG_PREFIX:-config}"
+cloud="${1:-aws}"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-src="${INFRATEST_CONFIG_ROOT:-${repo_root}/aws/zipline-orchestration}"
-profile="${INFRATEST_PROFILE:-}"
+source "${repo_root}/infratest_config_common.sh"
+src="${INFRATEST_CONFIG_ROOT:-${repo_root}/${cloud}/zipline-orchestration}"
 
-aws_cli() {
-  if [ -n "${profile:-}" ]; then
-    aws --profile "${profile}" "$@"
-  else
-    aws "$@"
-  fi
-}
-
-for f in backend.hcl infratest.auto.tfvars .terraform.lock.hcl; do
+for f in "${config_files[@]}"; do
   [ -f "${src}/${f}" ] || { echo "Missing ${src}/${f}" >&2; exit 1; }
-  aws_cli s3 cp "${src}/${f}" "s3://${bucket}/${prefix}/${f}"
+  copy_config "${src}/${f}" "${config_uri}/${f}"
 done
 
-echo "Pushed infratest config to s3://${bucket}/${prefix}."
+echo "Pushed ${cloud} infratest config to ${config_uri}."
