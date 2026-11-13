@@ -199,3 +199,95 @@ locals {
     tolerations = local.karpenter_compute_node_pools["spark-driver"].taints
   }
 }
+
+# Ray GPU execution profiles (platform contracts/training-v1 "Profile placement
+# interface"). A profile is a named pair of Karpenter pools that a Ray training
+# job opts into with `ray.placement.profile=<name>`:
+#   - <name>          GPU workers: role=worker, pinned instance types
+#   - <name>-control  CPU head/submitter: role=control, small c/m/r instances
+# Both carry zipline.ai/engine=ray, zipline.ai/execution-profile=<name> and the
+# zipline.ai/workload=ray-<name>:NoSchedule taint the Hub tolerates. Both scale
+# from zero and reclaim empty nodes after a minute, so an idle profile costs
+# nothing. The control pool is profile-owned rather than labels on a shared
+# managed node group: a node group can carry only one execution-profile value,
+# and any apply of that node group from a branch without the labels strands
+# running heads.
+#
+# Configure under aws.karpenter.ray_gpu_profiles, e.g.
+#   "ray_gpu_profiles": {
+#     "s6e11-l40s": { "instance_types": ["g6e.xlarge", "g5.xlarge"], "max_gpus": 1 }
+#   }
+# Optional per profile: capacity_type ("on-demand"), expire_after ("48h"),
+# worker_limits / control_limits (merged over the defaults below).
+locals {
+  ray_gpu_profiles = try(local.karpenter.ray_gpu_profiles, {})
+  ray_gpu_profile_pools = {
+    for name, profile in local.ray_gpu_profiles : name => {
+      worker = {
+        name = name
+        labels = {
+          "zipline.ai/engine"            = "ray"
+          "zipline.ai/role"              = "worker"
+          "zipline.ai/execution-profile" = name
+        }
+        taints = [{ key = "zipline.ai/workload", value = "ray-${name}", effect = "NoSchedule" }]
+        requirements = [
+          { key = "kubernetes.io/os", operator = "In", values = ["linux"] },
+          { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
+          { key = "karpenter.sh/capacity-type", operator = "In", values = [try(profile.capacity_type, "on-demand")] },
+          { key = "node.kubernetes.io/instance-type", operator = "In", values = tolist(profile.instance_types) },
+        ]
+        # The GPU limit is the hard ceiling on concurrent GPUs for this profile;
+        # merged last so worker_limits cannot raise it.
+        limits                 = merge(try(profile.worker_limits, {}), { "nvidia.com/gpu" = tostring(profile.max_gpus) })
+        expireAfter            = try(profile.expire_after, "48h")
+        terminationGracePeriod = "5m"
+        disruption             = { consolidationPolicy = "WhenEmpty", consolidateAfter = "1m" }
+      }
+      control = {
+        name = "${name}-control"
+        labels = {
+          "zipline.ai/engine"            = "ray"
+          "zipline.ai/role"              = "control"
+          "zipline.ai/execution-profile" = name
+        }
+        taints = [{ key = "zipline.ai/workload", value = "ray-${name}", effect = "NoSchedule" }]
+        requirements = [
+          { key = "kubernetes.io/os", operator = "In", values = ["linux"] },
+          { key = "kubernetes.io/arch", operator = "In", values = ["amd64"] },
+          { key = "karpenter.sh/capacity-type", operator = "In", values = ["on-demand"] },
+          { key = "karpenter.k8s.aws/instance-category", operator = "In", values = ["c", "m", "r"] },
+          { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = ["5"] },
+        ]
+        limits                 = merge({ cpu = "32", memory = "128Gi" }, try(profile.control_limits, {}))
+        expireAfter            = try(profile.expire_after, "48h")
+        terminationGracePeriod = "5m"
+        disruption             = { consolidationPolicy = "WhenEmpty", consolidateAfter = "1m" }
+      }
+    }
+  }
+  ray_gpu_profile_field_errors = flatten([
+    for name, profile in local.ray_gpu_profiles : concat(
+      can(regex("^[a-z0-9]([a-z0-9-]{0,40}[a-z0-9])?$", name)) ? [] : ["${name}: profile name must be a lowercase DNS label of at most 42 characters"],
+      length(try(tolist(profile.instance_types), [])) > 0 ? [] : ["${name}: instance_types must be a non-empty list"],
+      try(floor(profile.max_gpus) == profile.max_gpus && profile.max_gpus > 0, false) ? [] : ["${name}: max_gpus must be a positive integer"],
+      contains(["on-demand", "spot"], try(profile.capacity_type, "on-demand")) ? [] : ["${name}: capacity_type must be on-demand or spot"],
+      can(regex("^[0-9]+h$", try(profile.expire_after, "48h"))) ? [] : ["${name}: expire_after must be whole hours, e.g. 48h"],
+    )
+  ])
+  # NodePools are cluster-scoped and each profile is a Helm release in the
+  # Karpenter namespace: generated names must not collide with the shared pools,
+  # the Karpenter releases, or another profile (e.g. "x" and "x-control").
+  ray_gpu_pool_names = flatten([for name in keys(local.ray_gpu_profiles) : [name, "${name}-control"]])
+  ray_gpu_reserved_names = concat(
+    [for key, pool in local.karpenter_node_pool_inputs : try(pool.name, key)],
+    [try(local.karpenter.release_name, "karpenter"), "${try(local.karpenter.release_name, "karpenter")}-nodepools"],
+  )
+  ray_gpu_profile_errors = concat(
+    local.ray_gpu_profile_field_errors,
+    [for name in distinct(local.ray_gpu_pool_names) : "${name}: name collides with a shared NodePool or Karpenter release" if contains(local.ray_gpu_reserved_names, name)],
+    [for name in distinct(local.ray_gpu_pool_names) : "${name}: NodePool name is generated by more than one profile" if length([for other in local.ray_gpu_pool_names : other if other == name]) > 1],
+  )
+  # Namespace => max concurrent GPU requests. Optional cost/concurrency bound.
+  ray_gpu_namespace_quotas = try(local.karpenter.ray_gpu_namespace_quotas, {})
+}

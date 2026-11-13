@@ -1,5 +1,13 @@
+data "google_project" "current" {
+  project_id = local.cloud_args.project_id
+}
+
 locals {
   wi_pool = "${local.cloud_args.project_id}.svc.id.goog"
+
+  # Keyed off the cluster resource, not the name variable, so the binding cannot
+  # name a cluster this stack did not create.
+  cluster_self_link = "https://container.googleapis.com/v1/projects/${local.cloud_args.project_id}/locations/${google_container_cluster.main.location}/clusters/${google_container_cluster.main.name}"
 
   # §7.2 bucket grant map:
   #   - orchestration/eval get objectAdmin on owned; objectViewer on shared +
@@ -107,27 +115,26 @@ resource "google_service_account_iam_member" "orchestration_wi" {
   member             = "serviceAccount:${local.wi_pool}[${local.orchestration_namespace}/${local.orchestration_service_account}]"
 }
 
-# Spark/Flink KSAs live in per-team compute namespaces (orchestration.compute.
-# namespaces). Bind each namespace's KSA explicitly rather than using a
-# principalSet — the GKE default WI pool only accepts "principal" (single KSA)
-# references, not namespace-wide "principalSet" wildcards. The plan's §7.1
-# principalSet note targets attribute mappings that aren't configurable on the
-# default pool; parity (new team namespace = tfvars edit, no new resource type)
-# comes from this for_each.
+# One cluster-scoped principalSet per GSA, because the Hub creates a namespace
+# per team on team sync: the set is not known at apply time, so a for_each over
+# it cannot cover it. The namespace-scoped principalSet form is rejected on the
+# default WI pool; the kubernetes.cluster form is not.
+#
+# The trade-off, taken deliberately: this covers every namespace in the cluster,
+# kube-system included. Having the Hub write a binding per namespace instead
+# needs read-modify-write with etag retries, tolerates propagation delay on a
+# new namespace's first job, and breaks silently if this file ever moves to
+# google_service_account_iam_binding.
 resource "google_service_account_iam_member" "spark_wi" {
-  for_each = { for ns in local.compute_namespaces : ns.name => ns }
-
   service_account_id = google_service_account.spark.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${local.wi_pool}[${each.value.name}/${local.spark_service_account}]"
+  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${local.wi_pool}/kubernetes.cluster/${local.cluster_self_link}"
 }
 
 resource "google_service_account_iam_member" "flink_wi" {
-  for_each = { for ns in local.compute_namespaces : ns.name => ns }
-
   service_account_id = google_service_account.flink.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${local.wi_pool}[${each.value.name}/${local.flink_service_account}]"
+  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${local.wi_pool}/kubernetes.cluster/${local.cluster_self_link}"
 }
 
 resource "google_service_account_iam_member" "eval_wi" {
@@ -190,13 +197,14 @@ resource "google_project_iam_member" "spark" {
   member  = "serviceAccount:${google_service_account.spark.email}"
 }
 
-# Flink GSA roles. Pub/Sub publisher is additive on top of what the plan lists
-# — most streaming sources live outside this stack, but the fetcher may publish
-# into Pub/Sub when offloaded. If unused, no cost.
+# Flink GSA roles. Pub/Sub editor lets jobs consume, read topic schemas for
+# pubsub_schema serde, and create their own subscriptions. Project-wide, like
+# the AWS Flink role's Kinesis read.
 resource "google_project_iam_member" "flink" {
   for_each = toset([
     "roles/bigtable.user",
     "roles/logging.logWriter",
+    "roles/pubsub.editor",
   ])
 
   project = local.cloud_args.project_id

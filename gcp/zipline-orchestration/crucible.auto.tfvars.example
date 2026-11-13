@@ -66,6 +66,7 @@
     "cluster_name": "crucible-gke",
     "warehouse_bucket": "zipline-warehouse-crucible",
     "shared_warehouse_bucket": "zipline-warehouse-canary",
+    "kv_bulk_uploader": "spark",
     "spark_libs_bucket": "zipline-spark-libs",
     "logs_bucket": "zipline-logs-crucible",
     "bigtable_instance": "zipline-crucible-instance",

@@ -263,6 +263,10 @@ locals {
   )
   extra_external_secret_arns = distinct(compact(concat(
     try(local.cloud_args.extra_secret_arns, []),
+    try(var.orchestration.agents.enable, false) ? compact([
+      try(var.orchestration.agents.anthropic_api_key_remote_ref.key, ""),
+      try(var.orchestration.agents.openai_api_key_remote_ref.key, ""),
+    ]) : [],
     trimspace(try(var.orchestration.conf_repo.url, "")) == "" ? [] : compact([
       try(var.orchestration.conf_repo.github_token_remote_ref.key, ""),
       try(var.orchestration.conf_repo.github_client_secret_remote_ref.key, ""),
@@ -438,25 +442,17 @@ locals {
         { name = "DATABRICKS_CLIENT_SECRET_VAULT_URI", value = aws_secretsmanager_secret.databricks_client_secret[0].arn },
         { name = "DATABRICKS_CREDENTIAL_VAULT_URI", value = aws_secretsmanager_secret.databricks_credential[0].arn },
       ],
-      [
-        {
-          name = "OC_CREDENTIAL"
-          valueFrom = {
-            secretKeyRef = {
-              name     = local.polaris_client_secret_name
-              key      = local.polaris_client_secret_key
-              optional = true
-            }
-          }
-        }
-      ],
+      [local.polaris_credential_env],
     )
     # Eval reads Databricks credentials from its own env for UC schema lookups and resolves
     # the secret's vault ref itself (orchestration IRSA already grants read on it).
-    eval_env = try(trimspace(local.cloud_args.databricks_client_id), "") == "" ? [] : [
-      { name = "DATABRICKS_CLIENT_ID", value = local.cloud_args.databricks_client_id },
-      { name = "DATABRICKS_CLIENT_SECRET_VAULT_URI", value = aws_secretsmanager_secret.databricks_client_secret[0].arn },
-    ]
+    eval_env = concat(
+      try(trimspace(local.cloud_args.databricks_client_id), "") == "" ? [] : [
+        { name = "DATABRICKS_CLIENT_ID", value = local.cloud_args.databricks_client_id },
+        { name = "DATABRICKS_CLIENT_SECRET_VAULT_URI", value = aws_secretsmanager_secret.databricks_client_secret[0].arn },
+      ],
+      [local.polaris_credential_env],
+    )
     ui_env = local.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.eks_log_group }]
     values = merge(
       local.provider_values,
@@ -500,6 +496,18 @@ locals {
     [local.cloud_args.encryption_kms_key_arn],
     values(local.cloud_args.encryption_kms_key_arns),
   )))
+  # Hub fills {OC_CREDENTIAL} in team confs for jobs; eval needs it too to read Polaris schemas for
+  # team-scoped catalogs. Optional so pods still start before the Polaris bootstrap writes the secret.
+  polaris_credential_env = {
+    name = "OC_CREDENTIAL"
+    valueFrom = {
+      secretKeyRef = {
+        name     = local.polaris_client_secret_name
+        key      = local.polaris_client_secret_key
+        optional = true
+      }
+    }
+  }
   artifact_bucket      = split("/", trimsuffix(trimprefix(trimspace(local.deployment.artifact_prefix), "s3://"), "/"))[0]
   logs_bucket          = local.cloud_args.logs_bucket != "" ? local.cloud_args.logs_bucket : "zipline-logs-${local.name_prefix}"
   glue_registry_name   = local.cloud_args.glue_schema_registry_name != "" ? local.cloud_args.glue_schema_registry_name : "zipline-${local.name_prefix}"

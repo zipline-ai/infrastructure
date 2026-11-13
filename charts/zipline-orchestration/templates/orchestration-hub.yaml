@@ -126,6 +126,11 @@ spec:
             - name: CHRONON_PROMETHEUS_SERVER_PORT
               value: {{ .Values.orchestration.hub.metricsPort | quote }}
             {{- end }}
+            {{- /* The hub only registers /dynamic/v1/* routes when EVAL_URL is set */}}
+            {{- if not (has "EVAL_URL" $configuredEnvNames) }}
+            - name: EVAL_URL
+              value: "http://eval-service"
+            {{- end }}
             {{- with .Values.runtime.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

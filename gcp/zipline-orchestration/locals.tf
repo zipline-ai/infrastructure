@@ -19,7 +19,10 @@ locals {
     autoscaling_profile                 = "OPTIMIZE_UTILIZATION"
     storage_class                       = "premium-rwo"
     logging_components                  = ["APISERVER", "CONTROLLER_MANAGER", "SCHEDULER", "SYSTEM_COMPONENTS", "WORKLOADS"]
-    monitoring_components               = ["SYSTEM_COMPONENTS", "APISERVER", "SCHEDULER", "CONTROLLER_MANAGER", "STORAGE", "HPA", "POD", "DAEMONSET", "DEPLOYMENT", "STATEFULSET"]
+    # CADVISOR/KUBELET are what put container_cpu_* / container_memory_* in GMP at all — the
+    # AWS stack gets them from the `cadvisor` job in aws/zipline-orchestration/observability.tf,
+    # and /monitor/crucible's container CPU-throttling and working-set charts read them.
+    monitoring_components               = ["SYSTEM_COMPONENTS", "APISERVER", "SCHEDULER", "CONTROLLER_MANAGER", "STORAGE", "HPA", "POD", "DAEMONSET", "DEPLOYMENT", "STATEFULSET", "CADVISOR", "KUBELET"]
     shared_warehouse_bucket             = ""
     additional_data_buckets             = []
     additional_flink_buckets            = []
@@ -36,6 +39,7 @@ locals {
     ingress_load_balancer_ip            = ""
     ingress_traffic_policy              = "Cluster"
     gke_deletion_protection             = true
+    gke_cost_allocation                 = true
     bucket_force_destroy                = false
     # Cloud SQL knobs
     database_name                       = "execution_info"
@@ -62,6 +66,9 @@ locals {
     bigtable_storage_target_gib         = 2560
     bigtable_deletion_protection        = true
     secret_deletion_protection          = true
+    # Bigtable bulk loader passed to jobs as UPLOADER. Set "spark" when teams write
+    # output to Polaris: the default BigQuery loader can't read Polaris tables.
+    kv_bulk_uploader                    = ""
     # DNS / Cloudflare (optional)
     cloudflare_record_name              = ""
   }, var.gcp)
@@ -116,6 +123,18 @@ locals {
   polaris_base_location      = "gs://${local.cloud_args.warehouse_bucket}/polaris/polaris_${local.name_prefix}/"
   polaris_client_secret_name = "polaris-client-credentials"
   polaris_client_secret_key  = "OC_CREDENTIAL"
+  # Hub fills {OC_CREDENTIAL} in team confs for jobs; eval needs it too to read Polaris schemas for
+  # team-scoped catalogs. Optional so pods still start before the Polaris bootstrap writes the secret.
+  polaris_credential_env = {
+    name = "OC_CREDENTIAL"
+    valueFrom = {
+      secretKeyRef = {
+        name     = local.polaris_client_secret_name
+        key      = local.polaris_client_secret_key
+        optional = true
+      }
+    }
+  }
 
   hub_metrics_reader   = try(var.orchestration.hub.chronon_metrics_reader, try(var.orchestration.hub.metricsReader, "prometheus"))
   hub_metrics_port     = try(var.orchestration.hub.metrics_port, try(var.orchestration.hub.metricsPort, 8905))
@@ -174,22 +193,17 @@ locals {
       { name = "CRUCIBLE_FLINK_JARS_BASE_PATH", value = local.flink_jars_base_path },
       { name = "LOG_PROVIDER", value = "gcp" },
     ],
-    [{
-      name = "OC_CREDENTIAL"
-      valueFrom = {
-        secretKeyRef = {
-          name     = local.polaris_client_secret_name
-          key      = local.polaris_client_secret_key
-          optional = true
-        }
-      }
-    }],
+    trimspace(local.cloud_args.kv_bulk_uploader) == "" ? [] : [
+      { name = "KV_BULK_UPLOADER", value = trimspace(local.cloud_args.kv_bulk_uploader) },
+    ],
+    [local.polaris_credential_env],
   )
 
   # Eval reads project-id so BigQuery SDK/jobs resolve the current project
   # without extra config.
   eval_env = [
     { name = "GCP_PROJECT_ID", value = local.cloud_args.project_id },
+    local.polaris_credential_env,
   ]
 
   # UI knob (§11): the UI *queries* Managed Prometheus; the hub stays on
@@ -401,6 +415,13 @@ locals {
         nodeSelector = local.system_node_selector
         tolerations  = local.system_node_tolerations
       }
+    }
+
+    nodepoolExporter = {
+      enabled      = true
+      clusterName  = local.cluster_name
+      nodeSelector = local.system_node_selector
+      tolerations  = local.system_node_tolerations
     }
 
     "ingress-nginx-ui" = {
