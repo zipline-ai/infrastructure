@@ -53,6 +53,7 @@ locals {
   bigtable_kv_tables = {
     GROUPBY_BATCH                  = { max_age_hours = 120, max_versions = 10000 }
     GROUPBY_STREAMING              = { max_age_hours = 120, max_versions = 10000 }
+    GROUPBY_PUSH                   = { max_age_hours = 120, max_versions = 10000 }
     TILE_SUMMARIES                 = { max_age_hours = 120, max_versions = 10000 }
     CHRONON_METADATA               = { max_age_hours = 120, max_versions = 10000 }
     DATA_QUALITY_METRICS_BATCH     = { max_age_hours = 120, max_versions = 10000 }
