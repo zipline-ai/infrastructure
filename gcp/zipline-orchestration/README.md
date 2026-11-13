@@ -167,6 +167,12 @@ StarRocks cluster, inspect its persisted storage volumes before applying. Changi
 FE configuration does not constitute a migration of existing S3-type storage
 volumes to GS. Plan that migration separately; do not delete PVCs or stored data.
 
+## Sandbox network isolation
+
+Sandbox networking uses an allowlisted egress proxy and NetworkPolicies.
+See the [sandbox network guide](../../charts/zipline-orchestration/SANDBOX.md#sandbox-network-isolation)
+for configuration, cluster enforcement, and rollout considerations.
+
 ## Agents UI configuration
 
 Set `orchestration.agents.enable = true` to add `AGENTS=true` and
