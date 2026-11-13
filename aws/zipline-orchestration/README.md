@@ -320,8 +320,8 @@ GPU instance types, which supplies the driver and container runtime.
 
 ```json
 "karpenter": {
-  "ray_gpu_profiles": { "s6e11-l40s": { "instance_types": ["g6e.xlarge", "g5.xlarge"], "max_gpus": 1 } },
-  "ray_gpu_namespace_quotas": { "zipline-default": 1 }
+  "ray_gpu_profiles": { "s6e11-l40s": { "instance_types": ["g6e.xlarge", "g5.xlarge"], "max_gpus": 5 } },
+  "ray_gpu_namespace_quotas": { "zipline-default": 5 }
 }
 ```
 
