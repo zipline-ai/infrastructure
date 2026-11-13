@@ -123,6 +123,18 @@ locals {
   polaris_base_location      = "gs://${local.cloud_args.warehouse_bucket}/polaris/polaris_${local.name_prefix}/"
   polaris_client_secret_name = "polaris-client-credentials"
   polaris_client_secret_key  = "OC_CREDENTIAL"
+  # Hub fills {OC_CREDENTIAL} in team confs for jobs; eval needs it too to read Polaris schemas for
+  # team-scoped catalogs. Optional so pods still start before the Polaris bootstrap writes the secret.
+  polaris_credential_env = {
+    name = "OC_CREDENTIAL"
+    valueFrom = {
+      secretKeyRef = {
+        name     = local.polaris_client_secret_name
+        key      = local.polaris_client_secret_key
+        optional = true
+      }
+    }
+  }
 
   hub_metrics_reader   = try(var.orchestration.hub.chronon_metrics_reader, try(var.orchestration.hub.metricsReader, "prometheus"))
   hub_metrics_port     = try(var.orchestration.hub.metrics_port, try(var.orchestration.hub.metricsPort, 8905))
@@ -184,22 +196,14 @@ locals {
     trimspace(local.cloud_args.kv_bulk_uploader) == "" ? [] : [
       { name = "KV_BULK_UPLOADER", value = trimspace(local.cloud_args.kv_bulk_uploader) },
     ],
-    [{
-      name = "OC_CREDENTIAL"
-      valueFrom = {
-        secretKeyRef = {
-          name     = local.polaris_client_secret_name
-          key      = local.polaris_client_secret_key
-          optional = true
-        }
-      }
-    }],
+    [local.polaris_credential_env],
   )
 
   # Eval reads project-id so BigQuery SDK/jobs resolve the current project
   # without extra config.
   eval_env = [
     { name = "GCP_PROJECT_ID", value = local.cloud_args.project_id },
+    local.polaris_credential_env,
   ]
 
   # UI knob (§11): the UI *queries* Managed Prometheus; the hub stays on
