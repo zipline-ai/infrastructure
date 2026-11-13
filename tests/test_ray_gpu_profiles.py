@@ -33,7 +33,7 @@ def evaluate(karpenter):
         shutil.copyfile(AWS / "node-pools.tf", fixture / "node-pools.tf")
         (fixture / "main.tf").write_text('''
 variable "aws" { type = any }
-locals { karpenter = merge({ enabled = true }, try(var.aws.karpenter, {})) }
+locals { karpenter = merge({ enabled = true, release_name = "karpenter" }, try(var.aws.karpenter, {})) }
 ''')
         (fixture / "terraform.tfvars.json").write_text(json.dumps({"aws": {"karpenter": karpenter}}))
         result = subprocess.run(
@@ -132,6 +132,11 @@ class RayGpuProfileTest(unittest.TestCase):
                       pools["control"]["requirements"])
         self.assertEqual(result["quotas"], {"zipline-default": 8})
 
+    def test_worker_limits_cannot_raise_gpu_cap(self):
+        result = evaluate({"ray_gpu_profiles": {"capped": {
+            **PROFILE, "worker_limits": {"nvidia.com/gpu": "8", "cpu": "16"}}}})
+        self.assertEqual(result["pools"]["capped"]["worker"]["limits"], {"nvidia.com/gpu": "1", "cpu": "16"})
+
     def test_invalid_profiles_are_reported(self):
         errors = evaluate({"ray_gpu_profiles": {
             "Bad_Name": PROFILE,
@@ -144,6 +149,19 @@ class RayGpuProfileTest(unittest.TestCase):
         self.assertEqual(len(errors), 6, errors)
         for name in ("Bad_Name", "no-types", "zero", "fractional", "minutes", "reserved"):
             self.assertTrue(any(e.startswith(name + ":") for e in errors), (name, errors))
+
+    def test_generated_names_must_not_collide(self):
+        errors = evaluate({"ray_gpu_profiles": {
+            "ray-worker": PROFILE,        # shared worker pool
+            "ray": PROFILE,               # ray-control is a shared pool
+            "training": PROFILE,          # training-control generated twice
+            "training-control": PROFILE,
+            "karpenter": PROFILE,         # Karpenter Helm release
+            "fine": PROFILE,
+        }})["errors"]
+        for name in ("ray-worker:", "ray-control:", "training-control:", "karpenter:"):
+            self.assertTrue(any(e.startswith(name) for e in errors), (name, errors))
+        self.assertFalse(any(e.startswith("fine") for e in errors), errors)
 
 
 if __name__ == "__main__":

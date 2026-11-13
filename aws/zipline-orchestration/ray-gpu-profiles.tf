@@ -91,6 +91,9 @@ resource "kubernetes_resource_quota_v1" "ray_gpu" {
     namespace = each.key
   }
   spec { hard = { "requests.nvidia.com/gpu" = tostring(each.value) } }
+
+  # The orchestration release renders the compute namespaces.
+  depends_on = [module.zipline_orchestration]
 }
 
 # Adopt the resources created by the earlier Crucible-only s6e11 branch so the
