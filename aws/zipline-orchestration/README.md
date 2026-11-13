@@ -290,10 +290,42 @@ Kubernetes ephemeral storage, so Spark can use its default `emptyDir` local
 directories without provider-specific mounts. Drivers and the on-demand warm
 pool do not require NVMe; image prepull selects nodes supporting Spark executors.
 
-Ray uses its configured
-`CRUCIBLE_RAY_{HEAD,WORKER,SUBMITTER}_NODE_SELECTOR` and
-`CRUCIBLE_RAY_{HEAD,WORKER,SUBMITTER}_TOLERATIONS`. No Ray pools are generated
-by this wrapper.
+CPU Ray jobs use the shared `ray-control` / `ray-worker` pools through the
+Hub's `CRUCIBLE_RAY_{HEAD,WORKER,SUBMITTER}_NODE_SELECTOR` and
+`CRUCIBLE_RAY_{HEAD,WORKER,SUBMITTER}_TOLERATIONS`.
+
+#### Ray GPU execution profiles
+
+GPU training jobs opt into a named profile with `ray.placement.profile=<name>`
+(platform `contracts/training-v1`, "Profile placement interface"). Each profile
+configured here creates, in its own Helm release:
+
+- NodePool `<name>`: GPU workers (`zipline.ai/role=worker`), pinned instance types, AMD64.
+- NodePool `<name>-control`: on-demand c/m/r AMD64 nodes for the Ray head and submitter (`zipline.ai/role=control`).
+
+Both carry `zipline.ai/engine=ray`, `zipline.ai/execution-profile=<name>` and the
+`zipline.ai/workload=ray-<name>:NoSchedule` taint, scale from zero, and remove
+empty nodes after one minute. One NVIDIA device plugin DaemonSet runs on every
+Karpenter NVIDIA node; the shared EC2NodeClass resolves the AL2023 NVIDIA AMI for
+GPU instance types, which supplies the driver and container runtime.
+
+| Field | Default | Use when |
+| --- | --- | --- |
+| `aws.karpenter.ray_gpu_profiles.<name>.instance_types` | required | GPU instance types the workers may use, in any order (e.g. `["g6e.xlarge", "g5.xlarge"]`). |
+| `aws.karpenter.ray_gpu_profiles.<name>.max_gpus` | required | Hard cap on concurrent GPUs for the profile (NodePool `nvidia.com/gpu` limit). |
+| `aws.karpenter.ray_gpu_profiles.<name>.capacity_type` | `on-demand` | Workers may use `spot`. The control pool is always on-demand. |
+| `aws.karpenter.ray_gpu_profiles.<name>.expire_after` | `48h` | Backstop node lifetime for both pools; whole hours. Job deadlines are the primary bound. |
+| `aws.karpenter.ray_gpu_profiles.<name>.worker_limits` / `control_limits` | GPU cap / `{ cpu = "32", memory = "128Gi" }` | Extra NodePool limits. |
+| `aws.karpenter.ray_gpu_namespace_quotas` | `{}` | Map of namespace to maximum `requests.nvidia.com/gpu`. |
+
+```json
+"karpenter": {
+  "ray_gpu_profiles": { "s6e11-l40s": { "instance_types": ["g6e.xlarge", "g5.xlarge"], "max_gpus": 1 } },
+  "ray_gpu_namespace_quotas": { "zipline-default": 1 }
+}
+```
+
+Enable the profile on the Hub with `CRUCIBLE_RAY_GPU_PROFILES=<name>`.
 
 Run the placement and chart tests without cloud credentials:
 
