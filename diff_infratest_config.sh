@@ -3,10 +3,12 @@ set -euo pipefail
 
 # Downloads infratest orchestration config into a temp directory and diffs it
 # against the git-ignored config files currently present locally.
+# Usage: diff_infratest_config.sh [aws|gcp]   (default: aws)
+cloud="${1:-aws}"
 profile="${INFRATEST_PROFILE:-default}"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-current_root="${INFRATEST_CONFIG_ROOT:-${repo_root}/aws/zipline-orchestration}"
+current_root="${INFRATEST_CONFIG_ROOT:-${repo_root}/${cloud}/zipline-orchestration}"
 tmp_root="$(mktemp -d)"
 trap 'rm -rf "${tmp_root}"' EXIT
 
@@ -39,7 +41,7 @@ copy_ignored_config_files() {
 }
 
 copy_ignored_config_files "${current_root}" "${current_snapshot}"
-INFRATEST_CONFIG_ROOT="${remote_snapshot}" PROFILE=${profile} "${repo_root}/pull_infratest_config.sh" >/dev/null
+INFRATEST_CONFIG_ROOT="${remote_snapshot}" PROFILE=${profile} "${repo_root}/pull_infratest_config.sh" "${cloud}" >/dev/null
 
 set +e
 diff -ru "${current_snapshot}" "${remote_snapshot}"
