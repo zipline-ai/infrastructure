@@ -252,3 +252,12 @@ reachable.
 {{- printf "https://%s%s" .Values.ingress.ui.host (include "zipline-orchestration.historyServerProxyBase" .) -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+The token the compute-namespace template carries where a namespace name goes, which the Hub
+replaces before applying. Defined once and published in the ConfigMap itself, so the Hub reads it
+from there rather than hard-coding a string that could drift from the chart's.
+*/}}
+{{- define "zipline-orchestration.computeNamespacePlaceholder" -}}
+__ZIPLINE_COMPUTE_NAMESPACE__
+{{- end -}}

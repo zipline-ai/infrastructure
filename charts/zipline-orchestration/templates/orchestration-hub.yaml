@@ -16,9 +16,17 @@ spec:
       app: orchestration-hub
   template:
     metadata:
-      {{- with .Values.orchestration.hub.podAnnotations }}
+      {{- $provisioning := and .Values.compute.rbac.create .Values.compute.teamNamespaces.enabled }}
+      {{- if or .Values.orchestration.hub.podAnnotations $provisioning }}
       annotations:
-      {{- toYaml . | nindent 8 }}
+        {{- with .Values.orchestration.hub.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- if $provisioning }}
+        # Restarts the Hub when the compute-namespace template changes, so it stamps out the
+        # current one rather than whatever it mounted at startup.
+        checksum/compute-namespace-template: {{ include (print $.Template.BasePath "/compute-namespace-template.yaml") . | sha256sum }}
+        {{- end }}
       {{- end }}
       labels:
         app: orchestration-hub
@@ -81,6 +89,15 @@ spec:
               value: {{ include "zipline-orchestration.sparkImage" . | quote }}
             - name: CRUCIBLE_SPARK_SERVICE_ACCOUNT
               value: "{{ .Values.compute.serviceAccount.sparkName }}"
+            {{- if .Values.compute.teamNamespaces.enabled }}
+            - name: CRUCIBLE_TEAM_NAMESPACES_ENABLED
+              value: "true"
+            {{- /* Where the mounted template lives. Everything a compute namespace contains is in
+                   there — service accounts and their workload-identity annotations, RoleBindings,
+                   quotas, LimitRange — so the Hub needs no Kubernetes knowledge of its own. */}}
+            - name: CRUCIBLE_COMPUTE_NAMESPACE_TEMPLATE_DIR
+              value: "/etc/zipline/compute-namespace"
+            {{- end }}
             {{- $historyServerPublicUrl := include "zipline-orchestration.historyServerPublicUrl" . }}
             {{- if $historyServerPublicUrl }}
             - name: CRUCIBLE_SPARK_HISTORY_PUBLIC_URL
@@ -158,6 +175,18 @@ spec:
               port: {{ .Values.orchestration.hub.port }}
             initialDelaySeconds: 10
             periodSeconds: 5
+          {{- if and .Values.compute.rbac.create .Values.compute.teamNamespaces.enabled }}
+          volumeMounts:
+            - name: compute-namespace-template
+              mountPath: /etc/zipline/compute-namespace
+              readOnly: true
+          {{- end }}
+      {{- if and .Values.compute.rbac.create .Values.compute.teamNamespaces.enabled }}
+      volumes:
+        - name: compute-namespace-template
+          configMap:
+            name: {{ include "zipline-orchestration.fullname" . }}-compute-namespace-template
+      {{- end }}
 ---
 apiVersion: v1
 kind: Service

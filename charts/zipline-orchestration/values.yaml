@@ -64,6 +64,16 @@ compute:
     annotations: {}
   rbac:
     create: true
+  # Let the Hub create a compute namespace per team, rather than the namespaces below being the
+  # whole set. One switch for the whole feature: it grants the Hub the permission to create a
+  # namespace, mounts the template saying what goes in one, and tells the Hub to reconcile. Split
+  # across two flags these could disagree, and the Hub would reconcile with no permission and
+  # nothing to stamp.
+  #
+  # Off by default: a zipline- prefixed namespace inherits the wildcarded compute execution role,
+  # so widening who can create one is a deliberate choice.
+  teamNamespaces:
+    enabled: false
   sparkDefaults:
     eventLogDir: ""
     imagePullPolicy: "Always"
