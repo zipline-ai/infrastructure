@@ -83,5 +83,6 @@ module "zipline_orchestration" {
     helm_release.fluent_bit,
     helm_release.karpenter_nodepools,
     terraform_data.configuration_validation,
+    terraform_data.controller_resource_cleanup,
   ]
 }

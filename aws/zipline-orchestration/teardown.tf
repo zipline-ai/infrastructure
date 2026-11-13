@@ -5,11 +5,17 @@
 # public IPs mapped in the VPC and block internet-gateway detach and subnet/VPC
 # deletion (DependencyViolation), while their buckets stay populated.
 #
-# depends_on lists the controllers this cleanup relies on, so tofu destroys this
-# resource FIRST (reverse-dependency order) while Karpenter and the LB controller
-# are still running to process the deletions. The provisioner deletes the
-# LoadBalancer Services and Karpenter NodeClaims/NodePools, then blocks until the
-# NLBs and nodes are actually gone before tofu proceeds to tear down the VPC.
+# Destroy runs in layers (reverse dependency order):
+#   1. workload_drain        drains StarRocks before its helm uninstall
+#   2. module.zipline_orchestration (hub chart, StarRocks)
+#   3. controller_resource_cleanup  drains NLBs and Karpenter nodes/CRs
+#   4. Karpenter, LB controller, node group, cluster, network
+#
+# controller_resource_cleanup must not depend on the module: a hook is only run on
+# destroy if it is in state, and anything that depends on the module is created
+# after the hub chart. A failed hub-chart install would then leave the hook out of
+# state and the next destroy unordered. Instead the module depends on the hook, so
+# the hook is created as soon as the controllers and network exist.
 #
 # Karpenter and the LB controller run on the managed node group (not on
 # Karpenter nodes), so draining Karpenter nodes here does not kill the controllers.
@@ -65,26 +71,6 @@ resource "terraform_data" "controller_resource_cleanup" {
       # drain promptly.
       kubectl delete pdb coredns -n kube-system --ignore-not-found || true
 
-      # StarRocks: the operator's FE/CN StatefulSets drain slower than helm_timeout,
-      # so tofu's helm_release.starrocks uninstall times out ("context deadline
-      # exceeded") and the CN nodes' ENIs keep the internet gateway pinned
-      # (DependencyViolation). Delete the StarRocks custom resources + StatefulSets
-      # up front so the operator scales the CN cluster down, the nodes drain, and the
-      # later helm uninstall is a no-op. The CRD name varies by operator version, so
-      # discover it rather than hardcode.
-      echo "Tearing down StarRocks (CRs + StatefulSets) so its nodes drain..."
-      for sr in $(kubectl get crd -o name 2>/dev/null | grep -i starrocks | sed 's#.*/##'); do
-        for ns in $(kubectl get "$sr" -A --no-headers 2>/dev/null | awk '{print $1}' | sort -u); do
-          [ -z "$ns" ] && continue
-          kubectl delete "$sr" --all -n "$ns" --ignore-not-found --wait=false 2>/dev/null || true
-        done
-      done
-      kubectl get statefulset -A --no-headers 2>/dev/null | awk 'tolower($0) ~ /starrocks/ {print $1" "$2}' \
-        | while read -r ns name; do
-            [ -z "$ns" ] && continue
-            kubectl delete statefulset "$name" -n "$ns" --ignore-not-found --wait=false 2>/dev/null || true
-          done
-
       echo "Deleting LoadBalancer Services so the LB controller removes their NLBs..."
       kubectl get svc -A -o jsonpath='{range .items[?(@.spec.type=="LoadBalancer")]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null \
         | while read -r ns name; do
@@ -110,10 +96,10 @@ resource "terraform_data" "controller_resource_cleanup" {
     EOT
   }
 
-  # Ordering is load-bearing. On destroy this resource runs its provisioner FIRST
-  # (before everything it depends on is torn down), so the controllers must still
-  # be running AND still have network egress to the AWS APIs:
-  #   - karpenter / lb-controller / chart: alive to process the deletions.
+  # Ordering is load-bearing. On destroy this resource runs its provisioner before
+  # everything it depends on is torn down, so the controllers must still be
+  # running AND still have network egress to the AWS APIs:
+  #   - karpenter / lb-controller: alive to process the deletions.
   #   - VPC networking (route table association, route table, subnets, IGW, VPC):
   #     egress to EC2/ELB. When the network is tofu-managed (create_network), the
   #     subnet->public-route-table association (which routes 0.0.0.0/0 to the IGW)
@@ -127,11 +113,75 @@ resource "terraform_data" "controller_resource_cleanup" {
     helm_release.karpenter,
     helm_release.karpenter_nodepools,
     helm_release.aws_load_balancer_controller,
-    module.zipline_orchestration,
     aws_route_table_association.public,
     aws_route_table.public,
     aws_subnet.zipline,
     aws_internet_gateway.gw,
     aws_vpc.main,
   ]
+}
+
+# Runs before module.zipline_orchestration is destroyed. Only StarRocks needs
+# draining ahead of its own helm uninstall; everything else waits for
+# controller_resource_cleanup. If this hook is missing from state (failed apply),
+# the StarRocks uninstall may time out, but the destroy stops before the network,
+# so a re-run is safe.
+resource "terraform_data" "workload_drain" {
+  triggers_replace = {
+    cluster_name = local.cluster_name
+    region       = local.cloud_args.region
+  }
+
+  provisioner "local-exec" {
+    when        = destroy
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -o pipefail
+      CN='${self.triggers_replace.cluster_name}'
+      RG='${self.triggers_replace.region}'
+
+      if ! aws eks describe-cluster --name "$CN" --region "$RG" >/dev/null 2>&1; then
+        echo "cluster $CN not found; nothing to drain"; exit 0
+      fi
+
+      KUBE="$(mktemp)"; trap 'rm -f "$KUBE"' EXIT
+      if ! aws eks update-kubeconfig --name "$CN" --region "$RG" --kubeconfig "$KUBE" >/dev/null 2>&1; then
+        echo "could not fetch kubeconfig for $CN; skipping workload drain"; exit 0
+      fi
+      export KUBECONFIG="$KUBE"
+
+      # StarRocks: the operator's FE/CN StatefulSets drain slower than helm_timeout,
+      # so tofu's helm_release.starrocks uninstall times out ("context deadline
+      # exceeded") and the CN nodes' ENIs keep the internet gateway pinned
+      # (DependencyViolation). Delete the StarRocks custom resources + StatefulSets
+      # and wait for the pods to go, so the operator scales the CN cluster down, the
+      # nodes drain, and the helm uninstall that follows is a no-op. The CRD name varies by operator version, so
+      # discover it rather than hardcode.
+      echo "Tearing down StarRocks (CRs + StatefulSets) so its nodes drain..."
+      for sr in $(kubectl get crd -o name 2>/dev/null | grep -i starrocks | sed 's#.*/##'); do
+        for ns in $(kubectl get "$sr" -A --no-headers 2>/dev/null | awk '{print $1}' | sort -u); do
+          [ -z "$ns" ] && continue
+          kubectl delete "$sr" --all -n "$ns" --ignore-not-found --wait=false 2>/dev/null || true
+        done
+      done
+      kubectl get statefulset -A --no-headers 2>/dev/null | awk 'tolower($0) ~ /starrocks/ {print $1" "$2}' \
+        | while read -r ns name; do
+            [ -z "$ns" ] && continue
+            kubectl delete statefulset "$name" -n "$ns" --ignore-not-found --wait=false 2>/dev/null || true
+          done
+
+      echo "Waiting up to 10m for StarRocks pods to terminate..."
+      for i in $(seq 1 60); do
+        left=$(kubectl get pods -A --no-headers 2>/dev/null | awk 'tolower($0) ~ /starrocks/' | grep -c . || true)
+        left=$${left:-0}
+        echo "  attempt $i/60: starrocks pods=$left"
+        [ "$left" -eq 0 ] && exit 0
+        sleep 10
+      done
+      echo "WARNING: StarRocks pods still present after 10m; its helm uninstall may time out." >&2
+      exit 0
+    EOT
+  }
+
+  depends_on = [module.zipline_orchestration]
 }
