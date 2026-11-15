@@ -1,13 +1,7 @@
 {{/*
-Everything a compute namespace needs besides the Namespace object itself: the engine service
-accounts with their workload-identity annotations, RoleBindings to the shared ClusterRoles, the
-resource quotas, and the LimitRange those quotas depend on.
-
-One definition, two consumers. compute-rbac.yaml renders it per namespace listed in values, and
-compute-namespace-template.yaml renders it once with a placeholder name into a ConfigMap the Hub
-mounts and stamps out for teams created at runtime. That is the point: the Hub does not need to
-know what a compute namespace contains, and a namespace it creates cannot drift from one the chart
-renders, because both come from here.
+A compute namespace's contents (service accounts, RoleBindings, quota, LimitRange). Rendered per
+namespace in values by compute-rbac.yaml, and once with a placeholder name into the ConfigMap the
+Hub stamps out for runtime teams, so the two cannot drift.
 
 Call with a dict of:
   root      the chart context
@@ -54,13 +48,7 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 {{- /*
-RoleBindings, not Roles. The rules live in ClusterRoles rendered once by
-compute-cluster-roles.yaml, so adding a permission is one edit rather than one per namespace — and
-a namespace the Hub stamps out cannot be missing a rule somebody added later.
-
-Named with a -binding suffix on purpose: roleRef is immutable, so reusing the old `spark-driver`
-and `flink-jobmanager` RoleBinding names while changing their roleRef from Role to ClusterRole
-would fail the Helm upgrade rather than update in place.
+-binding suffix: roleRef is immutable, so reusing the old Role-bound names would fail the upgrade.
 */}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -95,9 +83,7 @@ subjects:
     name: {{ $root.Values.compute.serviceAccount.flinkName }}
     namespace: {{ $ns }}
 {{- /*
-The Hub's own access to the namespace. This is what lets it submit a job there, and it is scoped to
-this namespace rather than granted cluster-wide — so the Hub can reach the namespaces it has been
-given and no others.
+The Hub's submit access, scoped to this namespace.
 */}}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -131,9 +117,8 @@ spec:
 {{- end }}
 {{- if and $limitRangeEnabled $limitRangeHasSpec }}
 {{- /*
-Load-bearing wherever a quota caps limits.*: Kubernetes then requires every pod to declare that
-limit, and Spark executors declare none. Without this the quota rejects them and the application
-hangs rather than failing.
+Required wherever a quota caps limits.*: Spark executors declare no limits, so without defaults
+the quota rejects them.
 */}}
 ---
 apiVersion: v1

@@ -23,8 +23,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
         {{- if $provisioning }}
-        # Restarts the Hub when the compute-namespace template changes, so it stamps out the
-        # current one rather than whatever it mounted at startup.
+        # Restart on template change.
         checksum/compute-namespace-template: {{ include (print $.Template.BasePath "/compute-namespace-template.yaml") . | sha256sum }}
         {{- end }}
       {{- end }}
@@ -92,9 +91,6 @@ spec:
             {{- if .Values.compute.teamNamespaces.enabled }}
             - name: CRUCIBLE_TEAM_NAMESPACES_ENABLED
               value: "true"
-            {{- /* Where the mounted template lives. Everything a compute namespace contains is in
-                   there — service accounts and their workload-identity annotations, RoleBindings,
-                   quotas, LimitRange — so the Hub needs no Kubernetes knowledge of its own. */}}
             - name: CRUCIBLE_COMPUTE_NAMESPACE_TEMPLATE_DIR
               value: "/etc/zipline/compute-namespace"
             {{- end }}

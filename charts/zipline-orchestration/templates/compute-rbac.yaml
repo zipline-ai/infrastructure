@@ -4,9 +4,6 @@
 {{- if eq (len $namespaces) 0 }}
 {{- $namespaces = list (dict "name" (include "zipline-orchestration.computeDefaultNamespace" .) "team" "default") }}
 {{- end }}
-# Service accounts, RoleBindings, quotas and the LimitRange for each namespace listed in values.
-# The contents come from the computeNamespaceResources helper, which the Hub also stamps out for
-# teams created at runtime — so a static namespace and a Hub-created one cannot differ.
 {{- range $namespace := $namespaces }}
 {{- $jobNamespace := $namespace.name | default (include "zipline-orchestration.computeDefaultNamespace" $root) }}
 {{- include "zipline-orchestration.computeNamespaceResources" (dict "root" $root "namespace" $jobNamespace "overrides" $namespace) }}

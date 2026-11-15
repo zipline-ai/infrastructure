@@ -254,9 +254,8 @@ reachable.
 {{- end }}
 
 {{/*
-The token the compute-namespace template carries where a namespace name goes, which the Hub
-replaces before applying. Defined once and published in the ConfigMap itself, so the Hub reads it
-from there rather than hard-coding a string that could drift from the chart's.
+Namespace-name placeholder in the compute-namespace template. Published in the ConfigMap so the
+Hub reads it rather than hard-coding it.
 */}}
 {{- define "zipline-orchestration.computeNamespacePlaceholder" -}}
 __ZIPLINE_COMPUTE_NAMESPACE__

@@ -565,18 +565,19 @@ locals {
   )
 
   compute_defaults = {
-    default_namespace      = "zipline-default"
-    namespaces             = [{ name = "zipline-default", team = "default" }]
-    spark_service_account  = "spark-operator-spark"
-    flink_service_account  = "flink"
-    spark_event_log_dir    = ""
-    rbac_create            = true
-    image_prepull_enabled  = true
-    image_prepull_images   = []
-    history_server_options = []
-    spark_defaults         = {}
-    flink_defaults         = {}
-    namespace_defaults     = {}
+    default_namespace       = "zipline-default"
+    namespaces              = [{ name = "zipline-default", team = "default" }]
+    spark_service_account   = "spark-operator-spark"
+    flink_service_account   = "flink"
+    spark_event_log_dir     = ""
+    rbac_create             = true
+    team_namespaces_enabled = false
+    image_prepull_enabled   = true
+    image_prepull_images    = []
+    history_server_options  = []
+    spark_defaults          = {}
+    flink_defaults          = {}
+    namespace_defaults      = {}
     workload_priority_classes = {
       enabled = true
       backfill = {
@@ -736,6 +737,9 @@ locals {
       }
       rbac = {
         create = local.compute.rbac_create
+      }
+      teamNamespaces = {
+        enabled = local.compute.team_namespaces_enabled
       }
       sparkDefaults           = local.compute_spark_defaults
       flinkDefaults           = local.compute_flink_defaults

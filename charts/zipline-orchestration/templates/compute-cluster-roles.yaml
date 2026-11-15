@@ -1,14 +1,6 @@
 {{- if .Values.compute.rbac.create }}
-# The rules a compute namespace grants, held as ClusterRoles rendered once rather than as Roles
-# rendered per namespace. Each namespace gets RoleBindings to these — see the
-# computeNamespaceResources helper — so the rules are namespace-scoped in effect while living in
-# exactly one place.
-#
-# Why they moved: the Hub provisions namespaces for teams created at runtime, and the alternative
-# was the Hub carrying copies of these rules. A copy drifts. The first one already did — it gave
-# the Flink service account the Spark driver's rules and omitted `apps: deployments`, which the
-# JobManager reads before creating each TaskManager, so Flink jobs would have come up with no
-# TaskManagers and hung.
+# Compute-namespace rules, defined once and bound per namespace by computeNamespaceResources, so
+# the Hub can bind them without holding them.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -33,8 +25,7 @@ rules:
   - apiGroups: [""]
     resources: ["pods", "services", "configmaps"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # The operator runs in native mode, where the JobManager reads its own Deployment before creating
-  # each TaskManager pod. Without this the JobManager starts and no TaskManagers ever appear.
+  # Native mode: the JobManager reads its own Deployment before creating each TaskManager.
   - apiGroups: ["apps"]
     resources: ["deployments", "deployments/scale"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
