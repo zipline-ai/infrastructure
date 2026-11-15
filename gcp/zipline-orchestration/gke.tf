@@ -175,6 +175,17 @@ resource "google_container_cluster" "main" {
   network    = local.network_self_link
   subnetwork = local.subnet_self_link
 
+  # Enable both the control-plane add-on and node enforcement without changing dataplanes.
+  network_policy {
+    enabled  = true
+    provider = "CALICO"
+  }
+  addons_config {
+    network_policy_config {
+      disabled = false
+    }
+  }
+
   networking_mode = "VPC_NATIVE"
   ip_allocation_policy {
     cluster_secondary_range_name  = "pods"
