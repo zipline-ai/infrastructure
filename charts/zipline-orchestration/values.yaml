@@ -64,6 +64,10 @@ compute:
     annotations: {}
   rbac:
     create: true
+  # Hub creates a compute namespace per team (RBAC, template mount and Hub env). Off by default:
+  # a zipline- prefixed namespace inherits the compute execution role.
+  teamNamespaces:
+    enabled: false
   sparkDefaults:
     eventLogDir: ""
     imagePullPolicy: "Always"

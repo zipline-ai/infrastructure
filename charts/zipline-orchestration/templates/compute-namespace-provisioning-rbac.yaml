@@ -1,0 +1,53 @@
+{{- if and .Values.compute.rbac.create .Values.compute.teamNamespaces.enabled }}
+# Lets the Hub create a namespace per team and stamp out the compute-namespace template. It holds
+# none of the compute rules itself: `bind` on the three ClusterRoles lets it grant them, and its own
+# access to a namespace comes from the submitter RoleBinding it creates there.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "zipline-orchestration.fullname" . }}-namespace-provisioner
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+rules:
+  # Never deleted: archiving a team must not remove a namespace with running work.
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch", "create"]
+  # Create-only: the chart owns the content.
+  - apiGroups: [""]
+    resources: ["serviceaccounts", "limitranges"]
+    verbs: ["get", "list", "watch", "create"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["rolebindings"]
+    verbs: ["get", "list", "watch", "create"]
+  - apiGroups: [""]
+    resources: ["resourcequotas"]
+    verbs: ["get", "list", "watch", "create"]
+  # The Hub-owned team quota; pinned by name so the chart's quotas stay out of reach.
+  - apiGroups: [""]
+    resources: ["resourcequotas"]
+    resourceNames: ["zipline-team"]
+    verbs: ["update", "patch", "delete"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["clusterroles"]
+    resourceNames:
+      - {{ include "zipline-orchestration.fullname" . }}-spark-driver
+      - {{ include "zipline-orchestration.fullname" . }}-flink-jobmanager
+      - {{ include "zipline-orchestration.fullname" . }}-compute-submitter
+    verbs: ["bind"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "zipline-orchestration.fullname" . }}-namespace-provisioner
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "zipline-orchestration.fullname" . }}-namespace-provisioner
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "zipline-orchestration.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

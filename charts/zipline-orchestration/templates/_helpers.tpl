@@ -252,3 +252,11 @@ reachable.
 {{- printf "https://%s%s" .Values.ingress.ui.host (include "zipline-orchestration.historyServerProxyBase" .) -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+Namespace-name placeholder in the compute-namespace template. Published in the ConfigMap so the
+Hub reads it rather than hard-coding it.
+*/}}
+{{- define "zipline-orchestration.computeNamespacePlaceholder" -}}
+__ZIPLINE_COMPUTE_NAMESPACE__
+{{- end -}}
