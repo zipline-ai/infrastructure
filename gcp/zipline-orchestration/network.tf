@@ -14,8 +14,8 @@ locals {
 
   # Executors are pod-IP hungry. /16 for pods gives ~32k addresses — size for
   # peak concurrency (R4). /20 nodes gives 4k nodes. /20 services covers 4k.
-  node_cidr     = trimspace(tostring(try(var.gcp.node_cidr, "")))     != "" ? var.gcp.node_cidr     : "10.100.0.0/20"
-  pods_cidr     = trimspace(tostring(try(var.gcp.pods_cidr, "")))     != "" ? var.gcp.pods_cidr     : "10.112.0.0/16"
+  node_cidr     = trimspace(tostring(try(var.gcp.node_cidr, ""))) != "" ? var.gcp.node_cidr : "10.100.0.0/20"
+  pods_cidr     = trimspace(tostring(try(var.gcp.pods_cidr, ""))) != "" ? var.gcp.pods_cidr : "10.112.0.0/16"
   services_cidr = trimspace(tostring(try(var.gcp.services_cidr, ""))) != "" ? var.gcp.services_cidr : "10.128.0.0/20"
 }
 
@@ -65,4 +65,7 @@ resource "google_service_networking_connection" "psa" {
   network                 = google_compute_network.main[0].id
   service                 = "servicenetworking.googleapis.com"
   reserved_peering_ranges = [google_compute_global_address.psa[0].name]
+  # Cloud SQL keeps the connection "in use" long after its instance is deleted,
+  # so a DELETE fails the destroy. Deleting the network removes the peering.
+  deletion_policy = "ABANDON"
 }

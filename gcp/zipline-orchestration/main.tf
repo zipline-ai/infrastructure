@@ -62,6 +62,7 @@ module "zipline_orchestration" {
   provider_context = local.provider_context
 
   depends_on = [
+    terraform_data.controller_resource_cleanup,
     google_container_node_pool.pools,
     google_project_iam_member.orchestration,
     google_project_iam_member.spark,
