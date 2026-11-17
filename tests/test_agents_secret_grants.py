@@ -28,6 +28,7 @@ class AgentsSecretGrantsTest(unittest.TestCase):
                 "enable": enabled,
                 "anthropic_api_key_remote_ref": {"key": "anthropic-secret"},
                 "openai_api_key_remote_ref": {"key": "openai-secret", "property": "key"},
+                "gemini_api_key_remote_ref": {"key": "gemini-secret"},
             }},
             "cloud_args": {existing: ["existing-secret"]},
         }
@@ -49,5 +50,5 @@ class AgentsSecretGrantsTest(unittest.TestCase):
                 with self.subTest(cloud=cloud, enabled=enabled):
                     expected = {"existing-secret"}
                     if enabled:
-                        expected |= {"anthropic-secret", "openai-secret"}
+                        expected |= {"anthropic-secret", "openai-secret", "gemini-secret"}
                     self.assertEqual(self.grants(cloud, enabled), expected)

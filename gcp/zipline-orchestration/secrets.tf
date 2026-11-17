@@ -103,6 +103,7 @@ locals {
     try(var.orchestration.agents.enable, false) ? compact([
       try(var.orchestration.agents.anthropic_api_key_remote_ref.key, ""),
       try(var.orchestration.agents.openai_api_key_remote_ref.key, ""),
+      try(var.orchestration.agents.gemini_api_key_remote_ref.key, ""),
     ]) : [],
     trimspace(try(var.orchestration.conf_repo.url, "")) == "" ? [] : compact([
       try(var.orchestration.conf_repo.github_token_remote_ref.key, ""),

@@ -14,6 +14,9 @@ orchestration = {
     anthropic_api_key_remote_ref = {
       key = "<cloud-secret-reference>"
     }
+    gemini_api_key_remote_ref = {
+      key = "<cloud-secret-reference>"
+    }
     openai_api_key_remote_ref = {
       key = "<cloud-secret-reference>"
     }
@@ -30,14 +33,14 @@ Use these reference formats:
 | GCP Secret Manager | Secret ID | JSON field name, if the secret stores an object |
 
 For example, two keys stored in one JSON secret can share the same `key` and
-use `property = "anthropic"` and `property = "openai"` respectively. Either
+use `property = "anthropic"` and `property = "openai"` respectively. Any
 provider reference can be omitted; agents can still use user-configured keys.
 When agents are disabled, these references are ignored.
 
 External Secrets Operator creates `agents-provider-credentials` in the release
-namespace. Its configured keys are `AGENTS_ANTHROPIC_API_KEY` and
-`AGENTS_OPENAI_API_KEY`. The UI reads each through `secretKeyRef`; credentials
-are not configured on the sandbox. AWS and GCP grant the existing External
+namespace. Its configured keys are `AGENTS_ANTHROPIC_API_KEY`,
+`AGENTS_OPENAI_API_KEY`, and `AGENTS_GOOGLE_API_KEY` (Gemini). The UI reads each
+through `secretKeyRef`; credentials are not configured on the sandbox. AWS and GCP grant the existing External
 Secrets identity access to these references. Azure uses the existing Key Vault
 Secrets User role and vault. Customer-managed KMS keys or cross-account/project
 secrets can require additional grants on the remote secret or encryption key.
