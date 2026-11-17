@@ -180,7 +180,7 @@ spec:
                   key: sso-client-secret
             {{- end }}
             - name: IDP_ROLE_MAPPING
-              value: "{{ .Values.auth.idp_role_mapping }}"
+              value: {{ .Values.auth.idp_role_mapping | quote }}
             - name: IDP_GROUP_CLAIM
               value: "{{ .Values.auth.idp_group_claim }}"
             {{- end }}

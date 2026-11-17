@@ -1,5 +1,7 @@
 # Azure Zipline Orchestration
 
+For provider setup, secret delivery, and login verification, see the [application authentication guide](../../docs/authentication.md).
+
 Creates the Azure cloud primitives for Zipline orchestration, installs the shared
 `charts/zipline-orchestration` chart on AKS, and wires Azure infrastructure into
 cloud-neutral chart values.
