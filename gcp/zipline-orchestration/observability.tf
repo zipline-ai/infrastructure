@@ -115,6 +115,24 @@ locals {
     }
   })
 
+
+  # Node-pool autoscaler limits. The chart's nodepool-exporter (GKE-only, reads
+  # kube-system/cluster-autoscaler-status) exposes min/max/current nodes per pool; this scrapes it
+  # so the Node Pools section can plot capacity against the autoscaler's limit. Selected by
+  # component label so the selector does not depend on the release name.
+  podmonitoring_nodepool_exporter_yaml = yamlencode({
+    apiVersion = "monitoring.googleapis.com/v1"
+    kind       = "PodMonitoring"
+    metadata = {
+      name      = "zipline-nodepool-exporter"
+      namespace = local.orchestration_namespace
+    }
+    spec = {
+      selector  = { matchLabels = { "app.kubernetes.io/component" = "nodepool-exporter" } }
+      endpoints = [{ port = "metrics", interval = "30s", path = "/metrics" }]
+    }
+  })
+
   operator_clusterpodmonitorings = {
     zipline-spark-operator   = local.clusterpodmonitoring_spark_operator_yaml
     zipline-kuberay-operator = local.clusterpodmonitoring_kuberay_operator_yaml
@@ -147,6 +165,44 @@ resource "terraform_data" "podmonitoring_hub" {
     namespace = local.orchestration_namespace
     name      = "zipline-hub"
     yaml      = local.podmonitoring_hub_yaml
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -euo pipefail
+      KUBE="$(mktemp)"; trap 'rm -f "$KUBE"' EXIT
+      KUBECONFIG="$KUBE" gcloud container clusters get-credentials '${self.triggers_replace.cluster}' --region '${self.triggers_replace.region}' --project '${self.triggers_replace.project}' >/dev/null
+      KUBECONFIG="$KUBE" kubectl apply -f - <<'YAML'
+${self.triggers_replace.yaml}
+YAML
+    EOT
+  }
+
+  provisioner "local-exec" {
+    when        = destroy
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set +e
+      KUBE="$(mktemp)"; trap 'rm -f "$KUBE"' EXIT
+      KUBECONFIG="$KUBE" gcloud container clusters get-credentials '${self.triggers_replace.cluster}' --region '${self.triggers_replace.region}' --project '${self.triggers_replace.project}' >/dev/null 2>&1 || exit 0
+      KUBECONFIG="$KUBE" kubectl delete podmonitoring.monitoring.googleapis.com '${self.triggers_replace.name}' -n '${self.triggers_replace.namespace}' --ignore-not-found 2>/dev/null || true
+      exit 0
+    EOT
+  }
+
+  depends_on = [module.zipline_orchestration]
+}
+
+resource "terraform_data" "podmonitoring_nodepool_exporter" {
+  triggers_replace = {
+    cluster   = google_container_cluster.main.name
+    endpoint  = google_container_cluster.main.endpoint
+    region    = local.cloud_args.region
+    project   = local.cloud_args.project_id
+    namespace = local.orchestration_namespace
+    name      = "zipline-nodepool-exporter"
+    yaml      = local.podmonitoring_nodepool_exporter_yaml
   }
 
   provisioner "local-exec" {

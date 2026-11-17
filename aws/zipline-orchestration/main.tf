@@ -43,10 +43,10 @@ variable "aws" {
 
 resource "terraform_data" "configuration_validation" {
   input = {
-    auth_enabled       = local.auth_enabled
-    auth_secret_arn    = local.auth_secret_arn
-    redis_enabled      = local.redis.enabled
-    redis_managed      = local.redis_managed
+    auth_enabled    = local.auth_enabled
+    auth_secret_arn = local.auth_secret_arn
+    redis_enabled   = local.redis.enabled
+    redis_managed   = local.redis_managed
   }
 
   lifecycle {
@@ -75,6 +75,7 @@ module "zipline_orchestration" {
 
   depends_on = [
     aws_eks_addon.aws_ebs_csi_driver,
+    aws_eks_addon.vpc_cni,
     aws_eks_node_group.default,
     aws_iam_role_policy.orchestration_secrets,
     kubernetes_storage_class_v1.gp3,

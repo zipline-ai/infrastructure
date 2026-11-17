@@ -65,3 +65,86 @@ For Helm-only installations use `orchestration.confRepo` in `values.yaml`,
 including `credentialsSecret`, `tokenKey`, and `clientSecretKey` to reference an
 existing Kubernetes Secret. The cloud secret synchronization is supplied by
 Terraform.
+
+## Sandbox network isolation
+
+When the conf repository URL is set, the chart also creates `sandbox-egress`
+(Squid) and NetworkPolicies for the sandbox and proxy. This applies to compile
+and agent sandboxes, regardless of whether the UI's agents flag is enabled.
+
+The sandbox accepts connections only from UI pods in the release namespace.
+Outbound connections are limited to kube-dns in `kube-system`, UI pods on the
+configured UI container port, and the proxy on port 3128. The sandbox has no
+direct outbound Internet rule. The proxy accepts connections only from sandbox
+pods and permits HTTPS CONNECT to `github.com`, `pypi.org`, and
+`files.pythonhosted.org`. Its outbound policy excludes private, loopback,
+link-local (including cloud metadata), carrier-grade NAT, and multicast ranges.
+Neither pod mounts a Kubernetes service-account token.
+
+The UI's LLM proxy and MCP endpoints remain at
+`http://orchestration-ui-service` (Service port 80). `SANDBOX_URL` remains
+`http://sandbox-service:8000`. Kubernetes Services provide both routes, so no
+Docker-style `sandbox-ingress` nginx container is needed. The sandbox bypasses
+Squid for the internal UI address, including its namespace-qualified DNS names.
+If overriding `orchestration.agents.llm_proxy_url`, ensure the destination is
+permitted by these network rules.
+
+Override `orchestration.sandbox.egress.allowedHosts` for other public Git hosts
+or package mirrors. This replaces the list, so retain any defaults still needed.
+A leading dot permits a domain and its subdomains, following Squid's dstdomain
+syntax. Private Git hosts require an explicitly reviewed extension of the proxy
+NetworkPolicy; adding them to the hostname list alone does not permit private
+network access. Configure the proxy image and resource limits through
+`orchestration.sandbox.egress.image` and `.resources`. Proxy scheduling inherits
+the sandbox's node selector and tolerations.
+
+### Cluster enforcement and rollout
+
+The AWS, Azure, and GCP Terraform wrappers enable enforcement on their clusters,
+including when no conf repository is configured. Helm-only installations must
+supply their own enforcing CNI; a NetworkPolicy manifest alone does not isolate
+traffic. Review the Terraform plan before applying to an existing cluster.
+
+- EKS: manage the `vpc-cni` add-on and set `enableNetworkPolicy = "true"`.
+  The version data source selects EKS's default compatible version for the
+  cluster. Removing Terraform ownership preserves the installed CNI add-on.
+  If this is already an EKS-managed add-on, import it before applying:
+
+  ```sh
+  cd aws/zipline-orchestration
+  terraform import aws_eks_addon.vpc_cni '<cluster-name>:vpc-cni'
+  ```
+
+  Back up the current add-on configuration first (`aws eks describe-addon`).
+  Preserve custom IPAM/environment settings in `aws.vpc_cni_configuration_values`
+  and an existing IRSA role in `aws.vpc_cni_service_account_role_arn`. This module
+  overwrites conflicting add-on configuration and requires policy enforcement.
+  If the CNI is self-managed, this converts it to an EKS-managed add-on; review
+  custom DaemonSet settings before applying. The orchestration Helm release
+  waits for this add-on. EKS's standard startup mode permits traffic briefly
+  while a new pod's policies are reconciled. Strict startup mode requires
+  policies for all cluster workloads, including CoreDNS, and is not enabled by
+  this change. Verify the agent is enforcing policies before running agents
+  ([AWS instructions](https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy-configure.html)).
+- AKS: set `network_profile.network_policy = "calico"` on the existing Azure CNI
+  Overlay profile. Enabling the engine can roll nodes. Switching an existing
+  policy engine can require cluster replacement with the pinned AzureRM
+  provider; do not apply a replacement plan without a migration
+  ([Azure instructions](https://learn.microsoft.com/en-us/azure/aks/use-network-policies)).
+- GKE: enable the network-policy control-plane add-on and Calico node
+  enforcement. This avoids a Dataplane V2 migration, but enabling enforcement on
+  an existing cluster recreates nodes according to GKE's maintenance settings.
+  Wait for the node rollout before relying on isolation
+  ([GKE instructions](https://cloud.google.com/kubernetes-engine/docs/how-to/network-policy)).
+
+DNS rules assume CoreDNS/kube-dns pods with `k8s-app=kube-dns` in `kube-system`.
+Clusters using NodeLocal DNS or custom DNS need corresponding policy rules
+before rollout. Other cluster-wide policies can add or further restrict
+connectivity; review the combined policies.
+
+After deployment, verify allowed and blocked connections from the sandbox pod:
+UI requests and GitHub/PyPI requests through the proxy should succeed; direct
+Internet requests, metadata requests, and requests through the proxy to an
+unlisted host should fail. Also verify requests from unrelated pods to the
+sandbox API fail. Render tests check the manifests; they do not prove that the
+cluster enforces the policies.

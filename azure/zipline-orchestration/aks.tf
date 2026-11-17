@@ -33,23 +33,24 @@ resource "azurerm_kubernetes_cluster" "main" {
   }
 
   default_node_pool {
-    name                 = local.default_node_pool.name
-    vm_size              = local.default_node_pool.vm_size
-    vnet_subnet_id       = azurerm_subnet.aks.id
-    enable_auto_scaling  = local.default_node_pool.auto_scaling_enabled
-    node_count           = local.default_node_pool.node_count
-    min_count            = local.default_node_pool.min_count
-    max_count            = local.default_node_pool.max_count
-    os_disk_size_gb      = local.default_node_pool.os_disk_size_gb
-    os_disk_type         = local.default_node_pool.os_disk_type
-    os_sku               = local.default_node_pool.os_sku
-    orchestrator_version = local.cloud_args.kubernetes_version
+    name                        = local.default_node_pool.name
+    vm_size                     = local.default_node_pool.vm_size
+    vnet_subnet_id              = azurerm_subnet.aks.id
+    enable_auto_scaling         = local.default_node_pool.auto_scaling_enabled
+    node_count                  = local.default_node_pool.node_count
+    min_count                   = local.default_node_pool.min_count
+    max_count                   = local.default_node_pool.max_count
+    os_disk_size_gb             = local.default_node_pool.os_disk_size_gb
+    os_disk_type                = local.default_node_pool.os_disk_type
+    os_sku                      = local.default_node_pool.os_sku
+    orchestrator_version        = local.cloud_args.kubernetes_version
     temporary_name_for_rotation = "${local.default_node_pool.name}tmp"
   }
 
   network_profile {
     network_plugin      = "azure"
     network_plugin_mode = "overlay"
+    network_policy      = "calico"
     service_cidr        = local.cloud_args.aks_service_cidr
     dns_service_ip      = local.cloud_args.aks_dns_service_ip
     pod_cidr            = local.cloud_args.aks_pod_cidr

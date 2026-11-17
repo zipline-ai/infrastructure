@@ -301,3 +301,28 @@ resource "aws_eks_addon" "aws_ebs_csi_driver" {
     aws_iam_role_policy_attachment.ebs_csi_driver,
   ]
 }
+
+# The sandbox NetworkPolicies require the VPC CNI's policy agent on every node.
+data "aws_eks_addon_version" "vpc_cni" {
+  addon_name         = "vpc-cni"
+  kubernetes_version = aws_eks_cluster.main.version
+}
+
+resource "aws_eks_addon" "vpc_cni" {
+  # Removing Terraform ownership must not uninstall the cluster network plugin.
+  preserve      = true
+  cluster_name  = aws_eks_cluster.main.name
+  addon_name    = "vpc-cni"
+  addon_version = data.aws_eks_addon_version.vpc_cni.version
+  # Retain deployment-specific IPAM settings while requiring policy enforcement.
+  configuration_values = jsonencode(merge(
+    try(local.cloud_args.vpc_cni_configuration_values, {}),
+    { enableNetworkPolicy = "true" },
+  ))
+  service_account_role_arn = try(local.cloud_args.vpc_cni_service_account_role_arn, null)
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  depends_on = [aws_eks_node_group.default]
+}
