@@ -32,6 +32,7 @@ locals {
     amp_workspace_arn                    = ""
     encryption_kms_key_arn               = ""
     encryption_kms_key_arns              = {}
+    database_read_replica_enabled        = false
     database_name                        = "execution_info"
     database_username                    = "locker_user"
     database_instance_class              = "db.t3.medium"

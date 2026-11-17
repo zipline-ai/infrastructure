@@ -286,10 +286,28 @@ the default database shape is not right for the environment.
 | `azure.database_server_name` | `<customer_name>-zipline-orch-instance` | The PostgreSQL server needs a specific name. |
 | `azure.database_admin_username` | `locker_user` | The admin username should change. |
 | `azure.database_version` | `16` | PostgreSQL should use a different major version. |
-| `azure.database_sku_name` | `B_Standard_B1ms` | PostgreSQL needs more or less capacity. |
+| `azure.database_sku_name` | `GP_Standard_D2ds_v5` | PostgreSQL needs more or less capacity. |
 | `azure.database_storage_mb` | `32768` | PostgreSQL needs a different storage size in MB. |
+| `azure.database_read_replica_enabled` | `false` | Create one private, same-region read replica. |
 | `azure.database_backup_retention_days` | `7` | Backups need a different retention period. |
 | `azure.database_public_network_access_enabled` | `false` | The database must be publicly accessible. |
+
+Set `azure.database_read_replica_enabled = true` to create one same-region,
+private read replica. It uses the primary's SKU and storage size and existing database
+credentials. Connect read workloads explicitly to the `postgres_read_replica_fqdn` output
+(null when disabled); application write connections continue using the primary.
+The existing application account can read the replica, but SQL writes are rejected
+while the server remains a replica. Updates are asynchronous, so reads may lag.
+Primary-side deletes and other writes also propagate; this is not a backup.
+Restrict cloud permissions to promote replicas, since promotion makes them writable.
+Replicas add compute and storage charges. Disabling the flag deletes the replica.
+
+The default SKU is General Purpose `GP_Standard_D2ds_v5` (2 vCPUs, 8 GiB RAM),
+even when replicas are disabled. Existing installs without an explicit SKU override
+will resize on their next apply, increasing cost and potentially interrupting
+connections. Explicit SKU overrides remain supported; replicas require `GP_` or
+`MO_`, and cannot be enabled with an external `azure.database_host`. The replica
+gets its own private endpoint in the existing private DNS zone.
 
 ### Fetcher
 

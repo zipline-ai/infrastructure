@@ -13,7 +13,7 @@ locals {
     aks_pod_cidr                            = "10.244.0.0/16"
     default_node_pool                       = {}
     node_pools                              = {}
-    existing_keyvault_id                   = ""
+    existing_keyvault_id                    = ""
     keyvault_name                           = ""
     admin_principal_names                   = []
     workload_identity_name                  = ""
@@ -25,6 +25,7 @@ locals {
     container_registry_resource_group       = ""
     database_host                           = ""
     database_location                       = ""
+    database_read_replica_enabled           = false
     database_name                           = ""
     database_port                           = 5432
     database_server_name                    = ""
@@ -33,7 +34,7 @@ locals {
     database_password_secret_name           = "pg-admin-password"
     database_username_secret_name           = "pg-admin-username"
     database_version                        = "16"
-    database_sku_name                       = "B_Standard_B1ms"
+    database_sku_name                       = "GP_Standard_D2ds_v5"
     database_storage_mb                     = 32768
     database_backup_retention_days          = 7
     database_public_network_access_enabled  = false
