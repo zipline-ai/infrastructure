@@ -82,3 +82,13 @@ class AgentsSecretGrantsTest(unittest.TestCase):
             }},
         })
         self.assertEqual(actual, {shared, other})
+
+    def test_gcp_preserves_project_secret_reference(self):
+        actual = self.grants("gcp", False, {
+            "agents": {},
+            "extras": ["other-project/my-secret"],
+        })
+        self.assertEqual(actual, {
+            "projects/test-project/secrets/shared",
+            "other-project/my-secret",
+        })

@@ -197,7 +197,7 @@ for reference formats and examples. All references are optional.
 
 Secret accessor grants now use `projects/<project>/secrets/<secret>` as their
 Terraform instance keys. Short IDs resolve against `cloud_args.project_id` before
-deduplication. Fully qualified references retain their project, including references
+deduplication. Explicit `project/secret` and fully qualified references retain their project, including references
 to other projects. Use the same project identifier consistently; project numbers
 and project IDs are not resolved into one another.
 
