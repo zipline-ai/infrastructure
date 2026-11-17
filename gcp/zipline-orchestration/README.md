@@ -192,3 +192,44 @@ When agents are enabled, External Secrets syncs these into the UI through
 `AGENTS_GOOGLE_API_KEY`, respectively.
 See [provider credential configuration](../../charts/zipline-orchestration/AGENT_CREDENTIALS.md)
 for reference formats and examples. All references are optional.
+
+### Migrating Secret Manager IAM grant state
+
+Secret accessor grants now use `projects/<project>/secrets/<secret>` as their
+Terraform instance keys. Short IDs resolve against `cloud_args.project_id` before
+deduplication. Fully qualified references retain their project, including references
+to other projects. Use the same project identifier consistently; project numbers
+and project IDs are not resolved into one another.
+
+Before applying this version to an existing deployment, migrate any short-keyed
+`google_secret_manager_secret_iam_member.orchestration_extras` and
+`google_secret_manager_secret_iam_member.eso_extras` instances. This applies to
+all grant sources, including auth, extra secrets, repository credentials, and
+agent credentials. New deployments need no migration.
+
+1. Select the deployment's usual backend, workspace, and variables. Back up state
+   with `terraform state pull` to a secure location; state may contain secrets.
+2. Inspect `terraform state list` and `terraform state show` for the two resources.
+   Determine each secret's project from state and the configured provider project.
+3. If only the short-keyed instance exists, move it to its canonical address.
+   For a root GCP wrapper, an example for secret `my-key` in `my-project` is:
+
+   ```sh
+   terraform state mv 'google_secret_manager_secret_iam_member.orchestration_extras["my-key"]' 'google_secret_manager_secret_iam_member.orchestration_extras["projects/my-project/secrets/my-key"]'
+   terraform state mv 'google_secret_manager_secret_iam_member.eso_extras["my-key"]' 'google_secret_manager_secret_iam_member.eso_extras["projects/my-project/secrets/my-key"]'
+   ```
+
+   Include the deployment's module prefix when the wrapper is called as a module.
+   Repeat for every short-keyed instance. Alternatively, declare deployment-specific
+   `moved` blocks with these same source and destination addresses.
+4. If both addresses already exist, first verify in state that they represent the
+   same project, secret, role, and member. Keep the canonical instance and remove
+   only the duplicate short address from state with `terraform state rm`. This
+   forgets duplicate tracking without revoking the live membership. Do not run a
+   destroy or apply the duplicate-removal plan before this state cleanup.
+5. Run the normal Terraform plan. Confirm these IAM resources show no membership
+   deletion or replacement before applying. Investigate any such change first.
+
+Static `moved` blocks are not included in the shared wrapper because secret names
+and module addresses vary by deployment. State migration does not change the
+External Secrets references or the secret values.

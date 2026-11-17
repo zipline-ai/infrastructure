@@ -96,8 +96,9 @@ locals {
     ]
   ])))
 
-  # Combined list of secret ids the orchestration GSA + ESO need accessor on.
-  secret_ids_to_grant = distinct(compact(concat(
+  # Normalize before deduplication: a short ID belongs to the configured project.
+  # These identities are also Terraform instance keys; see the README migration.
+  secret_ids_to_grant = distinct([for ref in compact(concat(
     local.auth_enabled ? [local.auth_secret_id] : [],
     try(local.cloud_args.extra_secret_ids, []),
     try(var.orchestration.agents.enable, false) ? compact([
@@ -110,7 +111,7 @@ locals {
       try(var.orchestration.conf_repo.github_client_secret_remote_ref.key, ""),
     ]),
     local.extra_external_secret_ids,
-  )))
+  )) : startswith(ref, "projects/") ? ref : "projects/${local.cloud_args.project_id}/secrets/${ref}"])
 }
 
 resource "google_secret_manager_secret_iam_member" "orchestration_extras" {
