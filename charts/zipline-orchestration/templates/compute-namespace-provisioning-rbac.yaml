@@ -1,4 +1,4 @@
-{{- if and .Values.compute.rbac.create .Values.compute.teamNamespaces.enabled }}
+{{- if .Values.compute.rbac.create }}
 # Lets the Hub create a namespace per team and stamp out the compute-namespace template. It holds
 # none of the compute rules itself: `bind` on the three ClusterRoles lets it grant them, and its own
 # access to a namespace comes from the submitter RoleBinding it creates there.

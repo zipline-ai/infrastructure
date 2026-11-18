@@ -33,6 +33,13 @@ Provider-specific controllers such as the AWS Load Balancer Controller and cloud
 identity bindings stay in cloud-specific wrappers. Shared controllers such as
 External Secrets Operator are installed through the add-ons module.
 
+Team compute namespaces are provisioned automatically when teams sync to the
+Hub. There is no separate `orchestration.compute.team_namespaces_enabled`
+setting. Set `orchestration.compute.rbac_create = false` only when the Hub's
+namespace-provisioner permissions and shared compute ClusterRoles are managed
+externally. The namespace template remains installed in that mode; see the
+[chart's team namespace requirements](../../charts/zipline-orchestration/README.md#team-compute-namespaces).
+
 ## Data Explorer
 
 Data Explorer is disabled by default. Add this field to the existing

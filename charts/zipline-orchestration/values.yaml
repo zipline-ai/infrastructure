@@ -63,11 +63,9 @@ compute:
     flinkName: flink
     annotations: {}
   rbac:
+    # When false, provision compute ClusterRoles and Hub namespace-provisioner access externally.
+    # The Hub still receives the namespace template and provisions synced teams.
     create: true
-  # Hub creates a compute namespace per team (RBAC, template mount and Hub env). Off by default:
-  # a zipline- prefixed namespace inherits the compute execution role.
-  teamNamespaces:
-    enabled: false
   sparkDefaults:
     eventLogDir: ""
     imagePullPolicy: "Always"

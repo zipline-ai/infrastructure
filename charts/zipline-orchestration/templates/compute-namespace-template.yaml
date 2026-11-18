@@ -1,4 +1,3 @@
-{{- if and .Values.compute.rbac.create .Values.compute.teamNamespaces.enabled }}
 # The compute-namespace contents the Hub stamps out for runtime teams, with a placeholder name.
 apiVersion: v1
 kind: ConfigMap
@@ -12,4 +11,3 @@ data:
   namespacePlaceholder: {{ include "zipline-orchestration.computeNamespacePlaceholder" . | quote }}
   resources.yaml: |
     {{- include "zipline-orchestration.computeNamespaceResources" (dict "root" . "namespace" (include "zipline-orchestration.computeNamespacePlaceholder" .) "overrides" dict) | nindent 4 }}
-{{- end }}
