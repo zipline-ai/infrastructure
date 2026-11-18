@@ -1,6 +1,6 @@
 locals {
-  cloud_args = merge({
-    # Required (no default): project_id, region, warehouse_bucket.
+  cloud_args_input = merge({
+    # Required (no default): project_id, region.
     cluster_name                        = ""
     network                             = ""
     subnet                              = ""
@@ -23,6 +23,7 @@ locals {
     # AWS stack gets them from the `cadvisor` job in aws/zipline-orchestration/observability.tf,
     # and /monitor/crucible's container CPU-throttling and working-set charts read them.
     monitoring_components               = ["SYSTEM_COMPONENTS", "APISERVER", "SCHEDULER", "CONTROLLER_MANAGER", "STORAGE", "HPA", "POD", "DAEMONSET", "DEPLOYMENT", "STATEFULSET", "CADVISOR", "KUBELET"]
+    warehouse_bucket                    = ""
     shared_warehouse_bucket             = ""
     additional_data_buckets             = []
     additional_flink_buckets            = []
@@ -66,16 +67,21 @@ locals {
     bigtable_storage_target_gib         = 2560
     bigtable_deletion_protection        = true
     secret_deletion_protection          = true
-    # Bigtable bulk loader passed to jobs as UPLOADER. Set "spark" when teams write
-    # output to Polaris: the default BigQuery loader can't read Polaris tables.
-    kv_bulk_uploader                    = ""
+    # Bigtable bulk loader passed to jobs as UPLOADER. "spark" because team output
+    # goes to Polaris, which the BigQuery loader can't read.
+    kv_bulk_uploader                    = "spark"
     # DNS / Cloudflare (optional)
     cloudflare_record_name              = ""
   }, var.gcp)
 
+  # Bucket names are global, so the default derives from customer_name.
+  cloud_args = merge(local.cloud_args_input, {
+    warehouse_bucket = try(trimspace(local.cloud_args_input.warehouse_bucket), "") != "" ? local.cloud_args_input.warehouse_bucket : "zipline-${local.name_prefix}-warehouse"
+  })
+
   install                       = try(var.orchestration.install, {})
   deployment                    = var.orchestration.deployment
-  deploy_fetcher                = try(local.deployment.deploy_fetcher, false)
+  deploy_fetcher                = try(local.deployment.deploy_fetcher, true)
   name_prefix                   = local.deployment.customer_name
   orchestration_namespace       = try(local.install.namespace, "zipline-system")
   orchestration_service_account = try(var.orchestration.service_account.name, "orchestration-sa")
@@ -115,9 +121,11 @@ locals {
 
   # Flink jar base path (§3.4, §9.4). Mandatory; empty =>
   # resolvedAdditionalJarUris drops bare filenames and Flink runs with no jars.
+  # `zipline admin install` publishes the Spark 4 helper jars under the artifact
+  # prefix; stacks that name a spark_libs_bucket keep reading their hand-uploaded copy.
   flink_jars_base_path = try(coalesce(
     try(local.cloud_args.flink_jars_base_path, ""),
-    "gs://${local.spark_libs_bucket_name}/spark-4.1.3/libs/",
+    local.cloud_args.spark_libs_bucket != "" ? "gs://${local.spark_libs_bucket_name}/spark-4.1.3/libs/" : "${trimsuffix(local.deployment.artifact_prefix, "/")}/spark-4.1.3/libs/",
   ), "")
 
   polaris_base_location      = "gs://${local.cloud_args.warehouse_bucket}/polaris/polaris_${local.name_prefix}/"
@@ -145,6 +153,11 @@ locals {
   } : {}
 
   module_orchestration = merge(var.orchestration, {
+    # On by default here (not in the module) because this root always supplies
+    # the StarRocks storage config that Data Explorer needs.
+    data_explorer        = { enabled = try(var.orchestration.data_explorer.enabled, true) }
+    # On by default: dynamic profiles and online fetches are served by the fetcher.
+    deployment = merge(var.orchestration.deployment, { deploy_fetcher = local.deploy_fetcher })
     extra_secret_objects = []
     secrets = merge(try(var.orchestration.secrets, {}), {
       extra_secret_objects = []
@@ -196,6 +209,11 @@ locals {
     trimspace(local.cloud_args.kv_bulk_uploader) == "" ? [] : [
       { name = "KV_BULK_UPLOADER", value = trimspace(local.cloud_args.kv_bulk_uploader) },
     ],
+    # Pub/Sub streaming needs the connector on the Flink classpath; it ships in
+    # engine-gcp and `zipline admin install` uploads it to release/latest.
+    contains([for e in try(var.orchestration.hub.env, []) : e.name], "CRUCIBLE_FLINK_ADDITIONAL_JARS") ? [] : [
+      { name = "CRUCIBLE_FLINK_ADDITIONAL_JARS", value = "${trimsuffix(local.deployment.artifact_prefix, "/")}/release/latest/jars/connectors_pubsub_spark4_deploy.jar" },
+    ],
     [local.polaris_credential_env],
   )
 
@@ -208,9 +226,10 @@ locals {
 
   # UI knob (§11): the UI *queries* Managed Prometheus; the hub stays on
   # Prometheus-style metrics (§3.4). Do not set CHRONON_METRICS_READER=gcp.
+  # No UI LOG_PROVIDER here: the chart's Loki default is the only store with the
+  # crucible-spark log profile; with "gcp" the UI's Spark log query never matches.
   ui_env = [
     { name = "METRICS_PROVIDER", value = "gcp" },
-    { name = "LOG_PROVIDER", value = "gcp" },
   ]
 
   # Every service gets runtime_env, so GOOGLE_CLOUD_PROJECT is set here only.

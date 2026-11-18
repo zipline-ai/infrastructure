@@ -39,7 +39,6 @@ orchestration = {
 
 aws = {
   region              = "us-west-2"
-  warehouse_bucket    = "example-warehouse"
   vpc_id              = "vpc-..."
   primary_subnet_id   = "subnet-..."
   secondary_subnet_id = "subnet-..."
@@ -74,7 +73,6 @@ Set these for every environment.
 | `orchestration.deployment.zipline_version` | Base image tag. Hub and Eval use its Spark 4 variant; `nightly` stays `nightly` and other tags gain `-spark4`. |
 | `orchestration.ingress.domain` | Public host used by the UI, Hub, Eval, and supporting ingress routes. |
 | `aws.region` | AWS region for all regional resources and providers. |
-| `aws.warehouse_bucket` | S3 bucket for the warehouse. The wrapper creates this bucket. |
 | `aws.vpc_id` | VPC for EKS and RDS. |
 | `aws.primary_subnet_id` | First subnet for EKS, RDS, AWS Managed Prometheus scraping, and load balancer placement. |
 | `aws.secondary_subnet_id` | Second subnet for EKS, RDS, AWS Managed Prometheus scraping, and load balancer placement. |
@@ -343,6 +341,7 @@ buckets.
 | Field | Default | Use when |
 | --- | --- | --- |
 | `aws.logs_bucket` | `zipline-logs-<customer_name>` | You need a specific logs bucket name. |
+| `aws.warehouse_bucket` | `zipline-<customer_name>-warehouse` | You want a specific warehouse bucket name. The wrapper creates it either way. |
 | `aws.shared_warehouse_bucket` | `""` | Orchestration services need read access to an existing shared warehouse bucket. |
 | `aws.spark_libs_bucket` | `""` | Spark needs access to an existing bucket for shared libraries. |
 | `aws.additional_data_buckets` | `[]` | Spark compute and orchestration read paths need access to more buckets. |
@@ -485,7 +484,7 @@ covered by a typed input above.
 | `orchestration.hub.metrics_port` | Hub Prometheus metrics should expose a different port. |
 | `orchestration.hub.data_quality_metrics_dataset` | Hub should publish data-quality metrics to a specific dataset. |
 | `orchestration.ui.origin` | The public UI origin differs from `https://<ingress.domain>`. |
-| `orchestration.deployment.deploy_fetcher` | The optional fetcher service should be deployed. |
+| `orchestration.deployment.deploy_fetcher` | Defaults to `true`. Set `false` to skip the fetcher service, which serves online fetches and dynamic profile values. |
 | `orchestration.values` | Raw Helm values should be merged before provider values. |
 | `orchestration.extra_values` | Raw Helm values should be merged after typed and provider values. |
 | `orchestration.extra_values_yaml` | Raw Helm values are easier to provide as YAML strings. |
@@ -519,26 +518,25 @@ placeholders can be resolved without customer-supplied Polaris credentials.
 
 ## Data Explorer
 
-Data Explorer is disabled by default. Add this field to the existing
-`orchestration` object in each environment's tfvars to enable it:
+Data Explorer is enabled by default. To turn it off, add this field to the
+existing `orchestration` object in the environment's tfvars:
 
 ```hcl
 orchestration = {
   # Existing deployment and other settings...
   data_explorer = {
-    enabled = true
+    enabled = false
   }
 }
 ```
 
-Set `enabled = false` or omit `data_explorer` to disable the UI feature,
-StarRocks Helm release (operator and cluster), and catalog initialization job.
+`enabled = false` disables the UI feature, StarRocks Helm release (operator and
+cluster), and catalog initialization job.
 This setting takes precedence over additional Helm values so the UI and
 StarRocks deployment stay consistent. Polaris remains available for other services.
 
-For existing deployments, set `enabled = true` before applying to retain
-Data Explorer. Applying with the default `false` removes the existing StarRocks
-release. A Terraform state migration preserves the release when enabled.
+Existing deployments that omit `data_explorer` get StarRocks on their next
+apply. Set `enabled = false` first to keep it off.
 
 ## Conf repository sandbox
 

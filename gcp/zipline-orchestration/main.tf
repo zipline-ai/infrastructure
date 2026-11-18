@@ -12,10 +12,9 @@ variable "gcp" {
       for key in [
         "project_id",
         "region",
-        "warehouse_bucket",
       ] : trimspace(tostring(try(var.gcp[key], ""))) != ""
     ])
-    error_message = "gcp must include non-empty project_id, region, and warehouse_bucket."
+    error_message = "gcp must include non-empty project_id and region."
   }
 
   # network/subnet are provisioned on the fly when omitted (see network.tf);

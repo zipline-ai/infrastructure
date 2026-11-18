@@ -1,5 +1,5 @@
 locals {
-  cloud_args = merge({
+  cloud_args_input = merge({
     cluster_name                         = ""
     eks_version                          = "1.36"
     eks_instance_type                    = "m8a.4xlarge"
@@ -22,6 +22,7 @@ locals {
     additional_data_buckets              = []
     additional_flink_s3_buckets          = []
     additional_flink_readonly_s3_buckets = []
+    warehouse_bucket                     = ""
     shared_warehouse_bucket              = ""
     spark_libs_bucket                    = ""
     logs_bucket                          = ""
@@ -54,6 +55,11 @@ locals {
     karpenter           = {}
   }, var.aws)
 
+  # Bucket names are global, so the default derives from customer_name.
+  cloud_args = merge(local.cloud_args_input, {
+    warehouse_bucket = try(trimspace(local.cloud_args_input.warehouse_bucket), "") != "" ? local.cloud_args_input.warehouse_bucket : "zipline-${local.name_prefix}-warehouse"
+  })
+
   redis = merge({
     enabled             = false
     cluster_nodes       = ""
@@ -85,7 +91,7 @@ locals {
 
   install                       = try(var.orchestration.install, {})
   deployment                    = var.orchestration.deployment
-  deploy_fetcher                = try(local.deployment.deploy_fetcher, false)
+  deploy_fetcher                = try(local.deployment.deploy_fetcher, true)
   name_prefix                   = local.deployment.customer_name
   cluster_name                  = local.cloud_args.cluster_name != "" ? local.cloud_args.cluster_name : "${local.name_prefix}-eks"
   orchestration_namespace       = try(local.install.namespace, "zipline-system")
@@ -281,6 +287,11 @@ locals {
   )))
 
   module_orchestration = merge(var.orchestration, {
+    # On by default here (not in the module) because this root always supplies
+    # the StarRocks storage config that Data Explorer needs.
+    data_explorer        = { enabled = try(var.orchestration.data_explorer.enabled, true) }
+    # On by default: dynamic profiles and online fetches are served by the fetcher.
+    deployment = merge(var.orchestration.deployment, { deploy_fetcher = local.deploy_fetcher })
     extra_secret_objects = []
     secrets = merge(try(var.orchestration.secrets, {}), {
       extra_secret_objects = []

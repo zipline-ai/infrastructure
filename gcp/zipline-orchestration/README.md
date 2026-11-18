@@ -111,11 +111,13 @@ Phase 1 lands infra + a healthy chart; live workloads unlock in later phases:
 - Phase 3 (online fetcher) uses what Phase 2 wires.
 - Phase 4 (streaming/Flink) needs:
   - The Spark 4 helper jars from `FlinkConfigBuilder.spark4AdditionalJarNames`
-    in `gcp.flink_jars_base_path` if set, otherwise
-    `gs://<gcp.spark_libs_bucket>/spark-4.1.3/libs/` (default bucket
-    `zipline-spark-libs`). Nothing publishes these yet, on GCP or AWS; upload
-    them from Maven Central.
-  - `gcp.kv_bulk_uploader = "spark"` when teams write output to Polaris.
+    in `gcp.flink_jars_base_path` if set; otherwise
+    `gs://<gcp.spark_libs_bucket>/spark-4.1.3/libs/` when `spark_libs_bucket`
+    is set, else `<artifact_prefix>/spark-4.1.3/libs/`, where
+    `zipline admin install` publishes them. Stacks created before the
+    `zipline-<customer_name>-spark-libs` default keep their bucket by setting
+    `spark_libs_bucket = "zipline-spark-libs"` and `create_spark_libs_bucket = true`.
+  - `gcp.kv_bulk_uploader` (default `"spark"`, which Polaris output needs).
   - A Pub/Sub subscription per streaming job. A subscription hands each
     message to one reader, so two jobs reading one topic, in the same stack or
     different ones, need separate subscriptions.
@@ -131,14 +133,15 @@ editor configuration. See the [sandbox configuration guide](../../charts/zipline
 for inputs, cloud secret references, and image availability requirements.
 ## Data Explorer
 
-Data Explorer is disabled by default. To enable it, add `data_explorer` to the
-existing `orchestration` object in your environment's tfvars:
+Data Explorer is enabled by default. Existing deployments that omit
+`data_explorer` get StarRocks on their next apply. To keep it off, add this to
+the `orchestration` object in your environment's tfvars:
 
 ```hcl
 orchestration = {
   # Existing settings...
   data_explorer = {
-    enabled = true
+    enabled = false
   }
 }
 ```
