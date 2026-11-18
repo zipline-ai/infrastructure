@@ -85,6 +85,12 @@ locals {
 
   compute_namespaces = try(var.orchestration.compute.namespaces, [{ name = try(var.orchestration.compute.default_namespace, "zipline-default"), team = "default" }])
 
+  cost_tracking         = try(var.orchestration.cost_tracking, {})
+  cost_tracking_enabled = try(local.cost_tracking.enabled, false)
+  # The onboarding doc asks customers to export to <cluster project>.billing_export.
+  cost_billing_export_dataset = try(local.cost_tracking.billing_export_dataset, "") != "" ? local.cost_tracking.billing_export_dataset : "${local.cloud_args.project_id}.billing_export"
+  cost_billing_export_project = split(".", local.cost_billing_export_dataset)[0]
+
   bigtable_zone = local.cloud_args.bigtable_zone != "" ? local.cloud_args.bigtable_zone : "${local.cloud_args.region}-a"
   bigtable_instance_name = local.cloud_args.bigtable_instance != "" ? local.cloud_args.bigtable_instance : "zipline-${local.name_prefix}-instance"
 
@@ -415,6 +421,24 @@ locals {
         nodeSelector = local.system_node_selector
         tolerations  = local.system_node_tolerations
       }
+    }
+
+    costExport = {
+      enabled      = local.cost_tracking_enabled
+      cloud        = "gcp"
+      namespace    = try(local.cost_tracking.namespace, try(var.orchestration.compute.default_namespace, "zipline-default"))
+      schedule     = try(local.cost_tracking.schedule, "0 6 * * *")
+      lookbackDays = try(local.cost_tracking.lookback_days, 5)
+      gcp = {
+        billingExportDataset = local.cost_billing_export_dataset
+        projects             = try(local.cost_tracking.projects, [local.cloud_args.project_id])
+        jobProject           = local.cloud_args.project_id
+      }
+      nodeSelector = { "zipline.ai/engine" = "spark", "zipline.ai/role" = "driver" }
+      tolerations = [
+        { key = "zipline.ai/workload", operator = "Equal", value = "spark", effect = "NoSchedule" },
+        { key = "kubernetes.io/arch", operator = "Exists", effect = "NoSchedule" },
+      ]
     }
 
     nodepoolExporter = {
