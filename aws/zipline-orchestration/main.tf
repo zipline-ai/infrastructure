@@ -10,11 +10,10 @@ variable "aws" {
   validation {
     condition = alltrue([
       for key in [
-        "warehouse_bucket",
         "region",
       ] : trimspace(tostring(try(var.aws[key], ""))) != ""
     ])
-    error_message = "aws must include non-empty warehouse_bucket and region."
+    error_message = "aws must include non-empty region."
   }
 
   validation {

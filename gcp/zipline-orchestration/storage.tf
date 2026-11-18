@@ -5,11 +5,10 @@ locals {
   logs_bucket = local.cloud_args.logs_bucket != "" ? local.cloud_args.logs_bucket : "zipline-logs-${local.name_prefix}"
 
   # Attach-vs-create for spark_libs_bucket:
-  #   - empty                        => create as zipline-spark-libs
+  #   - empty                        => create as zipline-<customer>-spark-libs
   #   - name set, create knob unset  => attach existing (TF only grants) — AWS parity
-  #   - name set, create knob true   => create under that name (use when global
-  #                                     default zipline-spark-libs is taken)
-  spark_libs_bucket_name = local.cloud_args.spark_libs_bucket != "" ? local.cloud_args.spark_libs_bucket : "zipline-spark-libs"
+  #   - name set, create knob true   => create under that name
+  spark_libs_bucket_name = local.cloud_args.spark_libs_bucket != "" ? local.cloud_args.spark_libs_bucket : "zipline-${local.name_prefix}-spark-libs"
   create_spark_libs_bucket = local.cloud_args.spark_libs_bucket == "" || local.cloud_args.create_spark_libs_bucket
 
   # Buckets the four GSAs read/write. Separated out so identity.tf can

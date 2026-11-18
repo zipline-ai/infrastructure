@@ -1,5 +1,5 @@
 locals {
-  cloud_args = merge({
+  cloud_args_input = merge({
     cluster_name                         = ""
     eks_version                          = "1.36"
     eks_instance_type                    = "m8a.4xlarge"
@@ -22,6 +22,7 @@ locals {
     additional_data_buckets              = []
     additional_flink_s3_buckets          = []
     additional_flink_readonly_s3_buckets = []
+    warehouse_bucket                     = ""
     shared_warehouse_bucket              = ""
     spark_libs_bucket                    = ""
     logs_bucket                          = ""
@@ -53,6 +54,11 @@ locals {
     secret_force_delete = false
     karpenter           = {}
   }, var.aws)
+
+  # Bucket names are global, so the default derives from customer_name.
+  cloud_args = merge(local.cloud_args_input, {
+    warehouse_bucket = try(trimspace(local.cloud_args_input.warehouse_bucket), "") != "" ? local.cloud_args_input.warehouse_bucket : "zipline-${local.name_prefix}-warehouse"
+  })
 
   redis = merge({
     enabled             = false
@@ -281,6 +287,9 @@ locals {
   )))
 
   module_orchestration = merge(var.orchestration, {
+    # On by default here (not in the module) because this root always supplies
+    # the StarRocks storage config that Data Explorer needs.
+    data_explorer        = { enabled = try(var.orchestration.data_explorer.enabled, true) }
     extra_secret_objects = []
     secrets = merge(try(var.orchestration.secrets, {}), {
       extra_secret_objects = []
