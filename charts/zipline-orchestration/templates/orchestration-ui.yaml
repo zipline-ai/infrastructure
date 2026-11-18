@@ -89,8 +89,14 @@ spec:
                   key: {{ include "zipline-orchestration.databaseCredentialsUsernameKey" . }}
             - name: DATABASE_URL
               value: {{ include "zipline-orchestration.databaseUrl" . | quote }}
+            {{- $uiEnvNames := list }}
+            {{- range concat (.Values.runtime.env | default list) (.Values.orchestration.ui.env | default list) }}
+            {{- $uiEnvNames = append $uiEnvNames .name }}
+            {{- end }}
+            {{- if not (has "LOG_PROVIDER" $uiEnvNames) }}
             - name: LOG_PROVIDER
               value: "loki"
+            {{- end }}
             - name: LOKI_URL
               value: "http://{{ include "zipline-orchestration.fullname" . }}-loki.{{ include "zipline-orchestration.computeSystemNamespace" . }}.svc.cluster.local:3100"
             - name: LOKI_NAMESPACE
