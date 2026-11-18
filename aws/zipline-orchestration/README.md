@@ -484,7 +484,7 @@ covered by a typed input above.
 | `orchestration.hub.metrics_port` | Hub Prometheus metrics should expose a different port. |
 | `orchestration.hub.data_quality_metrics_dataset` | Hub should publish data-quality metrics to a specific dataset. |
 | `orchestration.ui.origin` | The public UI origin differs from `https://<ingress.domain>`. |
-| `orchestration.deployment.deploy_fetcher` | The optional fetcher service should be deployed. |
+| `orchestration.deployment.deploy_fetcher` | Defaults to `true`. Set `false` to skip the fetcher service, which serves online fetches and dynamic profile values. |
 | `orchestration.values` | Raw Helm values should be merged before provider values. |
 | `orchestration.extra_values` | Raw Helm values should be merged after typed and provider values. |
 | `orchestration.extra_values_yaml` | Raw Helm values are easier to provide as YAML strings. |

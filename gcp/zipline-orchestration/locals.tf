@@ -81,7 +81,7 @@ locals {
 
   install                       = try(var.orchestration.install, {})
   deployment                    = var.orchestration.deployment
-  deploy_fetcher                = try(local.deployment.deploy_fetcher, false)
+  deploy_fetcher                = try(local.deployment.deploy_fetcher, true)
   name_prefix                   = local.deployment.customer_name
   orchestration_namespace       = try(local.install.namespace, "zipline-system")
   orchestration_service_account = try(var.orchestration.service_account.name, "orchestration-sa")
@@ -156,6 +156,8 @@ locals {
     # On by default here (not in the module) because this root always supplies
     # the StarRocks storage config that Data Explorer needs.
     data_explorer        = { enabled = try(var.orchestration.data_explorer.enabled, true) }
+    # On by default: dynamic profiles and online fetches are served by the fetcher.
+    deployment = merge(var.orchestration.deployment, { deploy_fetcher = local.deploy_fetcher })
     extra_secret_objects = []
     secrets = merge(try(var.orchestration.secrets, {}), {
       extra_secret_objects = []
