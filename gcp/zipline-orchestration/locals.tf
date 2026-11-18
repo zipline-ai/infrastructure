@@ -224,9 +224,10 @@ locals {
 
   # UI knob (§11): the UI *queries* Managed Prometheus; the hub stays on
   # Prometheus-style metrics (§3.4). Do not set CHRONON_METRICS_READER=gcp.
+  # No UI LOG_PROVIDER here: the chart's Loki default is the only store with the
+  # crucible-spark log profile; with "gcp" the UI's Spark log query never matches.
   ui_env = [
     { name = "METRICS_PROVIDER", value = "gcp" },
-    { name = "LOG_PROVIDER", value = "gcp" },
   ]
 
   # Every service gets runtime_env, so GOOGLE_CLOUD_PROJECT is set here only.
