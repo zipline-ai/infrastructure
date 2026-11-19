@@ -1,36 +1,48 @@
 """Init container for the cost export job.
 
-The Spark operator runs spark-submit in its own pod, which cannot read gs:// dependencies, and the
-Polaris client Secret lives in the release namespace, which a pod in a compute namespace cannot
-mount. So this step downloads the engine jar (the job's Iceberg runtime) and copies the Polaris
-credential into a volume shared with the driver. Only the standard library is used because the
-Spark image has no cloud client libraries.
+The Spark operator runs spark-submit in its own pod, which cannot read gs:// or s3:// dependencies,
+and the Polaris client Secret lives in the release namespace, which a pod in a compute namespace
+cannot mount. So this step downloads the engine jar (the job's Iceberg runtime) and copies the
+Polaris credential into a volume shared with the driver.
+
+The jar is copied with Hadoop's FsShell from the Spark image's own jars, so the image's GCS and S3
+connectors and the pod's cloud identity (Workload Identity or IRSA) do the work on either cloud.
 """
 
 import base64
 import json
 import os
 import ssl
+import subprocess
 import sys
-import urllib.parse
+import tempfile
 import urllib.request
 
-GCP_TOKEN_URL = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
 SA_DIR = "/var/run/secrets/kubernetes.io/serviceaccount"
+SPARK_JARS = "/opt/spark/jars/*"
+SCHEME_SETTINGS = {
+    "gs": ["fs.gs.impl=com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem"],
+    "s3": ["fs.s3.impl=org.apache.hadoop.fs.s3a.S3AFileSystem",
+           "fs.s3a.aws.credentials.provider=com.amazonaws.auth.WebIdentityTokenCredentialsProvider"],
+    "s3a": ["fs.s3a.aws.credentials.provider=com.amazonaws.auth.WebIdentityTokenCredentialsProvider"],
+}
 
 
-def download_gcs(source: str, destination: str):
-    bucket, _, name = source[len("gs://"):].partition("/")
-    token_request = urllib.request.Request(GCP_TOKEN_URL, headers={"Metadata-Flavor": "Google"})
-    with urllib.request.urlopen(token_request, timeout=30) as response:
-        token = json.load(response)["access_token"]
-    url = (f"https://storage.googleapis.com/storage/v1/b/{bucket}/o/"
-           f"{urllib.parse.quote(name, safe='')}?alt=media")
-    request = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
-    with urllib.request.urlopen(request, timeout=600) as response, open(destination, "wb") as out:
-        while chunk := response.read(8 << 20):
-            out.write(chunk)
-    print(f"Downloaded {source} to {destination}")
+def download(source: str, destination: str):
+    scheme = source.split("://", 1)[0]
+    if scheme not in SCHEME_SETTINGS:
+        raise ValueError(f"unsupported engine jar location {source!r}")
+    # Spark images ship no Hadoop config, and FsShell refuses to start without core-site.xml.
+    with tempfile.TemporaryDirectory() as conf_dir:
+        with open(os.path.join(conf_dir, "core-site.xml"), "w") as handle:
+            handle.write("<configuration/>\n")
+        settings = [arg for setting in SCHEME_SETTINGS[scheme] for arg in ("-D", setting)]
+        subprocess.run(
+            ["java", "-cp", f"{conf_dir}:{SPARK_JARS}", "org.apache.hadoop.fs.FsShell",
+             *settings, "-copyToLocal", "-f", source, destination],
+            check=True,
+        )
+    print(f"Downloaded {source} to {destination} ({os.path.getsize(destination)} bytes)")
 
 
 def copy_secret_key(namespace: str, name: str, key: str, destination: str):
@@ -53,10 +65,7 @@ def copy_secret_key(namespace: str, name: str, key: str, destination: str):
 
 
 def main():
-    jar_source, jar_destination = os.environ["ENGINE_JAR"], os.environ["ENGINE_JAR_PATH"]
-    if not jar_source.startswith("gs://"):
-        raise ValueError(f"only gs:// engine jars are supported, got {jar_source!r}")
-    download_gcs(jar_source, jar_destination)
+    download(os.environ["ENGINE_JAR"], os.environ["ENGINE_JAR_PATH"])
     copy_secret_key(os.environ["POLARIS_SECRET_NAMESPACE"], os.environ["POLARIS_SECRET_NAME"],
                     os.environ["POLARIS_SECRET_KEY"], os.environ["POLARIS_CREDENTIAL_FILE"])
 

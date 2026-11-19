@@ -103,6 +103,15 @@ locals {
 
   compute_namespaces       = try(var.orchestration.compute.namespaces, [{ name = try(var.orchestration.compute.default_namespace, "zipline-default"), team = "default" }])
   redis_compute_namespaces = length(local.compute_namespaces) > 0 ? local.compute_namespaces : [{ name = try(var.orchestration.compute.default_namespace, "zipline-default"), team = "default" }]
+
+  cost_tracking        = try(var.orchestration.cost_tracking, {})
+  cost_cur_export_path = trimsuffix(trimspace(try(local.cost_tracking.cur_export_path, "")), "/")
+  # The CUR bucket is customer-named, so there is no default path; the job turns on once it is set.
+  cost_tracking_enabled = try(local.cost_tracking.enabled, local.cost_cur_export_path != "")
+  cost_cur_location     = trimprefix(trimprefix(local.cost_cur_export_path, "s3a://"), "s3://")
+  cost_cur_bucket       = split("/", local.cost_cur_location)[0]
+  cost_cur_prefix       = trimprefix(local.cost_cur_location, "${local.cost_cur_bucket}/")
+
   karpenter = merge({
     enabled            = true
     namespace          = "kube-system"
@@ -693,6 +702,23 @@ locals {
         nodeSelector = local.system_node_selector
         tolerations  = local.system_node_tolerations
       }
+    }
+
+    costExport = {
+      enabled      = local.cost_tracking_enabled
+      cloud        = "aws"
+      namespace    = try(local.cost_tracking.namespace, try(var.orchestration.compute.default_namespace, "zipline-default"))
+      schedule     = try(local.cost_tracking.schedule, "0 6 * * *")
+      lookbackDays = try(local.cost_tracking.lookback_days, 5)
+      aws = {
+        curExportPath = local.cost_cur_export_path
+        accounts      = try(local.cost_tracking.accounts, [data.aws_caller_identity.current.account_id])
+      }
+      nodeSelector = { "zipline.ai/engine" = "spark", "zipline.ai/role" = "driver" }
+      tolerations = [
+        { key = "zipline.ai/workload", operator = "Equal", value = "spark", effect = "NoSchedule" },
+        { key = "kubernetes.io/arch", operator = "Exists", effect = "NoSchedule" },
+      ]
     }
   }
 }
