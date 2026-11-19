@@ -422,6 +422,7 @@ locals {
     for name, ref in {
       AGENTS_ANTHROPIC_API_KEY = try(local.orchestration.agents.anthropic_api_key_remote_ref, {})
       AGENTS_OPENAI_API_KEY    = try(local.orchestration.agents.openai_api_key_remote_ref, {})
+      AGENTS_GOOGLE_API_KEY    = try(local.orchestration.agents.gemini_api_key_remote_ref, {})
     } : name => ref if try(local.orchestration.agents.enable, false) && try(ref.key, "") != ""
   }
   agents_external_secret = {

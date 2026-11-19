@@ -561,9 +561,11 @@ This configures the UI only; it does not provision agent runtime services.
 
 ### Agent provider API keys
 
-Set `orchestration.agents.anthropic_api_key_remote_ref` and/or
-`orchestration.agents.openai_api_key_remote_ref` to cloud secret references.
+Set `orchestration.agents.anthropic_api_key_remote_ref`,
+`orchestration.agents.openai_api_key_remote_ref`, and/or
+`orchestration.agents.gemini_api_key_remote_ref` to cloud secret references.
 When agents are enabled, External Secrets syncs these into the UI through
-`secretKeyRef` as `AGENTS_ANTHROPIC_API_KEY` and `AGENTS_OPENAI_API_KEY`.
+`secretKeyRef` as `AGENTS_ANTHROPIC_API_KEY`, `AGENTS_OPENAI_API_KEY`, and
+`AGENTS_GOOGLE_API_KEY`, respectively.
 See [provider credential configuration](../../charts/zipline-orchestration/AGENT_CREDENTIALS.md)
-for reference formats and examples. Both references are optional.
+for reference formats and examples. All references are optional.
