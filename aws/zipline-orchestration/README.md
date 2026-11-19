@@ -368,6 +368,12 @@ for the environment.
 
 ### DynamoDB, Glue, MSK, and Observability
 
+To publish sampled fetch responses and their schemas to an existing MSK topic,
+set `aws.fetcher_ooc.cluster_name` and `aws.fetcher_ooc.topic` in your deployment
+tfvars. The fetcher must be enabled and able to reach the cluster’s IAM brokers.
+The wrapper resolves the bootstrap addresses and grants the orchestration role
+producer access for the selected topic.
+
 The AWS fetcher uses the Terraform-managed DynamoDB tables. The wrapper passes
 the table prefix, TTL setting, and replica regions to the fetcher automatically.
 
