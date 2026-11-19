@@ -1,6 +1,14 @@
 variable "orchestration" {
   description = "Shared Zipline orchestration install inputs consumed by modules/zipline-orchestration."
   type        = any
+
+  validation {
+    condition = (
+      trimspace(try(var.orchestration.cost_tracking.billing_export_dataset, "")) == "" ||
+      can(regex("^[a-z][a-z0-9-]*\\.[A-Za-z0-9_]+$", var.orchestration.cost_tracking.billing_export_dataset))
+    )
+    error_message = "orchestration.cost_tracking.billing_export_dataset must be <project>.<dataset>."
+  }
 }
 
 variable "gcp" {

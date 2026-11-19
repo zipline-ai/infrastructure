@@ -177,6 +177,42 @@ StarRocks cluster, inspect its persisted storage volumes before applying. Changi
 FE configuration does not constitute a migration of existing S3-type storage
 volumes to GS. Plan that migration separately; do not delete PVCs or stored data.
 
+## Cost tracking
+
+Cost tracking is disabled by default. When enabled, a daily Spark job (`ScheduledSparkApplication`
+`cost-export` in the default compute namespace) reads the Cloud Billing detailed usage cost export
+and writes `zipline_catalog.cost.daily_cost` in Polaris, one row per day, project, cluster,
+namespace, service and SKU. Data Explorer can query it.
+
+Prerequisites, done once by the customer:
+
+1. Turn on **Detailed usage cost** export (Billing → Billing export → BigQuery export) into dataset
+   `<gcp.project_id>.billing_export`, or any dataset set in `billing_export_dataset`.
+2. GKE cost allocation is on through `gke_cost_allocation` (default `true`). Namespace splits only
+   cover usage after it is turned on.
+
+```hcl
+orchestration = {
+  # Existing settings...
+  cost_tracking = {
+    enabled = true
+    # Optional:
+    # billing_export_dataset = "<project>.<dataset>"  # default <gcp.project_id>.billing_export
+    # projects               = ["<project>"]          # default [gcp.project_id]
+    # schedule               = "0 6 * * *"
+    # lookback_days          = 5
+  }
+}
+```
+
+The job runs as the compute namespace's Spark service account. If the export dataset is in another
+project, Terraform grants that account `roles/bigquery.dataViewer` on the dataset, so the applying
+identity needs permission to set IAM there. Each run rewrites the last `lookback_days` days, because
+billing rows and credits keep arriving for a few days after usage.
+
+Team is derived from the namespace: `zipline-<team>` maps to `<team>`; other namespaces, idle node
+capacity (`kube:unallocated`) and costs outside Kubernetes map to `shared`.
+
 ## Sandbox network isolation
 
 Sandbox networking uses an allowlisted egress proxy and NetworkPolicies.

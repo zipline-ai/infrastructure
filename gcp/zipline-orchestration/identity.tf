@@ -274,3 +274,14 @@ resource "google_project_iam_member" "personnel" {
 
   depends_on = [google_project_service.required]
 }
+
+# Cost export reads the billing export as the Spark GSA. Same-project datasets are already covered
+# by the project-level BigQuery roles above; a dataset in another project needs this grant.
+resource "google_bigquery_dataset_iam_member" "spark_billing_export" {
+  count = local.cost_tracking_enabled && local.cost_billing_export_project != local.cloud_args.project_id ? 1 : 0
+
+  project    = local.cost_billing_export_project
+  dataset_id = split(".", local.cost_billing_export_dataset)[1]
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.spark.email}"
+}
