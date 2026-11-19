@@ -77,6 +77,7 @@ module "zipline_orchestration" {
     aws_eks_addon.vpc_cni,
     aws_eks_node_group.default,
     aws_iam_role_policy.orchestration_secrets,
+    aws_iam_role_policy.fetcher_ooc,
     kubernetes_storage_class_v1.gp3,
     aws_secretsmanager_secret_version.redis,
     helm_release.aws_load_balancer_controller,

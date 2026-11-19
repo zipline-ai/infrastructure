@@ -410,7 +410,10 @@ locals {
       { name = "AWS_REGION", value = local.cloud_args.region },
       { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
     ]
-    fetcher_env = concat([
+    fetcher_env = concat(local.fetcher_ooc == null ? [] : [{
+      name  = "FETCHER_OOC_TOPIC_INFO"
+      value = local.fetcher_ooc_topic_info
+    }], [
       { name = "PROVIDER", value = "AWS" },
       { name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix },
       { name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) },
