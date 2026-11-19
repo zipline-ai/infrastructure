@@ -179,10 +179,12 @@ volumes to GS. Plan that migration separately; do not delete PVCs or stored data
 
 ## Cost tracking
 
-Cost tracking is disabled by default. When enabled, a daily Spark job (`ScheduledSparkApplication`
+Cost tracking is on by default. Set `cost_tracking.enabled = false` to turn it off. A daily Spark job (`ScheduledSparkApplication`
 `cost-export` in the default compute namespace) reads the Cloud Billing detailed usage cost export
 and writes `zipline_catalog.cost.daily_cost` in Polaris, one row per day, project, cluster,
 namespace, service and SKU. Data Explorer can query it.
+
+Until the billing export below exists, each daily run fails with a message saying to turn it on.
 
 Prerequisites, done once by the customer:
 
@@ -195,8 +197,8 @@ Prerequisites, done once by the customer:
 orchestration = {
   # Existing settings...
   cost_tracking = {
-    enabled = true
-    # Optional:
+    # All optional:
+    # enabled                = true
     # billing_export_dataset = "<project>.<dataset>"  # default <gcp.project_id>.billing_export
     # projects               = ["<project>"]          # default [gcp.project_id]
     # schedule               = "0 6 * * *"
