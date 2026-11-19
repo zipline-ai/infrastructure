@@ -109,10 +109,25 @@ resource "terraform_data" "controller_resource_cleanup" {
   #     DescribeInstances i/o timeout) and can never terminate the nodes or delete
   #     the NLB. Referencing count=0 network resources (customer-supplied VPC) is
   #     a harmless empty set.
+  #   - Karpenter node access entry, node IAM, and node/API security group rules:
+  #     nothing else orders them after the workloads, so tofu removed them in the
+  #     first wave. Karpenter nodes then went NotReady within minutes, their pods
+  #     could never finish terminating, and the StarRocks drain and hub-chart
+  #     uninstall timed out ("context deadline exceeded"), leaving the cluster up.
+  #   - LB controller IAM: without it the controller cannot delete the NLB.
   depends_on = [
     helm_release.karpenter,
     helm_release.karpenter_nodepools,
     helm_release.aws_load_balancer_controller,
+    aws_eks_access_entry.karpenter_node,
+    aws_iam_instance_profile.karpenter_node,
+    aws_iam_role_policy_attachment.karpenter_node_worker,
+    aws_iam_role_policy_attachment.karpenter_node_cni,
+    aws_iam_role_policy_attachment.karpenter_node_registry,
+    aws_iam_role_policy_attachment.karpenter_node_ssm,
+    aws_iam_role_policy_attachment.aws_lb_controller,
+    aws_vpc_security_group_egress_rule.zipline_allow_all,
+    aws_security_group_rule.eks_cluster_ingress_https,
     aws_route_table_association.public,
     aws_route_table.public,
     aws_subnet.zipline,
