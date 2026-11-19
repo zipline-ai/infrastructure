@@ -115,6 +115,8 @@ locals {
 resource "google_service_account" "nodes" {
   account_id   = "${local.name_prefix}-gke-nodes"
   display_name = "${local.name_prefix} GKE node pool service account"
+
+  depends_on = [google_project_service.required]
 }
 
 # Minimum required roles for GKE node VMs: logging/metrics writer, autoscaler
@@ -256,6 +258,7 @@ resource "google_container_cluster" "main" {
   }
 
   depends_on = [
+    google_project_service.required,
     google_project_iam_member.nodes,
   ]
 }

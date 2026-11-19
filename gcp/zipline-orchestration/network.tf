@@ -25,6 +25,8 @@ resource "google_compute_network" "main" {
   name                    = "${local.name_prefix}-vpc"
   auto_create_subnetworks = false
   routing_mode            = "REGIONAL"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_compute_subnetwork" "main" {

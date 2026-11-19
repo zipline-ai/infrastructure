@@ -1,8 +1,8 @@
-data "google_project" "current" {
-  project_id = local.cloud_args.project_id
-}
-
 locals {
+  # Read from a bucket rather than data.google_project: that lookup needs the
+  # Cloud Resource Manager API at plan time, before apis.tf can turn it on.
+  project_number = google_storage_bucket.warehouse.project_number
+
   # Read from the cluster, not built from the project ID: GKE creates the pool
   # with the project's first Workload Identity cluster, and in a fresh project
   # binding before then fails with "Identity Pool does not exist".
@@ -81,31 +81,43 @@ locals {
 resource "google_service_account" "orchestration" {
   account_id   = "${local.name_prefix}-orchestration"
   display_name = "Orchestration (hub, ui, eval, external-secrets reader)"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_service_account" "spark" {
   account_id   = "${local.name_prefix}-spark"
   display_name = "Spark compute execution"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_service_account" "flink" {
   account_id   = "${local.name_prefix}-flink"
   display_name = "Flink compute execution"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_service_account" "eval" {
   account_id   = "${local.name_prefix}-eval"
   display_name = "Eval service"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_service_account" "polaris_storage" {
   account_id   = "${local.name_prefix}-polaris"
   display_name = "Polaris GCS credential-vending identity"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_service_account" "external_secrets" {
   account_id   = "${local.name_prefix}-eso"
   display_name = "External Secrets Operator"
+
+  depends_on = [google_project_service.required]
 }
 
 # ---------------------------------------------------------------------------
@@ -131,13 +143,13 @@ resource "google_service_account_iam_member" "orchestration_wi" {
 resource "google_service_account_iam_member" "spark_wi" {
   service_account_id = google_service_account.spark.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${local.wi_pool}/kubernetes.cluster/${local.cluster_self_link}"
+  member             = "principalSet://iam.googleapis.com/projects/${local.project_number}/locations/global/workloadIdentityPools/${local.wi_pool}/kubernetes.cluster/${local.cluster_self_link}"
 }
 
 resource "google_service_account_iam_member" "flink_wi" {
   service_account_id = google_service_account.flink.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${local.wi_pool}/kubernetes.cluster/${local.cluster_self_link}"
+  member             = "principalSet://iam.googleapis.com/projects/${local.project_number}/locations/global/workloadIdentityPools/${local.wi_pool}/kubernetes.cluster/${local.cluster_self_link}"
 }
 
 resource "google_service_account_iam_member" "eval_wi" {
@@ -259,4 +271,6 @@ resource "google_project_iam_member" "personnel" {
   project = local.cloud_args.project_id
   role    = "roles/container.admin"
   member  = each.value
+
+  depends_on = [google_project_service.required]
 }

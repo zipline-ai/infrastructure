@@ -69,7 +69,7 @@ Set these for every environment.
 | Field | Why it is required |
 | --- | --- |
 | `orchestration.deployment.customer_name` | Used as the environment/customer prefix for generated resources. |
-| `orchestration.deployment.artifact_prefix` | S3 URI for Zipline artifacts. The wrapper creates the bucket portion of this URI. |
+| `orchestration.deployment.artifact_prefix` | S3 URI for Zipline artifacts. Defaults to `s3://zipline-<customer_name>-artifacts`. The wrapper creates the bucket portion of this URI. |
 | `orchestration.deployment.zipline_version` | Base image tag. Hub and Eval use its Spark 4 variant; `nightly` stays `nightly` and other tags gain `-spark4`. |
 | `orchestration.ingress.domain` | Public host used by the UI, Hub, Eval, and supporting ingress routes. |
 | `aws.region` | AWS region for all regional resources and providers. |

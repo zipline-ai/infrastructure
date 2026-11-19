@@ -102,6 +102,13 @@ tofu plan                            # safe, no changes applied
 tofu apply                           # when ready
 ```
 
+The stack turns on the Google Cloud APIs it uses (`apis.tf`) and leaves them on
+at teardown. If the deploying identity can't manage APIs, set
+`gcp.enable_apis = false` and have them turned on beforehand.
+
+`orchestration.deployment.artifact_prefix` defaults to
+`gs://zipline-<customer_name>-artifacts`.
+
 ## Known gaps / Phase-gated capabilities
 
 Phase 1 lands infra + a healthy chart; live workloads unlock in later phases:
