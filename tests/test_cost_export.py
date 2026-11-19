@@ -135,8 +135,11 @@ locals {{
         self.assertEqual(values["gcp"]["projects"], ["p1", "p2"])
         self.assertEqual(values["lookbackDays"], 3)
 
-    def test_disabled_by_default(self):
-        self.assertFalse(self.evaluate({})["enabled"])
+    def test_enabled_by_default(self):
+        self.assertTrue(self.evaluate({})["enabled"])
+
+    def test_opt_out(self):
+        self.assertFalse(self.evaluate({"enabled": False})["enabled"])
 
 
 if __name__ == "__main__":

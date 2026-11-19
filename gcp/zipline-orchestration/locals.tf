@@ -94,7 +94,8 @@ locals {
   compute_namespaces = try(var.orchestration.compute.namespaces, [{ name = try(var.orchestration.compute.default_namespace, "zipline-default"), team = "default" }])
 
   cost_tracking         = try(var.orchestration.cost_tracking, {})
-  cost_tracking_enabled = try(local.cost_tracking.enabled, false)
+  # On by default; until the billing export exists the daily job fails with a message saying so.
+  cost_tracking_enabled = try(local.cost_tracking.enabled, true)
   # The onboarding doc asks customers to export to <cluster project>.billing_export.
   cost_billing_export_dataset = try(local.cost_tracking.billing_export_dataset, "") != "" ? local.cost_tracking.billing_export_dataset : "${local.cloud_args.project_id}.billing_export"
   cost_billing_export_project = split(".", local.cost_billing_export_dataset)[0]
