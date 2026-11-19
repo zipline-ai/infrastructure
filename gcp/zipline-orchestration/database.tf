@@ -72,6 +72,7 @@ resource "google_sql_database_instance" "zipline" {
   encryption_key_name = local.cloud_args.cmek_key_id != "" ? local.cloud_args.cmek_key_id : null
 
   depends_on = [
+    google_project_service.required,
     google_service_networking_connection.psa,
   ]
 }

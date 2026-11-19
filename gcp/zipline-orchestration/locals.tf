@@ -1,6 +1,7 @@
 locals {
   cloud_args_input = merge({
     # Required (no default): project_id, region.
+    enable_apis                         = true
     cluster_name                        = ""
     network                             = ""
     subnet                              = ""
@@ -80,7 +81,8 @@ locals {
   })
 
   install                       = try(var.orchestration.install, {})
-  deployment                    = var.orchestration.deployment
+  default_artifact_prefix       = "gs://zipline-${var.orchestration.deployment.customer_name}-artifacts"
+  deployment                    = merge(var.orchestration.deployment, { artifact_prefix = trimspace(try(var.orchestration.deployment.artifact_prefix, "")) != "" ? var.orchestration.deployment.artifact_prefix : local.default_artifact_prefix })
   deploy_fetcher                = try(local.deployment.deploy_fetcher, true)
   name_prefix                   = local.deployment.customer_name
   orchestration_namespace       = try(local.install.namespace, "zipline-system")
@@ -157,7 +159,7 @@ locals {
     # the StarRocks storage config that Data Explorer needs.
     data_explorer        = { enabled = try(var.orchestration.data_explorer.enabled, true) }
     # On by default: dynamic profiles and online fetches are served by the fetcher.
-    deployment = merge(var.orchestration.deployment, { deploy_fetcher = local.deploy_fetcher })
+    deployment = merge(local.deployment, { deploy_fetcher = local.deploy_fetcher })
     extra_secret_objects = []
     secrets = merge(try(var.orchestration.secrets, {}), {
       extra_secret_objects = []

@@ -16,6 +16,8 @@ resource "google_secret_manager_secret" "db_credentials" {
       }
     }
   }
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_secret_manager_secret_version" "db_credentials" {
@@ -78,6 +80,8 @@ resource "google_secret_manager_secret" "auth" {
     # because versions appeared.
     prevent_destroy = true
   }
+
+  depends_on = [google_project_service.required]
 }
 
 # ---------------------------------------------------------------------------

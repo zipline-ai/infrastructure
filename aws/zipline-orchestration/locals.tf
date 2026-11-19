@@ -90,7 +90,8 @@ locals {
   resolved_secondary_subnet_id = local.create_network ? aws_subnet.zipline["secondary"].id : trimspace(tostring(try(var.aws.secondary_subnet_id, "")))
 
   install                       = try(var.orchestration.install, {})
-  deployment                    = var.orchestration.deployment
+  default_artifact_prefix       = "s3://zipline-${var.orchestration.deployment.customer_name}-artifacts"
+  deployment                    = merge(var.orchestration.deployment, { artifact_prefix = trimspace(try(var.orchestration.deployment.artifact_prefix, "")) != "" ? var.orchestration.deployment.artifact_prefix : local.default_artifact_prefix })
   deploy_fetcher                = try(local.deployment.deploy_fetcher, true)
   name_prefix                   = local.deployment.customer_name
   cluster_name                  = local.cloud_args.cluster_name != "" ? local.cloud_args.cluster_name : "${local.name_prefix}-eks"
@@ -291,7 +292,7 @@ locals {
     # the StarRocks storage config that Data Explorer needs.
     data_explorer        = { enabled = try(var.orchestration.data_explorer.enabled, true) }
     # On by default: dynamic profiles and online fetches are served by the fetcher.
-    deployment = merge(var.orchestration.deployment, { deploy_fetcher = local.deploy_fetcher })
+    deployment = merge(local.deployment, { deploy_fetcher = local.deploy_fetcher })
     extra_secret_objects = []
     secrets = merge(try(var.orchestration.secrets, {}), {
       extra_secret_objects = []

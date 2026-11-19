@@ -16,6 +16,8 @@ resource "google_bigtable_instance" "zipline" {
 
     kms_key_name = local.cloud_args.cmek_key_id != "" ? local.cloud_args.cmek_key_id : null
   }
+
+  depends_on = [google_project_service.required]
 }
 
 # §9.2: GROUPBY_INGEST is hardcoded in BigQuery external-table DDL
