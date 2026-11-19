@@ -96,7 +96,7 @@ locals {
     ]
   ])))
 
-  # Normalize bare IDs before deduplication; preserve explicit project references.
+  # Normalize bare IDs and project/secret pairs before deduplication.
   # These identities are also Terraform instance keys; see the README migration.
   secret_ids_to_grant = distinct([for ref in compact(concat(
     local.auth_enabled ? [local.auth_secret_id] : [],
@@ -111,7 +111,7 @@ locals {
       try(var.orchestration.conf_repo.github_client_secret_remote_ref.key, ""),
     ]),
     local.extra_external_secret_ids,
-  )) : strcontains(ref, "/") ? ref : "projects/${local.cloud_args.project_id}/secrets/${ref}"])
+  )) : length(split("/", ref)) == 2 ? "projects/${split("/", ref)[0]}/secrets/${split("/", ref)[1]}" : (strcontains(ref, "/") ? ref : "projects/${local.cloud_args.project_id}/secrets/${ref}")])
 }
 
 resource "google_secret_manager_secret_iam_member" "orchestration_extras" {

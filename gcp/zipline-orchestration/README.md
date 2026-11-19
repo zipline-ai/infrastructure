@@ -197,11 +197,12 @@ for reference formats and examples. All references are optional.
 
 Secret accessor grants now use `projects/<project>/secrets/<secret>` as their
 Terraform instance keys. Short IDs resolve against `cloud_args.project_id` before
-deduplication. Explicit `project/secret` and fully qualified references retain their project, including references
-to other projects. Use the same project identifier consistently; project numbers
+deduplication. Two-component `project/secret` references expand to
+`projects/<project>/secrets/<secret>`, retaining the explicitly specified project.
+Already-canonical references remain unchanged, including those to other projects. Use the same project identifier consistently; project numbers
 and project IDs are not resolved into one another.
 
-Before applying this version to an existing deployment, migrate any short-keyed
+Before applying this version to an existing deployment, migrate any bare-secret or `project/secret`-keyed
 `google_secret_manager_secret_iam_member.orchestration_extras` and
 `google_secret_manager_secret_iam_member.eso_extras` instances. This applies to
 all grant sources, including auth, extra secrets, repository credentials, and
@@ -211,7 +212,7 @@ agent credentials. New deployments need no migration.
    with `terraform state pull` to a secure location; state may contain secrets.
 2. Inspect `terraform state list` and `terraform state show` for the two resources.
    Determine each secret's project from state and the configured provider project.
-3. If only the short-keyed instance exists, move it to its canonical address.
+3. If only the noncanonical instance exists, move it to its canonical address.
    For a root GCP wrapper, an example for secret `my-key` in `my-project` is:
 
    ```sh
@@ -220,11 +221,18 @@ agent credentials. New deployments need no migration.
    ```
 
    Include the deployment's module prefix when the wrapper is called as a module.
-   Repeat for every short-keyed instance. Alternatively, declare deployment-specific
+   For an existing `project/secret` key, move both resources similarly:
+
+   ```sh
+   terraform state mv 'google_secret_manager_secret_iam_member.orchestration_extras["my-project/my-key"]' 'google_secret_manager_secret_iam_member.orchestration_extras["projects/my-project/secrets/my-key"]'
+   terraform state mv 'google_secret_manager_secret_iam_member.eso_extras["my-project/my-key"]' 'google_secret_manager_secret_iam_member.eso_extras["projects/my-project/secrets/my-key"]'
+   ```
+
+   Repeat for every noncanonical instance. Alternatively, declare deployment-specific
    `moved` blocks with these same source and destination addresses.
 4. If both addresses already exist, first verify in state that they represent the
    same project, secret, role, and member. Keep the canonical instance and remove
-   only the duplicate short address from state with `terraform state rm`. This
+   only the duplicate noncanonical address from state with `terraform state rm`. This
    forgets duplicate tracking without revoking the live membership. Do not run a
    destroy or apply the duplicate-removal plan before this state cleanup.
 5. Run the normal Terraform plan. Confirm these IAM resources show no membership
