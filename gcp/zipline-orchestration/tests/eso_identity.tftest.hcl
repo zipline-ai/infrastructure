@@ -176,3 +176,73 @@ run "externally_managed_default" {
     error_message = "Resolve the chart account name without losing the fixed store identity or duplicating the default account."
   }
 }
+
+run "external_eso_leaves_accounts_unmanaged" {
+  command = plan
+  variables {
+    orchestration = {
+      deployment = { customer_name = "test", zipline_version = "test" }
+      addons = {
+        install_external_secrets_operator = false
+        external_secrets_operator_values  = { serviceAccount = { name = "custom-eso" } }
+      }
+    }
+  }
+  assert {
+    condition     = !local.provider_context.secrets.secret_store_service_account.create
+    error_message = "An external ESO installation must not imply wrapper ownership of its store account."
+  }
+}
+
+run "explicitly_adopt_external_store_account" {
+  command = plan
+  variables {
+    gcp = {
+      project_id                          = "test-project"
+      region                              = "us-central1"
+      create_secret_store_service_account = true
+    }
+    orchestration = {
+      deployment = { customer_name = "test", zipline_version = "test" }
+      addons     = { install_external_secrets_operator = false }
+    }
+  }
+  assert {
+    condition     = local.provider_context.secrets.secret_store_service_account.create
+    error_message = "Explicit wrapper ownership must allow importing an external fixed-name account."
+  }
+}
+
+run "explicitly_leave_store_account_external" {
+  command = plan
+  variables {
+    gcp = {
+      project_id                          = "test-project"
+      region                              = "us-central1"
+      create_secret_store_service_account = false
+    }
+    orchestration = {
+      deployment = { customer_name = "test", zipline_version = "test" }
+      addons     = { external_secrets_operator_values = { serviceAccount = { name = "custom-eso" } } }
+    }
+  }
+  assert {
+    condition     = !local.provider_context.secrets.secret_store_service_account.create
+    error_message = "Explicit external ownership must prevent account creation even for a custom ESO name."
+  }
+}
+
+run "explicit_ownership_does_not_duplicate_helm_account" {
+  command = plan
+  variables {
+    gcp = {
+      project_id                          = "test-project"
+      region                              = "us-central1"
+      create_secret_store_service_account = true
+    }
+  }
+  assert {
+    condition     = !local.provider_context.secrets.secret_store_service_account.create
+    error_message = "Explicit ownership must not create a duplicate of the default Helm-owned account."
+  }
+}

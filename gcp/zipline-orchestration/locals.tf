@@ -189,6 +189,17 @@ locals {
     coalesce(try(local.eso_service_account.create, null), true) ? local.eso_fullname : "default",
   )
   eso_store_service_account_name = "external-secrets"
+  eso_install_managed            = coalesce(try(var.orchestration.addons.install_external_secrets_operator, null), true)
+  eso_store_service_account_helm_owned = (
+    local.eso_install_managed &&
+    coalesce(try(local.eso_service_account.create, null), true) &&
+    local.eso_service_account_name == local.eso_store_service_account_name
+  )
+  # Do not claim an externally installed ESO's account without an explicit opt-in.
+  eso_store_service_account_managed = (
+    coalesce(try(local.cloud_args.create_secret_store_service_account, null), local.eso_install_managed) &&
+    !local.eso_store_service_account_helm_owned
+  )
   eso_identity_annotations = {
     "iam.gke.io/gcp-service-account" = google_service_account.external_secrets.email
   }
@@ -312,7 +323,7 @@ locals {
     }
     secrets = {
       secret_store_service_account = {
-        create      = local.eso_service_account_name != local.eso_store_service_account_name
+        create      = local.eso_store_service_account_managed
         name        = local.eso_store_service_account_name
         annotations = local.eso_identity_annotations
       }

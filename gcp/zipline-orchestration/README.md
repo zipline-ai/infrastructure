@@ -479,8 +479,9 @@ from `fullnameOverride` or the release name and `nameOverride`, truncating to
 63 characters and removing a trailing hyphen. With `serviceAccount.create = false`
 and no explicit name, the operator uses `default`.
 
-If the resolved name differs from `external-secrets`, the wrapper also creates a
-separate annotated `external-secrets` account in the installation namespace.
+When the wrapper installs ESO and Helm does not create `external-secrets`,
+the wrapper creates a separate annotated `external-secrets` account in the
+installation namespace.
 The ClusterSecretStore's fixed Workload Identity binding continues to use that
 account; the ESO Deployment can use your custom account. With the default name,
 the ESO Helm release owns `external-secrets` and no separate account is created.
@@ -494,14 +495,30 @@ external_secrets_operator_values = {
 }
 ```
 
-If `serviceAccount.create = false`, provision the operator's selected account
-separately. The wrapper still preserves the fixed store account when the
-resolved name differs from `external-secrets`.
+`gcp.create_secret_store_service_account` controls wrapper ownership of the
+fixed store account. By default, the wrapper manages it only when it installs
+ESO and Helm does not create that account. Set this field to `false` to leave
+an externally provisioned account unmanaged. With
+`orchestration.addons.install_external_secrets_operator = false`, the default
+is also unmanaged; ensure the external `external-secrets` account exists in the
+installation namespace with the required GCP annotation. The default Helm-owned
+account is never duplicated by Terraform, even if this field is `true`.
 
-When renaming an existing ESO account, arrange Helm retention of the old
-`external-secrets` account and import it into
-`module.zipline_orchestration.kubernetes_service_account_v1.secret_store[0]`
-before the full apply. A fresh installation with a custom name needs no import.
+If `serviceAccount.create = false`, provision the operator's selected account
+separately unless it is the fixed account managed by the wrapper.
+
+To adopt an externally provisioned store account, set
+`gcp.create_secret_store_service_account = true` and import it before the full
+apply (replace the namespace if needed):
+
+```shell
+tofu import 'module.zipline_orchestration.kubernetes_service_account_v1.secret_store[0]' \
+  zipline-system/external-secrets
+```
+
+When renaming an existing Helm-owned ESO account, arrange Helm retention and
+release its old ownership before importing it at the same address. A fresh
+installation with wrapper account ownership needs no import.
 
 ### Runtime and Advanced Helm Overrides
 
