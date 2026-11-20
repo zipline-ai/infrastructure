@@ -81,3 +81,98 @@ run "empty_custom_values_preserve_annotation" {
     error_message = "An empty custom map must not remove the default identity annotation."
   }
 }
+
+run "fullname_override" {
+  command = plan
+  variables {
+    orchestration = {
+      deployment = { customer_name = "test", zipline_version = "test" }
+      addons     = { external_secrets_operator_values = { fullnameOverride = "custom-eso" } }
+    }
+  }
+  assert {
+    condition = (
+      local.eso_service_account_name == "custom-eso" &&
+      local.provider_context.secrets.secret_store_service_account.create == true &&
+      local.provider_context.secrets.secret_store_service_account.name == "external-secrets" &&
+      local.provider_context.secrets.secret_store.spec.provider.gcpsm.auth.workloadIdentity.serviceAccountRef.name == "external-secrets"
+    )
+    error_message = "Resolve the chart account name without losing the fixed store identity or duplicating the default account."
+  }
+}
+
+run "explicit_name_overrides_fullname" {
+  command = plan
+  variables {
+    orchestration = {
+      deployment = { customer_name = "test", zipline_version = "test" }
+      addons     = { external_secrets_operator_values = { fullnameOverride = "custom-eso", serviceAccount = { name = "external-secrets" } } }
+    }
+  }
+  assert {
+    condition = (
+      local.eso_service_account_name == "external-secrets" &&
+      local.provider_context.secrets.secret_store_service_account.create == false &&
+      local.provider_context.secrets.secret_store_service_account.name == "external-secrets" &&
+      local.provider_context.secrets.secret_store.spec.provider.gcpsm.auth.workloadIdentity.serviceAccountRef.name == "external-secrets"
+    )
+    error_message = "Resolve the chart account name without losing the fixed store identity or duplicating the default account."
+  }
+}
+
+run "fullname_truncates_and_trims" {
+  command = plan
+  variables {
+    orchestration = {
+      deployment = { customer_name = "test", zipline_version = "test" }
+      addons     = { external_secrets_operator_values = { fullnameOverride = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-suffix" } }
+    }
+  }
+  assert {
+    condition = (
+      local.eso_service_account_name == "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" &&
+      local.provider_context.secrets.secret_store_service_account.create == true &&
+      local.provider_context.secrets.secret_store_service_account.name == "external-secrets" &&
+      local.provider_context.secrets.secret_store.spec.provider.gcpsm.auth.workloadIdentity.serviceAccountRef.name == "external-secrets"
+    )
+    error_message = "Resolve the chart account name without losing the fixed store identity or duplicating the default account."
+  }
+}
+
+run "name_override" {
+  command = plan
+  variables {
+    orchestration = {
+      deployment = { customer_name = "test", zipline_version = "test" }
+      addons     = { external_secrets_operator_values = { nameOverride = "custom" } }
+    }
+  }
+  assert {
+    condition = (
+      local.eso_service_account_name == "external-secrets-custom" &&
+      local.provider_context.secrets.secret_store_service_account.create == true &&
+      local.provider_context.secrets.secret_store_service_account.name == "external-secrets" &&
+      local.provider_context.secrets.secret_store.spec.provider.gcpsm.auth.workloadIdentity.serviceAccountRef.name == "external-secrets"
+    )
+    error_message = "Resolve the chart account name without losing the fixed store identity or duplicating the default account."
+  }
+}
+
+run "externally_managed_default" {
+  command = plan
+  variables {
+    orchestration = {
+      deployment = { customer_name = "test", zipline_version = "test" }
+      addons     = { external_secrets_operator_values = { serviceAccount = { create = false } } }
+    }
+  }
+  assert {
+    condition = (
+      local.eso_service_account_name == "default" &&
+      local.provider_context.secrets.secret_store_service_account.create == true &&
+      local.provider_context.secrets.secret_store_service_account.name == "external-secrets" &&
+      local.provider_context.secrets.secret_store.spec.provider.gcpsm.auth.workloadIdentity.serviceAccountRef.name == "external-secrets"
+    )
+    error_message = "Resolve the chart account name without losing the fixed store identity or duplicating the default account."
+  }
+}

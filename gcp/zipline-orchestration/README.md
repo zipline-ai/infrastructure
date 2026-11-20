@@ -473,7 +473,13 @@ set to `{}`. Other service account annotations and operator values are retained.
 The required annotation always points to
 `<customer_name>-eso@<project_id>.iam.gserviceaccount.com`.
 
-If you set `serviceAccount.name` to a custom name, the wrapper also creates a
+The wrapper resolves the ESO account name using the chart's rules: an explicit
+`serviceAccount.name` takes precedence, otherwise the chart derives the name
+from `fullnameOverride` or the release name and `nameOverride`, truncating to
+63 characters and removing a trailing hyphen. With `serviceAccount.create = false`
+and no explicit name, the operator uses `default`.
+
+If the resolved name differs from `external-secrets`, the wrapper also creates a
 separate annotated `external-secrets` account in the installation namespace.
 The ClusterSecretStore's fixed Workload Identity binding continues to use that
 account; the ESO Deployment can use your custom account. With the default name,
@@ -490,7 +496,7 @@ external_secrets_operator_values = {
 
 If `serviceAccount.create = false`, provision the operator's selected account
 separately. The wrapper still preserves the fixed store account when the
-selected name differs from `external-secrets`.
+resolved name differs from `external-secrets`.
 
 When renaming an existing ESO account, arrange Helm retention of the old
 `external-secrets` account and import it into

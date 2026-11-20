@@ -178,7 +178,17 @@ locals {
   # account selected for the operator Deployment.
   eso_values          = merge({}, try(var.orchestration.addons.external_secrets_operator_values, {}))
   eso_service_account = merge({}, try(local.eso_values.serviceAccount, {}))
-  eso_service_account_name = coalesce(try(local.eso_service_account.name, null), "external-secrets")
+  # Match the external-secrets chart helpers for the fixed release name.
+  eso_chart_name = coalesce(try(local.eso_values.nameOverride, null), "external-secrets")
+  eso_fullname = trimsuffix(substr(coalesce(
+    try(local.eso_values.fullnameOverride, null),
+    strcontains("external-secrets", local.eso_chart_name) ? "external-secrets" : "external-secrets-${local.eso_chart_name}",
+  ), 0, 63), "-")
+  eso_service_account_name = coalesce(
+    try(local.eso_service_account.name, null),
+    coalesce(try(local.eso_service_account.create, null), true) ? local.eso_fullname : "default",
+  )
+  eso_store_service_account_name = "external-secrets"
   eso_identity_annotations = {
     "iam.gke.io/gcp-service-account" = google_service_account.external_secrets.email
   }
@@ -302,8 +312,8 @@ locals {
     }
     secrets = {
       secret_store_service_account = {
-        create      = local.eso_service_account_name != "external-secrets"
-        name        = "external-secrets"
+        create      = local.eso_service_account_name != local.eso_store_service_account_name
+        name        = local.eso_store_service_account_name
         annotations = local.eso_identity_annotations
       }
       secret_store = {
@@ -320,7 +330,7 @@ locals {
                   clusterName       = local.cluster_name
                   clusterProjectID  = local.cloud_args.project_id
                   serviceAccountRef = {
-                    name      = "external-secrets"
+                    name      = local.eso_store_service_account_name
                     namespace = local.orchestration_namespace
                   }
                 }
