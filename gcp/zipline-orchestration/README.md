@@ -159,9 +159,11 @@ Hub and Eval use the GCP repositories `ziplineai/hub-gcp` and
 ### Ingress and TLS
 
 The wrapper reserves a regional external IP for ingress-nginx and creates a
-public GKE L4 load balancer. After apply, create a DNS A record for
-`orchestration.ingress.domain` pointing to `ingress_load_balancer_ip`.
-TLS terminates at ingress-nginx using a Kubernetes TLS Secret.
+public GKE L4 load balancer. After apply, run
+`tofu output -raw ingress_dns_instructions` and create a DNS A record for
+`orchestration.ingress.domain` pointing to the effective ingress Service IP
+shown in that output. TLS terminates at ingress-nginx using a Kubernetes TLS
+Secret.
 
 For cert-manager HTTP-01 certificates, add these settings to `orchestration`.
 DNS must resolve to the ingress IP and port 80 must be reachable for validation:
@@ -585,7 +587,8 @@ TLS issuance, and application readiness before submitting jobs.
 | `network`, `subnet`, `network_created` | Inspect the network used by the stack. |
 | `gke_cluster_name`, `gke_cluster_endpoint` | Inspect the cluster; endpoint output is sensitive. |
 | `kubeconfig_command` | Command to configure kubectl for the cluster. |
-| `ingress_load_balancer_ip`, `ingress_load_balancer_target` | Configure external DNS. |
+| `ingress_load_balancer_ip` | Inspect the wrapper-reserved IP; Helm overrides can change the effective Service IP. |
+| `ingress_load_balancer_target` | Inspect the controller Service's published DNS target. |
 | `ingress_dns_instructions` | Display the DNS A record to create for the configured ingress domain and IP. |
 | `cloudsql_connection_name`, `cloudsql_private_ip` | Inspect the private PostgreSQL instance. |
 | `db_credentials_secret_id` | Locate generated credentials in Secret Manager. |
