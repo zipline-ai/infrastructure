@@ -422,6 +422,7 @@ locals {
     for name, ref in {
       AGENTS_ANTHROPIC_API_KEY = try(local.orchestration.agents.anthropic_api_key_remote_ref, {})
       AGENTS_OPENAI_API_KEY    = try(local.orchestration.agents.openai_api_key_remote_ref, {})
+      AGENTS_GOOGLE_API_KEY    = try(local.orchestration.agents.gemini_api_key_remote_ref, {})
     } : name => ref if try(local.orchestration.agents.enable, false) && try(ref.key, "") != ""
   }
   agents_external_secret = {
@@ -442,6 +443,31 @@ locals {
       }]
     }
   }
+
+  ui_env_all = concat(
+    local.orchestration.metrics_provider == "" ? [] : [{ name = "METRICS_PROVIDER", value = local.orchestration.metrics_provider }],
+    try(local.orchestration.agents.enable, false) ? [
+      { name = "AGENTS", value = "true" },
+      { name = "AGENTS_LLM_PROXY_URL", value = try(local.orchestration.agents.llm_proxy_url, "http://orchestration-ui-service") },
+    ] : [],
+    [for name, ref in local.agents_remote_refs : {
+      name = name
+      valueFrom = {
+        secretKeyRef = {
+          name = "agents-provider-credentials"
+          key  = name
+        }
+      }
+    }],
+    try(local.orchestration.provider_ui_env, []),
+    try(local.orchestration.ui_env, []),
+  )
+  # Duplicate env names make Kubernetes reject Deployment patches once the list
+  # changes shape. Keep one entry per name; the last wins, as kubelet would.
+  ui_env = [
+    for name in distinct([for e in local.ui_env_all : e.name]) :
+    [for e in local.ui_env_all : e if e.name == name][length([for e in local.ui_env_all : e if e.name == name]) - 1]
+  ]
 
   hub_env = concat(
     local.hub.data_quality_metrics_dataset == "" ? [] : [
@@ -835,24 +861,7 @@ locals {
       }
       ui = {
         origin = local.ui.origin
-        env = concat(
-          local.orchestration.metrics_provider == "" ? [] : [{ name = "METRICS_PROVIDER", value = local.orchestration.metrics_provider }],
-          try(local.orchestration.agents.enable, false) ? [
-            { name = "AGENTS", value = "true" },
-            { name = "AGENTS_LLM_PROXY_URL", value = try(local.orchestration.agents.llm_proxy_url, "http://orchestration-ui-service") },
-          ] : [],
-          [for name, ref in local.agents_remote_refs : {
-            name = name
-            valueFrom = {
-              secretKeyRef = {
-                name = "agents-provider-credentials"
-                key  = name
-              }
-            }
-          }],
-          try(local.orchestration.provider_ui_env, []),
-          try(local.orchestration.ui_env, []),
-        )
+        env    = local.ui_env
       }
       fetcher = {
         env = concat(

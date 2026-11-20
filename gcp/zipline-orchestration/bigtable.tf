@@ -16,6 +16,8 @@ resource "google_bigtable_instance" "zipline" {
 
     kms_key_name = local.cloud_args.cmek_key_id != "" ? local.cloud_args.cmek_key_id : null
   }
+
+  depends_on = [google_project_service.required]
 }
 
 # §9.2: GROUPBY_INGEST is hardcoded in BigQuery external-table DDL
@@ -53,6 +55,7 @@ locals {
   bigtable_kv_tables = {
     GROUPBY_BATCH                  = { max_age_hours = 120, max_versions = 10000 }
     GROUPBY_STREAMING              = { max_age_hours = 120, max_versions = 10000 }
+    GROUPBY_PUSH                   = { max_age_hours = 120, max_versions = 10000 }
     TILE_SUMMARIES                 = { max_age_hours = 120, max_versions = 10000 }
     CHRONON_METADATA               = { max_age_hours = 120, max_versions = 10000 }
     DATA_QUALITY_METRICS_BATCH     = { max_age_hours = 120, max_versions = 10000 }

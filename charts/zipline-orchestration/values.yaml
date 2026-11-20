@@ -63,6 +63,8 @@ compute:
     flinkName: flink
     annotations: {}
   rbac:
+    # When false, provision compute ClusterRoles and Hub namespace-provisioner access externally.
+    # The Hub still receives the namespace template and provisions synced teams.
     create: true
   sparkDefaults:
     eventLogDir: ""
@@ -415,6 +417,20 @@ orchestration:
     cli: source
     nodeSelector: {}
     tolerations: []
+    # Requires a CNI that enforces Kubernetes NetworkPolicy.
+    egress:
+      image: ubuntu/squid:6.13-25.04_beta
+      allowedHosts:
+        - github.com
+        - pypi.org
+        - files.pythonhosted.org
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: "1"
+          memory: 512Mi
     resources:
       requests:
         cpu: "500m"
@@ -590,6 +606,33 @@ nodepoolExporter:
       memory: 32Mi
     limits:
       memory: 96Mi
+  nodeSelector: {}
+  tolerations: []
+
+costExport:
+  # Daily job: cloud billing export -> cloud-neutral Iceberg table in Polaris, read by Data Explorer.
+  enabled: false
+  cloud: ""  # gcp or aws
+  schedule: "0 6 * * *"
+  # Runs as this compute namespace's Spark service account, which already holds the billing read
+  # and warehouse write permissions.
+  namespace: zipline-default
+  # Billing rows keep arriving for days after usage, so each run rewrites this many trailing days.
+  lookbackDays: 5
+  outputTable: zipline_catalog.cost.daily_cost
+  # Defaults to <global.artifact_prefix>/release/<global.version>/jars/cloud_<cloud>_lib_spark4_deploy.jar.
+  engineJar: ""
+  gcp:
+    billingExportDataset: ""  # project.dataset holding the detailed usage cost export
+    projects: []              # projects whose costs are kept
+    jobProject: ""            # project that runs and pays for the BigQuery read
+  aws:
+    curExportPath: ""  # s3://<bucket>/<prefix>/<export>/data, the CUR 2.0 folder holding BILLING_PERIOD=YYYY-MM
+    accounts: []       # account IDs whose costs are kept
+  priorityClassName: zipline-backfill
+  driver:
+    cores: 1
+    memory: 2g
   nodeSelector: {}
   tolerations: []
 

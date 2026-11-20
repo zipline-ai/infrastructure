@@ -1,9 +1,12 @@
-data "google_project" "current" {
-  project_id = local.cloud_args.project_id
-}
-
 locals {
-  wi_pool = "${local.cloud_args.project_id}.svc.id.goog"
+  # Read from a bucket rather than data.google_project: that lookup needs the
+  # Cloud Resource Manager API at plan time, before apis.tf can turn it on.
+  project_number = google_storage_bucket.warehouse.project_number
+
+  # Read from the cluster, not built from the project ID: GKE creates the pool
+  # with the project's first Workload Identity cluster, and in a fresh project
+  # binding before then fails with "Identity Pool does not exist".
+  wi_pool = google_container_cluster.main.workload_identity_config[0].workload_pool
 
   # Keyed off the cluster resource, not the name variable, so the binding cannot
   # name a cluster this stack did not create.
@@ -78,31 +81,43 @@ locals {
 resource "google_service_account" "orchestration" {
   account_id   = "${local.name_prefix}-orchestration"
   display_name = "Orchestration (hub, ui, eval, external-secrets reader)"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_service_account" "spark" {
   account_id   = "${local.name_prefix}-spark"
   display_name = "Spark compute execution"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_service_account" "flink" {
   account_id   = "${local.name_prefix}-flink"
   display_name = "Flink compute execution"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_service_account" "eval" {
   account_id   = "${local.name_prefix}-eval"
   display_name = "Eval service"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_service_account" "polaris_storage" {
   account_id   = "${local.name_prefix}-polaris"
   display_name = "Polaris GCS credential-vending identity"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_service_account" "external_secrets" {
   account_id   = "${local.name_prefix}-eso"
   display_name = "External Secrets Operator"
+
+  depends_on = [google_project_service.required]
 }
 
 # ---------------------------------------------------------------------------
@@ -128,13 +143,13 @@ resource "google_service_account_iam_member" "orchestration_wi" {
 resource "google_service_account_iam_member" "spark_wi" {
   service_account_id = google_service_account.spark.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${local.wi_pool}/kubernetes.cluster/${local.cluster_self_link}"
+  member             = "principalSet://iam.googleapis.com/projects/${local.project_number}/locations/global/workloadIdentityPools/${local.wi_pool}/kubernetes.cluster/${local.cluster_self_link}"
 }
 
 resource "google_service_account_iam_member" "flink_wi" {
   service_account_id = google_service_account.flink.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.current.number}/locations/global/workloadIdentityPools/${local.wi_pool}/kubernetes.cluster/${local.cluster_self_link}"
+  member             = "principalSet://iam.googleapis.com/projects/${local.project_number}/locations/global/workloadIdentityPools/${local.wi_pool}/kubernetes.cluster/${local.cluster_self_link}"
 }
 
 resource "google_service_account_iam_member" "eval_wi" {
@@ -256,4 +271,17 @@ resource "google_project_iam_member" "personnel" {
   project = local.cloud_args.project_id
   role    = "roles/container.admin"
   member  = each.value
+
+  depends_on = [google_project_service.required]
+}
+
+# Cost export reads the billing export as the Spark GSA. Same-project datasets are already covered
+# by the project-level BigQuery roles above; a dataset in another project needs this grant.
+resource "google_bigquery_dataset_iam_member" "spark_billing_export" {
+  count = local.cost_tracking_enabled && local.cost_billing_export_project != local.cloud_args.project_id ? 1 : 0
+
+  project    = local.cost_billing_export_project
+  dataset_id = split(".", local.cost_billing_export_dataset)[1]
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.spark.email}"
 }

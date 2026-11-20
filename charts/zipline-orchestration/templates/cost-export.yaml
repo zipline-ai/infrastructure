@@ -1,0 +1,195 @@
+{{- if .Values.costExport.enabled }}
+{{- $ce := .Values.costExport }}
+{{- $name := "cost-export" }}
+{{- $labels := include "zipline-orchestration.labels" . }}
+{{- $sparkServiceAccount := .Values.compute.serviceAccount.sparkName }}
+{{- $runtimeClient := default dict .Values.polaris.bootstrap.runtimeClient }}
+{{- $credentialSecret := default dict $runtimeClient.credentialsSecret }}
+{{- $credentialSecretName := default "polaris-client-credentials" $credentialSecret.name }}
+{{- $credentialSecretKey := default "OC_CREDENTIAL" $credentialSecret.key }}
+{{- $principalRole := default "chronon-engine" $runtimeClient.principalRole }}
+{{- $realm := default .Values.global.customer_name .Values.polaris.realm }}
+{{- if not $realm }}
+{{- fail "global.customer_name or polaris.realm is required for costExport" }}
+{{- end }}
+{{- $catalog := index (splitList "." $ce.outputTable) 0 }}
+{{- if not (has $ce.cloud (list "gcp" "aws")) }}
+{{- fail "costExport.cloud must be gcp or aws" }}
+{{- end }}
+{{- $engineJar := $ce.engineJar | default (printf "%s/release/%s/jars/cloud_%s_lib_spark4_deploy.jar" (trimSuffix "/" (required "global.artifact_prefix is required for costExport" .Values.global.artifact_prefix)) .Values.global.version $ce.cloud) }}
+{{- $eventLogDir := include "zipline-orchestration.sparkEventLogDir" . }}
+{{- /*
+  Writes the cloud billing export, normalized to one cloud-neutral schema, to an Iceberg table in
+  Polaris once a day. Spark runs in local mode inside the driver pod: a run reads one or two
+  months of billing rows, so no executors start. The init container fetches the engine jar (Iceberg runtime)
+  and the Polaris credential, which the operator pod and the compute namespace cannot read directly.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ce.namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+data:
+  cost-export.py: |
+{{ .Files.Get "files/cost-export.py" | indent 4 }}
+  cost-export-init.py: |
+{{ .Files.Get "files/cost-export-init.py" | indent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-polaris-credential
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ $credentialSecretName | quote }}]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-polaris-credential
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-polaris-credential
+subjects:
+  - kind: ServiceAccount
+    name: {{ $sparkServiceAccount }}
+    namespace: {{ $ce.namespace }}
+---
+apiVersion: sparkoperator.k8s.io/v1beta2
+kind: ScheduledSparkApplication
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ce.namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+  annotations:
+    checksum/script: {{ printf "%s%s" (.Files.Get "files/cost-export.py") (.Files.Get "files/cost-export-init.py") | sha256sum }}
+spec:
+  schedule: {{ $ce.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulRunHistoryLimit: 3
+  failedRunHistoryLimit: 3
+  template:
+    type: Python
+    pythonVersion: "3"
+    mode: cluster
+    image: {{ include "zipline-orchestration.sparkImage" . | quote }}
+    imagePullPolicy: {{ .Values.compute.sparkDefaults.imagePullPolicy | default "IfNotPresent" }}
+    sparkVersion: "4.1.0"
+    mainApplicationFile: local:///opt/cost-export/cost-export.py
+    arguments:
+      - --cloud
+      - {{ $ce.cloud }}
+      {{- if eq $ce.cloud "gcp" }}
+      - --billing-export-dataset
+      - {{ required "costExport.gcp.billingExportDataset is required" $ce.gcp.billingExportDataset | quote }}
+      - --projects
+      - {{ join "," (required "costExport.gcp.projects is required" $ce.gcp.projects) | quote }}
+      - --job-project
+      - {{ required "costExport.gcp.jobProject is required" $ce.gcp.jobProject | quote }}
+      {{- else }}
+      - --cur-export-path
+      - {{ required "costExport.aws.curExportPath is required" $ce.aws.curExportPath | quote }}
+      - --accounts
+      - {{ join "," (required "costExport.aws.accounts is required" $ce.aws.accounts) | quote }}
+      {{- end }}
+      - --lookback-days
+      - {{ $ce.lookbackDays | quote }}
+      - --output-table
+      - {{ $ce.outputTable | quote }}
+    deps:
+      jars:
+        - local:///opt/cost-export-init/engine.jar
+    sparkConf:
+      spark.sql.catalog.{{ $catalog }}: org.apache.iceberg.spark.SparkCatalog
+      spark.sql.catalog.{{ $catalog }}.type: rest
+      spark.sql.catalog.{{ $catalog }}.uri: "http://polaris-service.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.polaris.ports.http }}/api/catalog"
+      spark.sql.catalog.{{ $catalog }}.warehouse: "polaris_{{ $realm }}"
+      spark.sql.catalog.{{ $catalog }}.scope: "PRINCIPAL_ROLE:{{ $principalRole }}"
+      spark.sql.catalog.{{ $catalog }}.header.X-Iceberg-Access-Delegation: vended-credentials
+      spark.sql.sources.partitionOverwriteMode: dynamic
+      spark.sql.shuffle.partitions: "8"
+      {{- if eq $ce.cloud "aws" }}
+      # CUR paths are s3://; the image's S3 connector reads them with the pod's IRSA role.
+      spark.hadoop.fs.s3.impl: org.apache.hadoop.fs.s3a.S3AFileSystem
+      spark.hadoop.fs.s3a.aws.credentials.provider: com.amazonaws.auth.WebIdentityTokenCredentialsProvider
+      # BILLING_PERIOD=2026-11 must stay a string for the job's period filter.
+      spark.sql.sources.partitionColumnTypeInference.enabled: "false"
+      {{- end }}
+      {{- if $eventLogDir }}
+      spark.eventLog.enabled: "true"
+      spark.eventLog.dir: {{ $eventLogDir | quote }}
+      {{- end }}
+    restartPolicy:
+      type: Never
+    timeToLiveSeconds: 259200
+    volumes:
+      - name: scripts
+        configMap:
+          name: {{ $name }}
+      - name: init
+        emptyDir: {}
+    driver:
+      serviceAccount: {{ $sparkServiceAccount }}
+      cores: {{ $ce.driver.cores }}
+      memory: {{ $ce.driver.memory | quote }}
+      priorityClassName: {{ $ce.priorityClassName }}
+      labels:
+        app.kubernetes.io/name: {{ $name }}
+        zipline.ai/engine: spark
+        zipline.ai/role: driver
+      env:
+        - name: POLARIS_CREDENTIAL_FILE
+          value: /opt/cost-export-init/polaris-credential
+      volumeMounts:
+        - name: scripts
+          mountPath: /opt/cost-export
+        - name: init
+          mountPath: /opt/cost-export-init
+      initContainers:
+        - name: init
+          image: {{ include "zipline-orchestration.sparkImage" . | quote }}
+          command: ["python3", "/opt/cost-export/cost-export-init.py"]
+          env:
+            - name: ENGINE_JAR
+              value: {{ $engineJar | quote }}
+            - name: ENGINE_JAR_PATH
+              value: /opt/cost-export-init/engine.jar
+            - name: POLARIS_SECRET_NAMESPACE
+              value: {{ .Release.Namespace }}
+            - name: POLARIS_SECRET_NAME
+              value: {{ $credentialSecretName | quote }}
+            - name: POLARIS_SECRET_KEY
+              value: {{ $credentialSecretKey | quote }}
+            - name: POLARIS_CREDENTIAL_FILE
+              value: /opt/cost-export-init/polaris-credential
+          volumeMounts:
+            - name: scripts
+              mountPath: /opt/cost-export
+            - name: init
+              mountPath: /opt/cost-export-init
+      {{- with $ce.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $ce.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    # Required by the CRD; local mode never starts an executor.
+    executor:
+      instances: 1
+      cores: 1
+      memory: 1g
+{{- end }}

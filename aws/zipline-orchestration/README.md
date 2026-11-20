@@ -39,7 +39,6 @@ orchestration = {
 
 aws = {
   region              = "us-west-2"
-  warehouse_bucket    = "example-warehouse"
   vpc_id              = "vpc-..."
   primary_subnet_id   = "subnet-..."
   secondary_subnet_id = "subnet-..."
@@ -70,11 +69,10 @@ Set these for every environment.
 | Field | Why it is required |
 | --- | --- |
 | `orchestration.deployment.customer_name` | Used as the environment/customer prefix for generated resources. |
-| `orchestration.deployment.artifact_prefix` | S3 URI for Zipline artifacts. The wrapper creates the bucket portion of this URI. |
+| `orchestration.deployment.artifact_prefix` | S3 URI for Zipline artifacts. Defaults to `s3://zipline-<customer_name>-artifacts`. The wrapper creates the bucket portion of this URI. |
 | `orchestration.deployment.zipline_version` | Base image tag. Hub and Eval use its Spark 4 variant; `nightly` stays `nightly` and other tags gain `-spark4`. |
 | `orchestration.ingress.domain` | Public host used by the UI, Hub, Eval, and supporting ingress routes. |
 | `aws.region` | AWS region for all regional resources and providers. |
-| `aws.warehouse_bucket` | S3 bucket for the warehouse. The wrapper creates this bucket. |
 | `aws.vpc_id` | VPC for EKS and RDS. |
 | `aws.primary_subnet_id` | First subnet for EKS, RDS, AWS Managed Prometheus scraping, and load balancer placement. |
 | `aws.secondary_subnet_id` | Second subnet for EKS, RDS, AWS Managed Prometheus scraping, and load balancer placement. |
@@ -290,10 +288,42 @@ Kubernetes ephemeral storage, so Spark can use its default `emptyDir` local
 directories without provider-specific mounts. Drivers and the on-demand warm
 pool do not require NVMe; image prepull selects nodes supporting Spark executors.
 
-Ray uses its configured
-`CRUCIBLE_RAY_{HEAD,WORKER,SUBMITTER}_NODE_SELECTOR` and
-`CRUCIBLE_RAY_{HEAD,WORKER,SUBMITTER}_TOLERATIONS`. No Ray pools are generated
-by this wrapper.
+CPU Ray jobs use the shared `ray-control` / `ray-worker` pools through the
+Hub's `CRUCIBLE_RAY_{HEAD,WORKER,SUBMITTER}_NODE_SELECTOR` and
+`CRUCIBLE_RAY_{HEAD,WORKER,SUBMITTER}_TOLERATIONS`.
+
+#### Ray GPU execution profiles
+
+GPU training jobs opt into a named profile with `ray.placement.profile=<name>`
+(platform `contracts/training-v1`, "Profile placement interface"). Each profile
+configured here creates, in its own Helm release:
+
+- NodePool `<name>`: GPU workers (`zipline.ai/role=worker`), pinned instance types, AMD64.
+- NodePool `<name>-control`: on-demand c/m/r AMD64 nodes for the Ray head and submitter (`zipline.ai/role=control`).
+
+Both carry `zipline.ai/engine=ray`, `zipline.ai/execution-profile=<name>` and the
+`zipline.ai/workload=ray-<name>:NoSchedule` taint, scale from zero, and remove
+empty nodes after one minute. One NVIDIA device plugin DaemonSet runs on every
+Karpenter NVIDIA node; the shared EC2NodeClass resolves the AL2023 NVIDIA AMI for
+GPU instance types, which supplies the driver and container runtime.
+
+| Field | Default | Use when |
+| --- | --- | --- |
+| `aws.karpenter.ray_gpu_profiles.<name>.instance_types` | required | GPU instance types the workers may use, in any order (e.g. `["g6e.xlarge", "g5.xlarge"]`). |
+| `aws.karpenter.ray_gpu_profiles.<name>.max_gpus` | required | Hard cap on concurrent GPUs for the profile (NodePool `nvidia.com/gpu` limit). |
+| `aws.karpenter.ray_gpu_profiles.<name>.capacity_type` | `on-demand` | Workers may use `spot`. The control pool is always on-demand. |
+| `aws.karpenter.ray_gpu_profiles.<name>.expire_after` | `48h` | Backstop node lifetime for both pools; whole hours. Job deadlines are the primary bound. |
+| `aws.karpenter.ray_gpu_profiles.<name>.worker_limits` / `control_limits` | GPU cap / `{ cpu = "32", memory = "128Gi" }` | Extra NodePool limits. |
+| `aws.karpenter.ray_gpu_namespace_quotas` | `{}` | Map of namespace to maximum `requests.nvidia.com/gpu`. |
+
+```json
+"karpenter": {
+  "ray_gpu_profiles": { "s6e11-l40s": { "instance_types": ["g6e.xlarge", "g5.xlarge"], "max_gpus": 5 } },
+  "ray_gpu_namespace_quotas": { "zipline-default": 5 }
+}
+```
+
+Enable the profile on the Hub with `CRUCIBLE_RAY_GPU_PROFILES=<name>`.
 
 Run the placement and chart tests without cloud credentials:
 
@@ -311,6 +341,7 @@ buckets.
 | Field | Default | Use when |
 | --- | --- | --- |
 | `aws.logs_bucket` | `zipline-logs-<customer_name>` | You need a specific logs bucket name. |
+| `aws.warehouse_bucket` | `zipline-<customer_name>-warehouse` | You want a specific warehouse bucket name. The wrapper creates it either way. |
 | `aws.shared_warehouse_bucket` | `""` | Orchestration services need read access to an existing shared warehouse bucket. |
 | `aws.spark_libs_bucket` | `""` | Spark needs access to an existing bucket for shared libraries. |
 | `aws.additional_data_buckets` | `[]` | Spark compute and orchestration read paths need access to more buckets. |
@@ -336,6 +367,12 @@ for the environment.
 | `aws.database_backup_retention_days` | `7` | Backups need a different retention period. |
 
 ### DynamoDB, Glue, MSK, and Observability
+
+To publish sampled fetch responses and their schemas to an existing MSK topic,
+set `aws.fetcher_ooc.cluster_name` and `aws.fetcher_ooc.topic` in your deployment
+tfvars. The fetcher must be enabled and able to reach the cluster’s IAM brokers.
+The wrapper resolves the bootstrap addresses and grants the orchestration role
+producer access for the selected topic.
 
 The AWS fetcher uses the Terraform-managed DynamoDB tables. The wrapper passes
 the table prefix, TTL setting, and replica regions to the fetcher automatically.
@@ -453,7 +490,7 @@ covered by a typed input above.
 | `orchestration.hub.metrics_port` | Hub Prometheus metrics should expose a different port. |
 | `orchestration.hub.data_quality_metrics_dataset` | Hub should publish data-quality metrics to a specific dataset. |
 | `orchestration.ui.origin` | The public UI origin differs from `https://<ingress.domain>`. |
-| `orchestration.deployment.deploy_fetcher` | The optional fetcher service should be deployed. |
+| `orchestration.deployment.deploy_fetcher` | Defaults to `true`. Set `false` to skip the fetcher service, which serves online fetches and dynamic profile values. |
 | `orchestration.values` | Raw Helm values should be merged before provider values. |
 | `orchestration.extra_values` | Raw Helm values should be merged after typed and provider values. |
 | `orchestration.extra_values_yaml` | Raw Helm values are easier to provide as YAML strings. |
@@ -487,32 +524,87 @@ placeholders can be resolved without customer-supplied Polaris credentials.
 
 ## Data Explorer
 
-Data Explorer is disabled by default. Add this field to the existing
-`orchestration` object in each environment's tfvars to enable it:
+Data Explorer is enabled by default. To turn it off, add this field to the
+existing `orchestration` object in the environment's tfvars:
 
 ```hcl
 orchestration = {
   # Existing deployment and other settings...
   data_explorer = {
-    enabled = true
+    enabled = false
   }
 }
 ```
 
-Set `enabled = false` or omit `data_explorer` to disable the UI feature,
-StarRocks Helm release (operator and cluster), and catalog initialization job.
+`enabled = false` disables the UI feature, StarRocks Helm release (operator and
+cluster), and catalog initialization job.
 This setting takes precedence over additional Helm values so the UI and
 StarRocks deployment stay consistent. Polaris remains available for other services.
 
-For existing deployments, set `enabled = true` before applying to retain
-Data Explorer. Applying with the default `false` removes the existing StarRocks
-release. A Terraform state migration preserves the release when enabled.
+Existing deployments that omit `data_explorer` get StarRocks on their next
+apply. Set `enabled = false` first to keep it off.
+
+## Cost tracking
+
+Cost tracking turns on once `cost_tracking.cur_export_path` is set. A daily Spark job
+(`ScheduledSparkApplication` `cost-export` in the default compute namespace) reads the CUR 2.0
+export and writes `zipline_catalog.cost.daily_cost` in Polaris, one row per day, account, cluster,
+namespace, service and usage type. Data Explorer can query it. GCP writes the same table from its
+billing export.
+
+Prerequisites, done once by the customer in the payer (management) account:
+
+1. Billing and Cost Management → Cost Management preferences → **Split cost allocation data**:
+   turn on Amazon EKS with **Resource requests**. Pod-level rows only cover usage after this.
+2. Data Exports → create a **CUR 2.0** export with **Include split cost allocation data**, daily
+   granularity, Parquet, overwrite mode.
+3. Allow the cluster account to read the export bucket:
+
+   ```json
+   {
+     "Sid": "ZiplineCostExportRead",
+     "Effect": "Allow",
+     "Principal": { "AWS": "arn:aws:iam::<cluster account>:root" },
+     "Action": ["s3:ListBucket", "s3:GetBucketLocation", "s3:GetObject"],
+     "Resource": ["arn:aws:s3:::<bucket>", "arn:aws:s3:::<bucket>/*"]
+   }
+   ```
+
+```hcl
+orchestration = {
+  # Existing settings...
+  cost_tracking = {
+    cur_export_path = "s3://<bucket>/<prefix>/<export name>/data"
+    # Optional:
+    # enabled       = false                 # turn off while keeping the path
+    # accounts      = ["<account id>"]      # default: the cluster account
+    # schedule      = "0 6 * * *"
+    # lookback_days = 5
+  }
+}
+```
+
+Terraform adds an inline policy (`<name_prefix>-spark-compute-cost-export`) to the Spark compute
+role for read access to that path. Each run rewrites the last `lookback_days` days, because billing
+rows keep arriving for a few days after usage.
+
+How rows map: pod rows carry their pod's share of the node (`allocated`); each pod's share of
+unused node capacity is a separate `idle` row; the node's own EC2 rows are dropped for days its pods
+cover, and the part of the node cost no pod covered becomes an `unallocated` row, so totals still
+match the bill. Team is derived from the namespace: `zipline-<team>` maps to `<team>`; other
+namespaces, idle capacity and costs outside Kubernetes map to `shared`.
 
 ## Conf repository sandbox
 
 Set `orchestration.conf_repo.url` to enable the internal sandbox and repository
 editor configuration. See the [sandbox configuration guide](../../charts/zipline-orchestration/SANDBOX.md)
 for inputs, cloud secret references, and image availability requirements.
+
+## Sandbox network isolation
+
+Sandbox networking uses an allowlisted egress proxy and NetworkPolicies.
+See the [sandbox network guide](../../charts/zipline-orchestration/SANDBOX.md#sandbox-network-isolation)
+for configuration, cluster enforcement, and rollout considerations.
 
 ## Agents UI configuration
 
@@ -525,9 +617,11 @@ This configures the UI only; it does not provision agent runtime services.
 
 ### Agent provider API keys
 
-Set `orchestration.agents.anthropic_api_key_remote_ref` and/or
-`orchestration.agents.openai_api_key_remote_ref` to cloud secret references.
+Set `orchestration.agents.anthropic_api_key_remote_ref`,
+`orchestration.agents.openai_api_key_remote_ref`, and/or
+`orchestration.agents.gemini_api_key_remote_ref` to cloud secret references.
 When agents are enabled, External Secrets syncs these into the UI through
-`secretKeyRef` as `AGENTS_ANTHROPIC_API_KEY` and `AGENTS_OPENAI_API_KEY`.
+`secretKeyRef` as `AGENTS_ANTHROPIC_API_KEY`, `AGENTS_OPENAI_API_KEY`, and
+`AGENTS_GOOGLE_API_KEY`, respectively.
 See [provider credential configuration](../../charts/zipline-orchestration/AGENT_CREDENTIALS.md)
-for reference formats and examples. Both references are optional.
+for reference formats and examples. All references are optional.

@@ -11,9 +11,10 @@ Prometheus. DNS records are managed separately.
 
 ## Prerequisites
 
-- An existing GCP project with billing and the APIs needed for GKE, Compute,
-  Cloud SQL, Service Networking, Bigtable, Cloud Storage, Secret Manager, IAM,
-  Monitoring, and BigQuery enabled. This wrapper does not enable project APIs.
+- An existing GCP project with billing. The wrapper enables the APIs listed in
+  [apis.tf](apis.tf) and leaves them enabled at teardown. If your deploying
+  identity cannot manage APIs, set `gcp.enable_apis = false` and have your
+  platform team enable them before applying.
 - Credentials allowed to create these resources and manage their IAM policies,
   including grants on any existing buckets or secrets you reference.
 - OpenTofu 1.9+, Google Cloud CLI (`gcloud`), `gke-gcloud-auth-plugin`, and
@@ -104,16 +105,20 @@ GCS HMAC credentials used by Data Explorer.
 | Field | Purpose |
 | --- | --- |
 | `orchestration.deployment.customer_name` | Prefix for generated resource names. Use a short name compatible with GCP resource naming rules. |
-| `orchestration.deployment.artifact_prefix` | `gs://<bucket>` URI for artifacts; the wrapper creates the bucket portion. |
 | `orchestration.deployment.zipline_version` | Release image tag for Zipline services. |
 | `orchestration.ingress.domain` | Public hostname for the UI and service ingress routes. |
 | `gcp.project_id` | Existing target GCP project. |
 | `gcp.region` | Region for the cluster, database, and buckets. |
-| `gcp.warehouse_bucket` | Bare GCS bucket name to create for warehouse data. |
 
 ## Optional Inputs
 
 Add these fields inside the existing `orchestration` or `gcp` object.
+
+| Field | Default | Use |
+| --- | --- | --- |
+| `orchestration.deployment.artifact_prefix` | `gs://zipline-<customer_name>-artifacts` | Artifact URI; the wrapper creates the bucket portion. |
+| `gcp.warehouse_bucket` | `zipline-<customer_name>-warehouse` | Bare warehouse bucket name to create. |
+| `gcp.enable_apis` | `true` | Set to `false` when project APIs are managed externally. |
 
 ### Installation
 
@@ -366,9 +371,9 @@ Data Explorer uses a bucket-scoped identity and GCS HMAC credentials.
 | Field | Default | Use |
 | --- | --- | --- |
 | `gcp.logs_bucket` | `zipline-logs-<customer_name>` | Name of the logs bucket to create. |
-| `gcp.spark_libs_bucket` | `zipline-spark-libs` | Existing jar bucket when explicitly set; when omitted, the wrapper creates the default name. |
+| `gcp.spark_libs_bucket` | `zipline-<customer_name>-spark-libs` | Existing jar bucket when explicitly set; when omitted, the wrapper creates the default name. |
 | `gcp.create_spark_libs_bucket` | `false` | Create an explicitly named jar bucket instead of attaching an existing one. |
-| `gcp.flink_jars_base_path` | `gs://<spark_libs_bucket>/spark-4.1.3/libs/` | GCS prefix containing the Flink dependency jars. Upload the required jars separately; creating a bucket does not publish them. |
+| `gcp.flink_jars_base_path` | Derived from jar bucket or artifact prefix | Override the Flink dependency jar prefix; see Workload Prerequisites below. Creating a bucket does not publish jars. |
 | `gcp.shared_warehouse_bucket` | `""` | Existing shared bucket: orchestration, Eval, and Spark receive objectViewer. |
 | `gcp.additional_data_buckets` | `[]` | Existing buckets granting objectAdmin to Spark and objectViewer to orchestration and Eval. |
 | `gcp.additional_flink_buckets` | `[]` | Existing buckets granting objectAdmin to Flink. |
@@ -556,6 +561,19 @@ manifests. Streaming additionally requires the GCP Flink dependency jars in
 `gcp.flink_jars_base_path`, a Flink image with the GCS connector, and runtime
 support for the GCP jar set. Ray training requires history collector wiring.
 
+The Spark 4 helper jars from `FlinkConfigBuilder.spark4AdditionalJarNames`
+must be published to `gcp.flink_jars_base_path` when set. Otherwise, the path is
+`gs://<gcp.spark_libs_bucket>/spark-4.1.3/libs/` when `spark_libs_bucket` is
+explicitly set, or `<artifact_prefix>/spark-4.1.3/libs/` when it is omitted.
+`zipline admin install` publishes the jars there. Existing stacks using the
+legacy bucket can preserve it with `spark_libs_bucket = "zipline-spark-libs"`
+and `create_spark_libs_bucket = true`.
+
+`gcp.kv_bulk_uploader` defaults to `"spark"`, which Polaris output requires.
+Each streaming job needs its own Pub/Sub subscription, including when jobs in
+separate stacks read the same topic; a subscription delivers each message to
+only one reader.
+
 ## Notes
 
 The shared chart bootstraps Polaris runtime authentication and writes the
@@ -579,14 +597,15 @@ See the [sandbox configuration guide](../../charts/zipline-orchestration/SANDBOX
 for inputs, cloud secret references, and image availability requirements.
 ## Data Explorer
 
-Data Explorer is disabled by default. To enable it, add `data_explorer` to the
-existing `orchestration` object in your environment's tfvars:
+Data Explorer is enabled by default. Existing deployments that omit
+`data_explorer` get StarRocks on their next apply. To keep it off, add this to
+the `orchestration` object in your environment's tfvars:
 
 ```hcl
 orchestration = {
   # Existing settings...
   data_explorer = {
-    enabled = true
+    enabled = false
   }
 }
 ```
@@ -615,6 +634,50 @@ StarRocks cluster, inspect its persisted storage volumes before applying. Changi
 FE configuration does not constitute a migration of existing S3-type storage
 volumes to GS. Plan that migration separately; do not delete PVCs or stored data.
 
+## Cost tracking
+
+Cost tracking is on by default. Set `cost_tracking.enabled = false` to turn it off. A daily Spark job (`ScheduledSparkApplication`
+`cost-export` in the default compute namespace) reads the Cloud Billing detailed usage cost export
+and writes `zipline_catalog.cost.daily_cost` in Polaris, one row per day, project, cluster,
+namespace, service and SKU. Data Explorer can query it.
+
+Until the billing export below exists, each daily run fails with a message saying to turn it on.
+
+Prerequisites, done once by the customer:
+
+1. Turn on **Detailed usage cost** export (Billing → Billing export → BigQuery export) into dataset
+   `<gcp.project_id>.billing_export`, or any dataset set in `billing_export_dataset`.
+2. GKE cost allocation is on through `gke_cost_allocation` (default `true`). Namespace splits only
+   cover usage after it is turned on.
+
+```hcl
+orchestration = {
+  # Existing settings...
+  cost_tracking = {
+    # All optional:
+    # enabled                = true
+    # billing_export_dataset = "<project>.<dataset>"  # default <gcp.project_id>.billing_export
+    # projects               = ["<project>"]          # default [gcp.project_id]
+    # schedule               = "0 6 * * *"
+    # lookback_days          = 5
+  }
+}
+```
+
+The job runs as the compute namespace's Spark service account. If the export dataset is in another
+project, Terraform grants that account `roles/bigquery.dataViewer` on the dataset, so the applying
+identity needs permission to set IAM there. Each run rewrites the last `lookback_days` days, because
+billing rows and credits keep arriving for a few days after usage.
+
+Team is derived from the namespace: `zipline-<team>` maps to `<team>`; other namespaces, idle node
+capacity (`kube:unallocated`) and costs outside Kubernetes map to `shared`.
+
+## Sandbox network isolation
+
+Sandbox networking uses an allowlisted egress proxy and NetworkPolicies.
+See the [sandbox network guide](../../charts/zipline-orchestration/SANDBOX.md#sandbox-network-isolation)
+for configuration, cluster enforcement, and rollout considerations.
+
 ## Agents UI configuration
 
 Set `orchestration.agents.enable = true` to add `AGENTS=true` and
@@ -626,9 +689,60 @@ This configures the UI only; it does not provision agent runtime services.
 
 ### Agent provider API keys
 
-Set `orchestration.agents.anthropic_api_key_remote_ref` and/or
-`orchestration.agents.openai_api_key_remote_ref` to cloud secret references.
+Set `orchestration.agents.anthropic_api_key_remote_ref`,
+`orchestration.agents.openai_api_key_remote_ref`, and/or
+`orchestration.agents.gemini_api_key_remote_ref` to cloud secret references.
 When agents are enabled, External Secrets syncs these into the UI through
-`secretKeyRef` as `AGENTS_ANTHROPIC_API_KEY` and `AGENTS_OPENAI_API_KEY`.
+`secretKeyRef` as `AGENTS_ANTHROPIC_API_KEY`, `AGENTS_OPENAI_API_KEY`, and
+`AGENTS_GOOGLE_API_KEY`, respectively.
 See [provider credential configuration](../../charts/zipline-orchestration/AGENT_CREDENTIALS.md)
-for reference formats and examples. Both references are optional.
+for reference formats and examples. All references are optional.
+
+### Migrating Secret Manager IAM grant state
+
+Secret accessor grants now use `projects/<project>/secrets/<secret>` as their
+Terraform instance keys. Short IDs resolve against `cloud_args.project_id` before
+deduplication. Two-component `project/secret` references expand to
+`projects/<project>/secrets/<secret>`, retaining the explicitly specified project.
+Already-canonical references remain unchanged, including those to other projects. Use the same project identifier consistently; project numbers
+and project IDs are not resolved into one another.
+
+Before applying this version to an existing deployment, migrate any bare-secret or `project/secret`-keyed
+`google_secret_manager_secret_iam_member.orchestration_extras` and
+`google_secret_manager_secret_iam_member.eso_extras` instances. This applies to
+all grant sources, including auth, extra secrets, repository credentials, and
+agent credentials. New deployments need no migration.
+
+1. Select the deployment's usual backend, workspace, and variables. Back up state
+   with `terraform state pull` to a secure location; state may contain secrets.
+2. Inspect `terraform state list` and `terraform state show` for the two resources.
+   Determine each secret's project from state and the configured provider project.
+3. If only the noncanonical instance exists, move it to its canonical address.
+   For a root GCP wrapper, an example for secret `my-key` in `my-project` is:
+
+   ```sh
+   terraform state mv 'google_secret_manager_secret_iam_member.orchestration_extras["my-key"]' 'google_secret_manager_secret_iam_member.orchestration_extras["projects/my-project/secrets/my-key"]'
+   terraform state mv 'google_secret_manager_secret_iam_member.eso_extras["my-key"]' 'google_secret_manager_secret_iam_member.eso_extras["projects/my-project/secrets/my-key"]'
+   ```
+
+   Include the deployment's module prefix when the wrapper is called as a module.
+   For an existing `project/secret` key, move both resources similarly:
+
+   ```sh
+   terraform state mv 'google_secret_manager_secret_iam_member.orchestration_extras["my-project/my-key"]' 'google_secret_manager_secret_iam_member.orchestration_extras["projects/my-project/secrets/my-key"]'
+   terraform state mv 'google_secret_manager_secret_iam_member.eso_extras["my-project/my-key"]' 'google_secret_manager_secret_iam_member.eso_extras["projects/my-project/secrets/my-key"]'
+   ```
+
+   Repeat for every noncanonical instance. Alternatively, declare deployment-specific
+   `moved` blocks with these same source and destination addresses.
+4. If both addresses already exist, first verify in state that they represent the
+   same project, secret, role, and member. Keep the canonical instance and remove
+   only the duplicate noncanonical address from state with `terraform state rm`. This
+   forgets duplicate tracking without revoking the live membership. Do not run a
+   destroy or apply the duplicate-removal plan before this state cleanup.
+5. Run the normal Terraform plan. Confirm these IAM resources show no membership
+   deletion or replacement before applying. Investigate any such change first.
+
+Static `moved` blocks are not included in the shared wrapper because secret names
+and module addresses vary by deployment. State migration does not change the
+External Secrets references or the secret values.

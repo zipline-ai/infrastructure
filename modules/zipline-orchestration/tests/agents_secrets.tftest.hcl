@@ -27,6 +27,7 @@ run "disabled_ignores_refs" {
       agents = {
         enable                       = false
         anthropic_api_key_remote_ref = { key = "unused" }
+        gemini_api_key_remote_ref    = { key = "unused-gemini" }
       }
     })
   }
@@ -36,7 +37,7 @@ run "disabled_ignores_refs" {
   }
 }
 
-run "both_providers" {
+run "all_providers" {
   command = plan
   variables {
     orchestration = merge(var.orchestration, {
@@ -44,11 +45,12 @@ run "both_providers" {
         enable                       = true
         anthropic_api_key_remote_ref = { key = "provider-keys", property = "anthropic" }
         openai_api_key_remote_ref    = { key = "openai-key" }
+        gemini_api_key_remote_ref    = { key = "gemini-key", property = "gemini" }
       }
     })
   }
   assert {
-    condition     = length(local.agents_external_secret.spec.data) == 2 && contains([for target in local.external_secret_targets : target.name], "agents-provider-credentials")
+    condition     = length(local.agents_external_secret.spec.data) == 3 && contains([for target in local.external_secret_targets : target.name], "agents-provider-credentials")
     error_message = "Configured provider keys must be included in External Secret targets."
   }
   assert {
@@ -56,13 +58,13 @@ run "both_providers" {
     error_message = "JSON property references must be preserved."
   }
   assert {
-    condition = alltrue([for name in ["AGENTS_ANTHROPIC_API_KEY", "AGENTS_OPENAI_API_KEY"] :
+    condition = alltrue([for name in ["AGENTS_ANTHROPIC_API_KEY", "AGENTS_OPENAI_API_KEY", "AGENTS_GOOGLE_API_KEY"] :
       contains(local.common_values.orchestration.ui.env, {
         name      = name
         valueFrom = { secretKeyRef = { name = "agents-provider-credentials", key = name } }
       })
     ])
-    error_message = "Both UI keys must use secretKeyRef, without plaintext values."
+    error_message = "All UI keys must use secretKeyRef, without plaintext values."
   }
 }
 
@@ -79,5 +81,21 @@ run "single_provider" {
   assert {
     condition     = length(local.agents_remote_refs) == 1 && !contains([for env in local.common_values.orchestration.ui.env : env.name], "AGENTS_ANTHROPIC_API_KEY")
     error_message = "A single provider must not require the other provider's Secret key."
+  }
+}
+
+run "gemini_only" {
+  command = plan
+  variables {
+    orchestration = merge(var.orchestration, {
+      agents = {
+        enable                    = true
+        gemini_api_key_remote_ref = { key = "provider-keys", property = "gemini" }
+      }
+    })
+  }
+  assert {
+    condition     = length(local.agents_remote_refs) == 1 && local.agents_remote_refs.AGENTS_GOOGLE_API_KEY.property == "gemini"
+    error_message = "Gemini alone must preserve its remote reference and require no other provider keys."
   }
 }

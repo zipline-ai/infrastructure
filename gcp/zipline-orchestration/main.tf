@@ -1,6 +1,14 @@
 variable "orchestration" {
   description = "Shared Zipline orchestration install inputs consumed by modules/zipline-orchestration."
   type        = any
+
+  validation {
+    condition = (
+      trimspace(try(var.orchestration.cost_tracking.billing_export_dataset, "")) == "" ||
+      can(regex("^[a-z][a-z0-9-]*\\.[A-Za-z0-9_]+$", var.orchestration.cost_tracking.billing_export_dataset))
+    )
+    error_message = "orchestration.cost_tracking.billing_export_dataset must be <project>.<dataset>."
+  }
 }
 
 variable "gcp" {
@@ -12,10 +20,9 @@ variable "gcp" {
       for key in [
         "project_id",
         "region",
-        "warehouse_bucket",
       ] : trimspace(tostring(try(var.gcp[key], ""))) != ""
     ])
-    error_message = "gcp must include non-empty project_id, region, and warehouse_bucket."
+    error_message = "gcp must include non-empty project_id and region."
   }
 
   # network/subnet are provisioned on the fly when omitted (see network.tf);
@@ -62,6 +69,7 @@ module "zipline_orchestration" {
   provider_context = local.provider_context
 
   depends_on = [
+    terraform_data.controller_resource_cleanup,
     google_container_node_pool.pools,
     google_project_iam_member.orchestration,
     google_project_iam_member.spark,

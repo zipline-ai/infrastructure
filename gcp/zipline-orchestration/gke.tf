@@ -115,6 +115,8 @@ locals {
 resource "google_service_account" "nodes" {
   account_id   = "${local.name_prefix}-gke-nodes"
   display_name = "${local.name_prefix} GKE node pool service account"
+
+  depends_on = [google_project_service.required]
 }
 
 # Minimum required roles for GKE node VMs: logging/metrics writer, autoscaler
@@ -174,6 +176,17 @@ resource "google_container_cluster" "main" {
 
   network    = local.network_self_link
   subnetwork = local.subnet_self_link
+
+  # Enable both the control-plane add-on and node enforcement without changing dataplanes.
+  network_policy {
+    enabled  = true
+    provider = "CALICO"
+  }
+  addons_config {
+    network_policy_config {
+      disabled = false
+    }
+  }
 
   networking_mode = "VPC_NATIVE"
   ip_allocation_policy {
@@ -245,6 +258,7 @@ resource "google_container_cluster" "main" {
   }
 
   depends_on = [
+    google_project_service.required,
     google_project_iam_member.nodes,
   ]
 }

@@ -1,5 +1,5 @@
 locals {
-  cloud_args = merge({
+  cloud_args_input = merge({
     cluster_name                         = ""
     eks_version                          = "1.36"
     eks_instance_type                    = "m8a.4xlarge"
@@ -22,6 +22,7 @@ locals {
     additional_data_buckets              = []
     additional_flink_s3_buckets          = []
     additional_flink_readonly_s3_buckets = []
+    warehouse_bucket                     = ""
     shared_warehouse_bucket              = ""
     spark_libs_bucket                    = ""
     logs_bucket                          = ""
@@ -54,6 +55,11 @@ locals {
     karpenter           = {}
   }, var.aws)
 
+  # Bucket names are global, so the default derives from customer_name.
+  cloud_args = merge(local.cloud_args_input, {
+    warehouse_bucket = try(trimspace(local.cloud_args_input.warehouse_bucket), "") != "" ? local.cloud_args_input.warehouse_bucket : "zipline-${local.name_prefix}-warehouse"
+  })
+
   redis = merge({
     enabled             = false
     cluster_nodes       = ""
@@ -84,8 +90,9 @@ locals {
   resolved_secondary_subnet_id = local.create_network ? aws_subnet.zipline["secondary"].id : trimspace(tostring(try(var.aws.secondary_subnet_id, "")))
 
   install                       = try(var.orchestration.install, {})
-  deployment                    = var.orchestration.deployment
-  deploy_fetcher                = try(local.deployment.deploy_fetcher, false)
+  default_artifact_prefix       = "s3://zipline-${var.orchestration.deployment.customer_name}-artifacts"
+  deployment                    = merge(var.orchestration.deployment, { artifact_prefix = trimspace(try(var.orchestration.deployment.artifact_prefix, "")) != "" ? var.orchestration.deployment.artifact_prefix : local.default_artifact_prefix })
+  deploy_fetcher                = try(local.deployment.deploy_fetcher, true)
   name_prefix                   = local.deployment.customer_name
   cluster_name                  = local.cloud_args.cluster_name != "" ? local.cloud_args.cluster_name : "${local.name_prefix}-eks"
   orchestration_namespace       = try(local.install.namespace, "zipline-system")
@@ -96,6 +103,15 @@ locals {
 
   compute_namespaces       = try(var.orchestration.compute.namespaces, [{ name = try(var.orchestration.compute.default_namespace, "zipline-default"), team = "default" }])
   redis_compute_namespaces = length(local.compute_namespaces) > 0 ? local.compute_namespaces : [{ name = try(var.orchestration.compute.default_namespace, "zipline-default"), team = "default" }]
+
+  cost_tracking        = try(var.orchestration.cost_tracking, {})
+  cost_cur_export_path = trimsuffix(trimspace(try(local.cost_tracking.cur_export_path, "")), "/")
+  # The CUR bucket is customer-named, so there is no default path; the job turns on once it is set.
+  cost_tracking_enabled = try(local.cost_tracking.enabled, local.cost_cur_export_path != "")
+  cost_cur_location     = trimprefix(trimprefix(local.cost_cur_export_path, "s3a://"), "s3://")
+  cost_cur_bucket       = split("/", local.cost_cur_location)[0]
+  cost_cur_prefix       = trimprefix(local.cost_cur_location, "${local.cost_cur_bucket}/")
+
   karpenter = merge({
     enabled            = true
     namespace          = "kube-system"
@@ -266,6 +282,7 @@ locals {
     try(var.orchestration.agents.enable, false) ? compact([
       try(var.orchestration.agents.anthropic_api_key_remote_ref.key, ""),
       try(var.orchestration.agents.openai_api_key_remote_ref.key, ""),
+      try(var.orchestration.agents.gemini_api_key_remote_ref.key, ""),
     ]) : [],
     trimspace(try(var.orchestration.conf_repo.url, "")) == "" ? [] : compact([
       try(var.orchestration.conf_repo.github_token_remote_ref.key, ""),
@@ -281,6 +298,11 @@ locals {
   )))
 
   module_orchestration = merge(var.orchestration, {
+    # On by default here (not in the module) because this root always supplies
+    # the StarRocks storage config that Data Explorer needs.
+    data_explorer        = { enabled = try(var.orchestration.data_explorer.enabled, true) }
+    # On by default: dynamic profiles and online fetches are served by the fetcher.
+    deployment = merge(local.deployment, { deploy_fetcher = local.deploy_fetcher })
     extra_secret_objects = []
     secrets = merge(try(var.orchestration.secrets, {}), {
       extra_secret_objects = []
@@ -398,7 +420,10 @@ locals {
       { name = "AWS_REGION", value = local.cloud_args.region },
       { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
     ]
-    fetcher_env = concat([
+    fetcher_env = concat(local.fetcher_ooc == null ? [] : [{
+      name  = "FETCHER_OOC_TOPIC_INFO"
+      value = local.fetcher_ooc_topic_info
+    }], [
       { name = "PROVIDER", value = "AWS" },
       { name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix },
       { name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) },
@@ -442,25 +467,17 @@ locals {
         { name = "DATABRICKS_CLIENT_SECRET_VAULT_URI", value = aws_secretsmanager_secret.databricks_client_secret[0].arn },
         { name = "DATABRICKS_CREDENTIAL_VAULT_URI", value = aws_secretsmanager_secret.databricks_credential[0].arn },
       ],
-      [
-        {
-          name = "OC_CREDENTIAL"
-          valueFrom = {
-            secretKeyRef = {
-              name     = local.polaris_client_secret_name
-              key      = local.polaris_client_secret_key
-              optional = true
-            }
-          }
-        }
-      ],
+      [local.polaris_credential_env],
     )
     # Eval reads Databricks credentials from its own env for UC schema lookups and resolves
     # the secret's vault ref itself (orchestration IRSA already grants read on it).
-    eval_env = try(trimspace(local.cloud_args.databricks_client_id), "") == "" ? [] : [
-      { name = "DATABRICKS_CLIENT_ID", value = local.cloud_args.databricks_client_id },
-      { name = "DATABRICKS_CLIENT_SECRET_VAULT_URI", value = aws_secretsmanager_secret.databricks_client_secret[0].arn },
-    ]
+    eval_env = concat(
+      try(trimspace(local.cloud_args.databricks_client_id), "") == "" ? [] : [
+        { name = "DATABRICKS_CLIENT_ID", value = local.cloud_args.databricks_client_id },
+        { name = "DATABRICKS_CLIENT_SECRET_VAULT_URI", value = aws_secretsmanager_secret.databricks_client_secret[0].arn },
+      ],
+      [local.polaris_credential_env],
+    )
     ui_env = local.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.eks_log_group }]
     values = merge(
       local.provider_values,
@@ -504,6 +521,18 @@ locals {
     [local.cloud_args.encryption_kms_key_arn],
     values(local.cloud_args.encryption_kms_key_arns),
   )))
+  # Hub fills {OC_CREDENTIAL} in team confs for jobs; eval needs it too to read Polaris schemas for
+  # team-scoped catalogs. Optional so pods still start before the Polaris bootstrap writes the secret.
+  polaris_credential_env = {
+    name = "OC_CREDENTIAL"
+    valueFrom = {
+      secretKeyRef = {
+        name     = local.polaris_client_secret_name
+        key      = local.polaris_client_secret_key
+        optional = true
+      }
+    }
+  }
   artifact_bucket      = split("/", trimsuffix(trimprefix(trimspace(local.deployment.artifact_prefix), "s3://"), "/"))[0]
   logs_bucket          = local.cloud_args.logs_bucket != "" ? local.cloud_args.logs_bucket : "zipline-logs-${local.name_prefix}"
   glue_registry_name   = local.cloud_args.glue_schema_registry_name != "" ? local.cloud_args.glue_schema_registry_name : "zipline-${local.name_prefix}"
@@ -677,6 +706,23 @@ locals {
         nodeSelector = local.system_node_selector
         tolerations  = local.system_node_tolerations
       }
+    }
+
+    costExport = {
+      enabled      = local.cost_tracking_enabled
+      cloud        = "aws"
+      namespace    = try(local.cost_tracking.namespace, try(var.orchestration.compute.default_namespace, "zipline-default"))
+      schedule     = try(local.cost_tracking.schedule, "0 6 * * *")
+      lookbackDays = try(local.cost_tracking.lookback_days, 5)
+      aws = {
+        curExportPath = local.cost_cur_export_path
+        accounts      = try(local.cost_tracking.accounts, [data.aws_caller_identity.current.account_id])
+      }
+      nodeSelector = { "zipline.ai/engine" = "spark", "zipline.ai/role" = "driver" }
+      tolerations = [
+        { key = "zipline.ai/workload", operator = "Equal", value = "spark", effect = "NoSchedule" },
+        { key = "kubernetes.io/arch", operator = "Exists", effect = "NoSchedule" },
+      ]
     }
   }
 }
