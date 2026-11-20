@@ -193,19 +193,25 @@ ingress = {
 ### Authentication and Secret Manager
 
 Authentication defaults to disabled. To enable it, set
-`orchestration.auth.enabled = true` and `gcp.auth_secret_id` to a bare Secret
-Manager ID or `projects/<project>/secrets/<name>`. The shared
-`orchestration.auth.secrets_arn` field is a fallback; on GCP its value is a
-Secret Manager ID, despite the field name.
+`orchestration.auth.enabled = true` and `gcp.auth_secret_id` to a **bare secret
+ID in the same project as the cluster** (`gcp.project_id`), for example
+`example-zipline-auth`. The shared `orchestration.auth.secrets_arn` field is a
+fallback; on GCP it must also contain a bare, same-project secret ID, despite
+the field name. Do not use a fully qualified resource path for either field.
+
+Cross-project auth secrets are not supported: the generated Secret Manager
+store is fixed to `gcp.project_id`, and the auth reference is passed through
+without normalization. Cross-project auth requires a separate store that the
+wrapper does not currently configure.
 
 For a secret in the target project, Terraform creates the secret container but
 **does not populate an auth secret version**. If the container already exists,
 import it before apply. For a new same-project secret, use the staged bootstrap
 below: create the container first, publish its JSON version, then run the full
 apply. Helm waits for readiness by default, so a full apply before publishing
-the version can time out waiting for authenticated services. A cross-project
-reference uses an existing container. The deploying identity needs permission
-to grant access there. The wrapper grants orchestration and External Secrets Operator access.
+the version can time out waiting for authenticated services. The deploying
+identity needs permission to grant secret access in the cluster project. The
+wrapper grants orchestration and External Secrets Operator access.
 
 The JSON secret must have these properties (include empty values for unused
 providers):
@@ -262,8 +268,8 @@ tofu import 'google_secret_manager_secret.auth[0]' \
 ```
 
 Initialize the backend before import, and publish a version if one is not already
-populated before running the full apply. For a cross-project reference, populate
-the existing secret in its owning project before the full apply.
+populated before running the full apply. The fully qualified path above is the
+Terraform import identifier only; keep the tfvars auth secret ID bare.
 
 Set the matching provider IDs and callback configuration in tfvars:
 
