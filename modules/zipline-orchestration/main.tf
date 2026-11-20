@@ -930,6 +930,20 @@ resource "kubernetes_namespace_v1" "this" {
   }
 }
 
+# A provider may need a fixed authentication identity even when the secrets
+# operator Deployment uses a separately named service account.
+resource "kubernetes_service_account_v1" "secret_store" {
+  count = try(local.provider_secrets.secret_store_service_account.create, false) ? 1 : 0
+
+  metadata {
+    name        = local.provider_secrets.secret_store_service_account.name
+    namespace   = local.install.namespace
+    annotations = local.provider_secrets.secret_store_service_account.annotations
+  }
+
+  depends_on = [kubernetes_namespace_v1.this]
+}
+
 resource "kubernetes_secret_v1" "docker_hub_creds" {
   count = local.image_pull_secret.create ? 1 : 0
 
@@ -1090,6 +1104,7 @@ resource "helm_release" "this" {
     kubernetes_namespace_v1.this,
     kubernetes_secret_v1.docker_hub_creds,
     module.addons,
+    kubernetes_service_account_v1.secret_store,
     helm_release.starrocks,
   ]
 }

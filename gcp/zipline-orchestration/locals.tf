@@ -173,33 +173,50 @@ locals {
     })
   })
 
-  # Wrapper-side addon defaults. Module merge order is
-  # `merge(orchestration_addons, provider_context.addons)` — provider_context
-  # wins. Each entry below is only set when the tfvars hasn't already provided
-  # its own override, so a stack can still override from tfvars.
-  #
-  # - install_metrics_server: GKE Standard ships metrics-server as a system
-  #   addon; chart addon would clobber it (§10.6).
-  # - kuberay_operator_values.priorityClassName: the shared addons module
-  #   defaults kuberay to priorityClassName=system-cluster-critical. GKE's
-  #   admission controller only allows system-* priority classes in
-  #   kube-system, so installing kuberay in zipline-system fails with
-  #   "insufficient quota to match these scopes". Clear it.
-  # - external_secrets_operator_values.serviceAccount.annotations: the ESO
-  #   chart creates its own KSA, which Terraform's identity.tf separately
-  #   binds to the eso GSA via Workload Identity. The KSA needs the
-  #   iam.gke.io/gcp-service-account annotation for that binding to resolve.
+  # Preserve the GCP identity annotation even when custom ESO values replace
+  # the wrapper defaults. The store uses a fixed account independently of the
+  # account selected for the operator Deployment.
+  eso_values          = merge({}, try(var.orchestration.addons.external_secrets_operator_values, {}))
+  eso_service_account = merge({}, try(local.eso_values.serviceAccount, {}))
+  # Match the external-secrets chart helpers for the fixed release name.
+  eso_chart_name = coalesce(try(local.eso_values.nameOverride, null), "external-secrets")
+  eso_fullname = trimsuffix(substr(coalesce(
+    try(local.eso_values.fullnameOverride, null),
+    strcontains("external-secrets", local.eso_chart_name) ? "external-secrets" : "external-secrets-${local.eso_chart_name}",
+  ), 0, 63), "-")
+  eso_service_account_name = coalesce(
+    try(local.eso_service_account.name, null),
+    coalesce(try(local.eso_service_account.create, null), true) ? local.eso_fullname : "default",
+  )
+  eso_store_service_account_name = "external-secrets"
+  eso_install_managed            = coalesce(try(var.orchestration.addons.install_external_secrets_operator, null), true)
+  eso_store_service_account_helm_owned = (
+    local.eso_install_managed &&
+    coalesce(try(local.eso_service_account.create, null), true) &&
+    local.eso_service_account_name == local.eso_store_service_account_name
+  )
+  # Do not claim an externally installed ESO's account without an explicit opt-in.
+  eso_store_service_account_managed = (
+    coalesce(try(local.cloud_args.create_secret_store_service_account, null), local.eso_install_managed) &&
+    !local.eso_store_service_account_helm_owned
+  )
+  eso_identity_annotations = {
+    "iam.gke.io/gcp-service-account" = google_service_account.external_secrets.email
+  }
+  eso_operator_values = merge(local.eso_values, {
+    serviceAccount = merge(local.eso_service_account, {
+      annotations = merge(
+        try(local.eso_service_account.annotations, {}),
+        local.eso_identity_annotations,
+      )
+    })
+  })
+
+  # GKE supplies metrics-server and restricts system priority classes outside
+  # kube-system. Retain the existing override behavior for these addons.
   provider_addons = merge(
     try(var.orchestration.addons.install_metrics_server, null) == null ? { install_metrics_server = false } : {},
-    try(var.orchestration.addons.external_secrets_operator_values, null) == null ? {
-      external_secrets_operator_values = {
-        serviceAccount = {
-          annotations = {
-            "iam.gke.io/gcp-service-account" = google_service_account.external_secrets.email
-          }
-        }
-      }
-    } : {},
+    { external_secrets_operator_values = local.eso_operator_values },
     try(var.orchestration.addons.kuberay_operator_values, null) == null ? {
       kuberay_operator_values = {
         priorityClassName = ""
@@ -305,6 +322,11 @@ locals {
       "iam.gke.io/gcp-service-account" = google_service_account.orchestration.email
     }
     secrets = {
+      secret_store_service_account = {
+        create      = local.eso_store_service_account_managed
+        name        = local.eso_store_service_account_name
+        annotations = local.eso_identity_annotations
+      }
       secret_store = {
         create = true
         name   = "zipline-secret-store"
@@ -319,7 +341,7 @@ locals {
                   clusterName       = local.cluster_name
                   clusterProjectID  = local.cloud_args.project_id
                   serviceAccountRef = {
-                    name      = "external-secrets"
+                    name      = local.eso_store_service_account_name
                     namespace = local.orchestration_namespace
                   }
                 }
