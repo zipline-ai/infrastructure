@@ -507,7 +507,14 @@ installation namespace with the required GCP annotation. The default Helm-owned
 account is never duplicated by Terraform, even if this field is `true`.
 
 If `serviceAccount.create = false`, provision the operator's selected account
-separately unless it is the fixed account managed by the wrapper.
+separately unless it is the fixed account managed by the wrapper. If the selected
+account is `external-secrets` and is externally managed, you must add the
+`iam.gke.io/gcp-service-account` annotation with value
+`<customer_name>-eso@<project_id>.iam.gserviceaccount.com` to that account in
+the installation namespace. Helm values do not annotate an account when
+`serviceAccount.create = false`. A wrapper-managed fixed account receives the
+annotation automatically; when the selected name differs, the wrapper still
+creates the annotated fixed store account under the ownership rules above.
 
 To adopt an externally provisioned store account, set
 `gcp.create_secret_store_service_account = true` and import it before the full
