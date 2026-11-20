@@ -1,6 +1,22 @@
 variable "orchestration" {
   description = "Shared Zipline orchestration install inputs consumed by modules/zipline-orchestration."
   type        = any
+
+  validation {
+    condition = (
+      trimspace(try(var.orchestration.cost_tracking.cur_export_path, "")) == "" ||
+      can(regex("^s3a?://[a-z0-9.-]+/.+", trimspace(var.orchestration.cost_tracking.cur_export_path)))
+    )
+    error_message = "orchestration.cost_tracking.cur_export_path must be s3://<bucket>/<prefix>/<export>/data."
+  }
+
+  validation {
+    condition = (
+      try(var.orchestration.cost_tracking.enabled, false) != true ||
+      trimspace(try(var.orchestration.cost_tracking.cur_export_path, "")) != ""
+    )
+    error_message = "orchestration.cost_tracking.enabled = true requires cost_tracking.cur_export_path."
+  }
 }
 
 variable "aws" {

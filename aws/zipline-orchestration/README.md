@@ -544,6 +544,56 @@ StarRocks deployment stay consistent. Polaris remains available for other servic
 Existing deployments that omit `data_explorer` get StarRocks on their next
 apply. Set `enabled = false` first to keep it off.
 
+## Cost tracking
+
+Cost tracking turns on once `cost_tracking.cur_export_path` is set. A daily Spark job
+(`ScheduledSparkApplication` `cost-export` in the default compute namespace) reads the CUR 2.0
+export and writes `zipline_catalog.cost.daily_cost` in Polaris, one row per day, account, cluster,
+namespace, service and usage type. Data Explorer can query it. GCP writes the same table from its
+billing export.
+
+Prerequisites, done once by the customer in the payer (management) account:
+
+1. Billing and Cost Management → Cost Management preferences → **Split cost allocation data**:
+   turn on Amazon EKS with **Resource requests**. Pod-level rows only cover usage after this.
+2. Data Exports → create a **CUR 2.0** export with **Include split cost allocation data**, daily
+   granularity, Parquet, overwrite mode.
+3. Allow the cluster account to read the export bucket:
+
+   ```json
+   {
+     "Sid": "ZiplineCostExportRead",
+     "Effect": "Allow",
+     "Principal": { "AWS": "arn:aws:iam::<cluster account>:root" },
+     "Action": ["s3:ListBucket", "s3:GetBucketLocation", "s3:GetObject"],
+     "Resource": ["arn:aws:s3:::<bucket>", "arn:aws:s3:::<bucket>/*"]
+   }
+   ```
+
+```hcl
+orchestration = {
+  # Existing settings...
+  cost_tracking = {
+    cur_export_path = "s3://<bucket>/<prefix>/<export name>/data"
+    # Optional:
+    # enabled       = false                 # turn off while keeping the path
+    # accounts      = ["<account id>"]      # default: the cluster account
+    # schedule      = "0 6 * * *"
+    # lookback_days = 5
+  }
+}
+```
+
+Terraform adds an inline policy (`<name_prefix>-spark-compute-cost-export`) to the Spark compute
+role for read access to that path. Each run rewrites the last `lookback_days` days, because billing
+rows keep arriving for a few days after usage.
+
+How rows map: pod rows carry their pod's share of the node (`allocated`); each pod's share of
+unused node capacity is a separate `idle` row; the node's own EC2 rows are dropped for days its pods
+cover, and the part of the node cost no pod covered becomes an `unallocated` row, so totals still
+match the bill. Team is derived from the namespace: `zipline-<team>` maps to `<team>`; other
+namespaces, idle capacity and costs outside Kubernetes map to `shared`.
+
 ## Conf repository sandbox
 
 Set `orchestration.conf_repo.url` to enable the internal sandbox and repository

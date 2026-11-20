@@ -13,15 +13,15 @@
 {{- fail "global.customer_name or polaris.realm is required for costExport" }}
 {{- end }}
 {{- $catalog := index (splitList "." $ce.outputTable) 0 }}
-{{- $engineJar := $ce.engineJar | default (printf "%s/release/%s/jars/cloud_gcp_lib_spark4_deploy.jar" (trimSuffix "/" (required "global.artifact_prefix is required for costExport" .Values.global.artifact_prefix)) .Values.global.version) }}
-{{- $eventLogDir := include "zipline-orchestration.sparkEventLogDir" . }}
-{{- if ne $ce.cloud "gcp" }}
-{{- fail "costExport.cloud must be gcp" }}
+{{- if not (has $ce.cloud (list "gcp" "aws")) }}
+{{- fail "costExport.cloud must be gcp or aws" }}
 {{- end }}
+{{- $engineJar := $ce.engineJar | default (printf "%s/release/%s/jars/cloud_%s_lib_spark4_deploy.jar" (trimSuffix "/" (required "global.artifact_prefix is required for costExport" .Values.global.artifact_prefix)) .Values.global.version $ce.cloud) }}
+{{- $eventLogDir := include "zipline-orchestration.sparkEventLogDir" . }}
 {{- /*
   Writes the cloud billing export, normalized to one cloud-neutral schema, to an Iceberg table in
-  Polaris once a day. Spark runs in local mode inside the driver pod: BigQuery does the
-  aggregation, so no executors start. The init container fetches the engine jar (Iceberg runtime)
+  Polaris once a day. Spark runs in local mode inside the driver pod: a run reads one or two
+  months of billing rows, so no executors start. The init container fetches the engine jar (Iceberg runtime)
   and the Polaris credential, which the operator pod and the compute namespace cannot read directly.
 */}}
 apiVersion: v1
@@ -91,12 +91,19 @@ spec:
     arguments:
       - --cloud
       - {{ $ce.cloud }}
+      {{- if eq $ce.cloud "gcp" }}
       - --billing-export-dataset
       - {{ required "costExport.gcp.billingExportDataset is required" $ce.gcp.billingExportDataset | quote }}
       - --projects
       - {{ join "," (required "costExport.gcp.projects is required" $ce.gcp.projects) | quote }}
       - --job-project
       - {{ required "costExport.gcp.jobProject is required" $ce.gcp.jobProject | quote }}
+      {{- else }}
+      - --cur-export-path
+      - {{ required "costExport.aws.curExportPath is required" $ce.aws.curExportPath | quote }}
+      - --accounts
+      - {{ join "," (required "costExport.aws.accounts is required" $ce.aws.accounts) | quote }}
+      {{- end }}
       - --lookback-days
       - {{ $ce.lookbackDays | quote }}
       - --output-table
@@ -113,6 +120,13 @@ spec:
       spark.sql.catalog.{{ $catalog }}.header.X-Iceberg-Access-Delegation: vended-credentials
       spark.sql.sources.partitionOverwriteMode: dynamic
       spark.sql.shuffle.partitions: "8"
+      {{- if eq $ce.cloud "aws" }}
+      # CUR paths are s3://; the image's S3 connector reads them with the pod's IRSA role.
+      spark.hadoop.fs.s3.impl: org.apache.hadoop.fs.s3a.S3AFileSystem
+      spark.hadoop.fs.s3a.aws.credentials.provider: com.amazonaws.auth.WebIdentityTokenCredentialsProvider
+      # BILLING_PERIOD=2026-11 must stay a string for the job's period filter.
+      spark.sql.sources.partitionColumnTypeInference.enabled: "false"
+      {{- end }}
       {{- if $eventLogDir }}
       spark.eventLog.enabled: "true"
       spark.eventLog.dir: {{ $eventLogDir | quote }}

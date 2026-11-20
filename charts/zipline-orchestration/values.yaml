@@ -612,7 +612,7 @@ nodepoolExporter:
 costExport:
   # Daily job: cloud billing export -> cloud-neutral Iceberg table in Polaris, read by Data Explorer.
   enabled: false
-  cloud: ""  # gcp
+  cloud: ""  # gcp or aws
   schedule: "0 6 * * *"
   # Runs as this compute namespace's Spark service account, which already holds the billing read
   # and warehouse write permissions.
@@ -620,12 +620,15 @@ costExport:
   # Billing rows keep arriving for days after usage, so each run rewrites this many trailing days.
   lookbackDays: 5
   outputTable: zipline_catalog.cost.daily_cost
-  # Defaults to <global.artifact_prefix>/release/<global.version>/jars/cloud_gcp_lib_spark4_deploy.jar.
+  # Defaults to <global.artifact_prefix>/release/<global.version>/jars/cloud_<cloud>_lib_spark4_deploy.jar.
   engineJar: ""
   gcp:
     billingExportDataset: ""  # project.dataset holding the detailed usage cost export
     projects: []              # projects whose costs are kept
     jobProject: ""            # project that runs and pays for the BigQuery read
+  aws:
+    curExportPath: ""  # s3://<bucket>/<prefix>/<export>/data, the CUR 2.0 folder holding BILLING_PERIOD=YYYY-MM
+    accounts: []       # account IDs whose costs are kept
   priorityClassName: zipline-backfill
   driver:
     cores: 1
