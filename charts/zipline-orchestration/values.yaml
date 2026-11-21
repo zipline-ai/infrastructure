@@ -580,8 +580,24 @@ spark-operator:
   controller:
     replicas: 2
     workers: 20
-    kubeAPIQPS: 100
-    kubeAPIBurst: 200
+    # Each spark-submit spawns a -Xmx128m JVM inside the controller pod; keep
+    # headroom for 20 concurrent workers while leaving BestEffort QoS behind.
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "4"
+        memory: "4Gi"
+  webhook:
+    replicas: 2
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "256Mi"
+      limits:
+        cpu: "1"
+        memory: "512Mi"
   spark:
     jobNamespaces: []
     jobNamespaceSelector: zipline.ai/namespace-type=compute
