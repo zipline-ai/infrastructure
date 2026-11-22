@@ -1,5 +1,7 @@
 # AWS Zipline Orchestration
 
+For provider setup, secret delivery, and login verification, see the [application authentication guide](../../docs/authentication.md).
+
 Creates the AWS cloud primitives for Zipline orchestration, installs the shared
 `charts/zipline-orchestration` chart on EKS, and wires AWS infrastructure into
 cloud-neutral chart values.

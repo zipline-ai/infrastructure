@@ -1,4 +1,6 @@
 # Infrastructure
+
+For provider setup, secret delivery, and login verification, see the [application authentication guide](docs/authentication.md).
 Configuration to Initialize Zipline Infrastructure
 
 We are using OpenTofu to manage the infrastructure
