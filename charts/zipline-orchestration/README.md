@@ -39,6 +39,24 @@ through `runtime.env` or `orchestration.hub.env`.
 `nightly` stays `nightly`, while release and commit tags gain a `-spark4`
 suffix. UI and Fetcher continue to use the base tag.
 
+## Refreshing nightly images
+
+Enable `orchestration.rolloutRestart.enabled` to create a daily restart CronJob
+for Hub, UI, Eval, Fetcher (when enabled), and the repository sandbox (when
+configured). These deployments use
+`imagePullPolicy: Always`, so restarting their pods pulls the current image tag.
+The job defaults to `0 11 * * *` in `Etc/UTC`; override `schedule` and `timeZone`
+under `orchestration.rolloutRestart` to change this. Public demo configuration
+enables it; other installations leave it disabled by default.
+
+The job has a dedicated service account allowed only to get and patch those
+deployments in the release namespace. Its kubectl image follows the cluster's
+minor version, or can be set explicitly with `orchestration.rolloutRestart.image`.
+It triggers restarts without waiting for readiness. Existing deployment
+strategies are preserved, including `Recreate` for Hub, Eval, and Fetcher, so
+those services briefly lose availability while their replacement pods start.
+Running Spark and Flink jobs are unaffected.
+
 ## Required Overrides
 
 At minimum, each Terraform module should provide:

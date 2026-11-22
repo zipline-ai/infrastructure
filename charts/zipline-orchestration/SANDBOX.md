@@ -51,6 +51,9 @@ publishing change and select a version that includes this image before enabling
 it. It exposes only a ClusterIP Service. The UI receives
 `SANDBOX_URL=http://sandbox-service:8000`. Authentication follows `auth.enabled`;
 the sandbox verifies JWTs against the UI's internal `/api/auth/jwks` endpoint.
+`AUTH_JWT_AUDIENCE` matches the UI's public auth URL so tokens containing an
+audience claim are validated correctly. `orchestration.sandbox.tag` can override
+the sandbox image tag independently of the other services.
 GitHub credentials are never configured on the sandbox container.
 
 The single sandbox replica uses an ephemeral `/sandboxes` cache. Restarting it
