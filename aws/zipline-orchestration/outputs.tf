@@ -122,3 +122,8 @@ output "ingress_load_balancer_target" {
   description = "Provider-neutral DNS target for the public ingress controller."
   value       = module.zipline_orchestration.ingress_load_balancer_target
 }
+
+output "rds_read_replica_endpoint" {
+  description = "Read replica address; null when disabled. Uses the primary database credentials."
+  value       = try(aws_db_instance.read_replica[0].endpoint, null)
+}

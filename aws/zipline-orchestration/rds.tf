@@ -50,3 +50,25 @@ resource "aws_db_instance" "zipline" {
   skip_final_snapshot       = local.cloud_args.database_skip_final_snapshot
   final_snapshot_identifier = local.cloud_args.database_skip_final_snapshot ? null : "${local.name_prefix}-zipline-orch-final"
 }
+
+# Physical replication preserves users and grants; recovery rejects SQL writes.
+resource "aws_db_instance" "read_replica" {
+  count = local.cloud_args.database_read_replica_enabled ? 1 : 0
+
+  identifier             = "${local.name_prefix}-zipline-orch-replica"
+  replicate_source_db    = aws_db_instance.zipline.arn
+  instance_class         = local.cloud_args.database_instance_class
+  db_subnet_group_name   = aws_db_subnet_group.zipline.name
+  vpc_security_group_ids = [aws_security_group.zipline.id]
+  publicly_accessible    = false
+  multi_az               = false
+  # Same-region replicas inherit the source's encryption and KMS key.
+  skip_final_snapshot = true
+
+  lifecycle {
+    precondition {
+      condition     = local.cloud_args.database_backup_retention_days > 0
+      error_message = "RDS read replicas require database_backup_retention_days greater than zero."
+    }
+  }
+}
