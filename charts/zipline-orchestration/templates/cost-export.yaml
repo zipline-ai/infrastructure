@@ -16,7 +16,7 @@
 {{- if not (has $ce.cloud (list "gcp" "aws")) }}
 {{- fail "costExport.cloud must be gcp or aws" }}
 {{- end }}
-{{- $engineJar := $ce.engineJar | default (printf "%s/release/%s/jars/cloud_%s_lib_spark4_deploy.jar" (trimSuffix "/" (required "global.artifact_prefix is required for costExport" .Values.global.artifact_prefix)) .Values.global.version $ce.cloud) }}
+{{- $engineJar := $ce.engineJar | default (printf "%s/release/%s/jars/cloud_%s_lib_spark4_deploy.jar" (trimSuffix "/" (required "global.artifact_prefix is required for costExport" .Values.global.artifact_prefix)) ($ce.engineVersion | default "latest") $ce.cloud) }}
 {{- $eventLogDir := include "zipline-orchestration.sparkEventLogDir" . }}
 {{- /*
   Writes the cloud billing export, normalized to one cloud-neutral schema, to an Iceberg table in

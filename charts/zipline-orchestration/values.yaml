@@ -637,8 +637,11 @@ costExport:
   # Billing rows keep arriving for days after usage, so each run rewrites this many trailing days.
   lookbackDays: 5
   outputTable: zipline_catalog.cost.daily_cost
-  # Defaults to <global.artifact_prefix>/release/<global.version>/jars/cloud_<cloud>_lib_spark4_deploy.jar.
+  # Defaults to <global.artifact_prefix>/release/<engineVersion>/jars/cloud_<cloud>_lib_spark4_deploy.jar.
   engineJar: ""
+  # Artifact release folder for the engine jar. Matches the hub's default team VERSION; global.version
+  # is the image tag (for example nightly) and has no release folder.
+  engineVersion: latest
   gcp:
     billingExportDataset: ""  # project.dataset holding the detailed usage cost export
     projects: []              # projects whose costs are kept

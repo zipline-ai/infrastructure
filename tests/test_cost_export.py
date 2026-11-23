@@ -68,7 +68,7 @@ class CostExportChartTest(unittest.TestCase):
         self.assertFalse(any(key.endswith(".credential") for key in conf))
         init_env = {e["name"]: e["value"] for e in app["driver"]["initContainers"][0]["env"]}
         self.assertEqual(init_env["ENGINE_JAR"],
-                         "gs://test-artifacts/release/1.2.3/jars/cloud_gcp_lib_spark4_deploy.jar")
+                         "gs://test-artifacts/release/latest/jars/cloud_gcp_lib_spark4_deploy.jar")
         self.assertEqual(init_env["POLARIS_SECRET_NAMESPACE"], "zipline-system")
 
         role = find(docs, "Role", "cost-export-polaris-credential")
@@ -96,7 +96,14 @@ class CostExportChartTest(unittest.TestCase):
         self.assertEqual(conf["spark.sql.sources.partitionColumnTypeInference.enabled"], "false")
         init_env = {e["name"]: e["value"] for e in app["driver"]["initContainers"][0]["env"]}
         self.assertEqual(init_env["ENGINE_JAR"],
-                         "gs://test-artifacts/release/1.2.3/jars/cloud_aws_lib_spark4_deploy.jar")
+                         "gs://test-artifacts/release/latest/jars/cloud_aws_lib_spark4_deploy.jar")
+
+    def test_engine_version_override(self):
+        app = find(render({**ENABLED, "engineVersion": "1.30.1"}), "ScheduledSparkApplication",
+                   "cost-export")["spec"]["template"]
+        init_env = {e["name"]: e["value"] for e in app["driver"]["initContainers"][0]["env"]}
+        self.assertEqual(init_env["ENGINE_JAR"],
+                         "gs://test-artifacts/release/1.30.1/jars/cloud_gcp_lib_spark4_deploy.jar")
 
     def test_gcp_has_no_s3_settings(self):
         conf = find(render(ENABLED), "ScheduledSparkApplication", "cost-export")["spec"]["template"]["sparkConf"]
