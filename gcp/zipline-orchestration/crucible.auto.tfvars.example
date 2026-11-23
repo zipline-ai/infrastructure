@@ -71,6 +71,7 @@
     "logs_bucket": "zipline-logs-crucible",
     "bigtable_instance": "zipline-crucible-instance",
     "auth_secret_id": "crucible-zipline-auth-secret",
+    "spark_secret_ids": [],
     "personnel_emails": [
       "group:all@zipline.ai"
     ]

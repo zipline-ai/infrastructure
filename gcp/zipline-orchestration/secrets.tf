@@ -133,3 +133,17 @@ resource "google_secret_manager_secret_iam_member" "eso_extras" {
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.external_secrets.email}"
 }
+
+# Spark resolves job vault refs itself. Grant only the explicitly requested
+# secrets, independently of orchestration/ESO extras.
+locals {
+  spark_secret_ids_to_grant = distinct([for ref in compact(try(local.cloud_args.spark_secret_ids, [])) : length(split("/", ref)) == 2 ? "projects/${split("/", ref)[0]}/secrets/${split("/", ref)[1]}" : (strcontains(ref, "/") ? ref : "projects/${local.cloud_args.project_id}/secrets/${ref}")])
+}
+
+resource "google_secret_manager_secret_iam_member" "spark_extras" {
+  for_each = toset(local.spark_secret_ids_to_grant)
+
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.spark.email}"
+}

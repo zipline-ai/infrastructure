@@ -138,6 +138,58 @@ until §3.3 lands and `hub-gcp` is rebuilt.
 Set `orchestration.conf_repo.url` to enable the internal sandbox and repository
 editor configuration. See the [sandbox configuration guide](../../charts/zipline-orchestration/SANDBOX.md)
 for inputs, cloud secret references, and image availability requirements.
+
+## Spark job secrets
+
+Set `gcp.spark_secret_ids` to grant the Spark Google service account
+`roles/secretmanager.secretAccessor` on existing Secret Manager secrets. This list
+defaults to empty and is independent of `gcp.extra_secret_ids`, which grants
+orchestration and External Secrets access. References accept a bare secret ID,
+`project/secret`, or `projects/<project>/secrets/<secret>`; aliases are deduplicated
+after resolving bare IDs against `gcp.project_id`. The applying identity needs
+permission to manage IAM on each referenced secret, including cross-project secrets.
+The grant applies to all jobs using the deployment's Spark service account.
+
+For a GCP Crucible job reading an existing Unity Catalog, store the existing
+OAuth client secret as a raw string in GCP Secret Manager, outside Terraform.
+Append these entries to the deployment's private tfvars lists; use the existing
+service principal's client ID and your actual secret resource name:
+
+```json
+{
+  "gcp": {
+    "spark_secret_ids": ["projects/canary-443022/secrets/uc-client-secret"],
+    "extra_secret_ids": ["projects/canary-443022/secrets/uc-client-secret"]
+  },
+  "orchestration": {
+    "hub": {
+      "env": [{"name": "DATABRICKS_CLIENT_ID", "value": "<existing-client-id>"}]
+    },
+    "eval_env": [
+      {"name": "DATABRICKS_CLIENT_ID", "value": "<existing-client-id>"},
+      {"name": "DATABRICKS_CLIENT_SECRET_VAULT_URI", "value": "projects/canary-443022/secrets/uc-client-secret"}
+    ]
+  }
+}
+```
+
+Pass `DATABRICKS_CLIENT_ID` and the same `DATABRICKS_CLIENT_SECRET_VAULT_URI`
+to the job's team environment. The GCP engine resolves the vault URI at startup;
+use the full resource name there, optionally ending in `/versions/<version>`.
+Keep the unversioned secret reference in `spark_secret_ids`. The IAM list does
+not inject job environment variables or create secrets, and no ExternalSecret
+is required for this flow. Eval uses the orchestration service account, so the
+example also includes the secret in `extra_secret_ids` for schema lookup.
+
+For an AWS-hosted catalog backed by S3, enable Unity Catalog credential vending
+in the job's catalog configuration rather than relying on ambient AWS credentials.
+The service principal needs the appropriate Unity Catalog grants, including
+`EXTERNAL USE SCHEMA`, and the engine needs network access to the workspace and S3.
+See [Databricks external access setup](https://docs.databricks.com/aws/en/external-access/admin)
+and [credential vending](https://docs.databricks.com/aws/en/external-access/credential-vending).
+After applying the IAM configuration, submit the engine job and verify both
+catalog lookup and an actual table read; an IAM plan alone does not test either.
+
 ## Data Explorer
 
 Data Explorer is enabled by default. Existing deployments that omit
