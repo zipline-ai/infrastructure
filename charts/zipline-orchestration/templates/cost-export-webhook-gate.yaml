@@ -1,0 +1,100 @@
+{{- if .Values.costExport.enabled }}
+{{- $ce := .Values.costExport }}
+{{- $name := "cost-export-webhook-gate" }}
+{{- $labels := include "zipline-orchestration.labels" . }}
+{{- /*
+  The Spark operator webhook gets its CA bundle from the webhook pod after it wins leader election,
+  some seconds after the pod is Ready. A ScheduledSparkApplication created before that is rejected
+  (no endpoints, or x509 unknown authority), which fails a fresh install. This hook dry-runs a
+  ScheduledSparkApplication create in the cost-export namespace until the webhook accepts it; the
+  cost-export hook (weight 2) runs after it.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ce.namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+rules:
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["scheduledsparkapplications"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ce.namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "zipline-orchestration.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: 600
+  backoffLimit: 1
+  template:
+    spec:
+      serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
+      {{- with .Values.orchestration.hub.nodeSelector }}
+      nodeSelector:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.orchestration.hub.tolerations }}
+      tolerations:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: wait-for-spark-webhook
+        image: alpine/k8s:1.28.3
+        command:
+        - /bin/sh
+        - -c
+        - |
+          cat > /tmp/probe.yaml <<'EOF'
+          apiVersion: sparkoperator.k8s.io/v1beta2
+          kind: ScheduledSparkApplication
+          metadata:
+            name: {{ $name }}-probe
+            namespace: {{ $ce.namespace }}
+          spec:
+            schedule: "0 0 1 1 *"
+            suspend: true
+            template:
+              type: Python
+              mode: cluster
+              sparkVersion: "4.1.0"
+              mainApplicationFile: local:///dev/null
+              driver: {}
+              executor: {}
+          EOF
+          attempt=1
+          while ! kubectl create --dry-run=server -f /tmp/probe.yaml -o name; do
+            if [ "$attempt" -ge 100 ]; then
+              echo "Spark operator webhook still rejects requests" >&2
+              exit 1
+            fi
+            echo "Spark operator webhook not ready (${attempt}/100), retrying in 5s..."
+            attempt=$((attempt + 1))
+            sleep 5
+          done
+{{- end }}

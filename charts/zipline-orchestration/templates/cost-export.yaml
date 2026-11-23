@@ -66,6 +66,8 @@ subjects:
     name: {{ $sparkServiceAccount }}
     namespace: {{ $ce.namespace }}
 ---
+# A hook, not a release resource: the Spark operator in this same release must
+# have injected its webhook CA first, which cost-export-webhook-gate.yaml waits for.
 apiVersion: sparkoperator.k8s.io/v1beta2
 kind: ScheduledSparkApplication
 metadata:
@@ -74,6 +76,9 @@ metadata:
   labels:
     {{- $labels | nindent 4 }}
   annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "2"
+    "helm.sh/hook-delete-policy": before-hook-creation
     checksum/script: {{ printf "%s%s" (.Files.Get "files/cost-export.py") (.Files.Get "files/cost-export-init.py") | sha256sum }}
 spec:
   schedule: {{ $ce.schedule | quote }}
