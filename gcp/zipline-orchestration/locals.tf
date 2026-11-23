@@ -493,6 +493,10 @@ locals {
         nodeSelector = local.system_node_selector
         tolerations  = local.system_node_tolerations
       }
+      webhook = {
+        nodeSelector = local.system_node_selector
+        tolerations  = local.system_node_tolerations
+      }
     }
   }
 }
