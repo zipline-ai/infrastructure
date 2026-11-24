@@ -77,7 +77,7 @@ Overrides via env (defaults in parentheses):
 ```sh
 cd gcp/zipline-orchestration
 cp crucible.auto.tfvars.example crucible.auto.tfvars.json
-# edit secrets and OAuth client IDs
+# edit OAuth client IDs and gcp.auth_secret_id (see Authentication)
 
 cat > backend.hcl <<EOF
 bucket  = "zipline-crucible-state-gcp"
@@ -108,6 +108,56 @@ at teardown. If the deploying identity can't manage APIs, set
 
 `orchestration.deployment.artifact_prefix` defaults to
 `gs://zipline-<customer_name>-artifacts`.
+
+## Authentication
+
+Authentication is disabled unless `orchestration.auth.enabled = true`. When auth
+is enabled, the stack reads the auth values from one existing Secret Manager
+secret. Terraform does not create that secret or write its value. It grants
+`roles/secretmanager.secretAccessor` on it to the orchestration and External
+Secrets service accounts.
+
+Create the secret before `tofu apply`. Its value is a JSON object with these keys:
+
+- `auth-secret` (random, for example `openssl rand -base64 32`)
+- `google-oauth-client-secret`
+- `github-oauth-client-secret`
+- `microsoft-entra-oauth-client-secret`
+- `sso-client-secret`
+- `sso-saml-cert`, only when `orchestration.auth.sso_use_saml = true`
+
+Set unused provider keys to `""`.
+
+```sh
+gcloud secrets create zipline-<customer>-auth \
+  --project <project> --replication-policy automatic \
+  --data-file auth.json
+rm auth.json
+```
+
+Add `--kms-key-name` if the secret must use a customer-managed key. To rotate a
+value later, run `gcloud secrets versions add zipline-<customer>-auth --data-file auth.json`.
+
+Reference the secret in tfvars:
+
+| Field | Use when |
+| --- | --- |
+| `gcp.auth_secret_id` | Default. A bare id (`zipline-acme-auth`) resolves in `gcp.project_id`; use `projects/<project>/secrets/<name>` for a secret in another project. |
+| `orchestration.auth.secrets_arn` | You want the shared auth secret field instead of the GCP-specific one. `gcp.auth_secret_id` wins when both are set. |
+
+The id is required when auth is enabled. Plan fails if it is missing or
+malformed. There is no default name, so a missing secret shows up at plan time
+and not as a UI pod stuck in `CreateContainerConfigError`.
+
+### Migrating stacks that created the auth secret
+
+Earlier versions created an empty `google_secret_manager_secret.auth` container
+when `gcp.auth_secret_id` pointed at this project. This version drops it from
+state without deleting it (`removed` block in `secrets.tf`). The secret, its
+versions, and the accessor grants stay in place. Plan shows the container as
+no longer managed; no tfvars change is needed. After that, `tofu destroy` no
+longer fails on `prevent_destroy`, and the auth secret survives teardown.
+Delete it with `gcloud secrets delete` if the stack is gone for good.
 
 ## Known gaps / Phase-gated capabilities
 
