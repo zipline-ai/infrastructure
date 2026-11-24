@@ -111,7 +111,7 @@ locals {
   data_explorer_enabled = try(local.orchestration.data_explorer.enabled, false)
   starrocks_input       = try(local.orchestration.values.starrocks, {})
   starrocks_defaults = {
-    chartVersion = "1.11.7"
+    chartVersion = "1.11.8"
     clusterName  = "starrocks"
     feImage = {
       repository = "starrocks/fe-ubuntu"
