@@ -41,7 +41,7 @@ discovery.relabel "pods" {
     separator     = "/"
     target_label  = "job"
   }
-  {{- range $label, $source := dict "namespace" "namespace" "node_name" "pod_node_name" "pod" "pod_name" "container" "pod_container_name" "chronon_job_id" "pod_label_chronon_job_id" "spark_role" "pod_label_chronon_spark_role" }}
+  {{- range $label, $source := dict "namespace" "namespace" "node_name" "pod_node_name" "pod" "pod_name" "container" "pod_container_name" "chronon_job_id" "pod_label_chronon_job_id" "spark_role" "pod_label_spark_role" }}
   rule {
     source_labels = [{{ printf "__meta_kubernetes_%s" $source | quote }}]
     target_label  = {{ $label | quote }}
