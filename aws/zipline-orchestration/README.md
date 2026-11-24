@@ -544,6 +544,57 @@ StarRocks deployment stay consistent. Polaris remains available for other servic
 Existing deployments that omit `data_explorer` get StarRocks on their next
 apply. Set `enabled = false` first to keep it off.
 
+### Databricks credentials
+
+When `aws.databricks_client_id` is set, provide both Secrets Manager ARNs:
+
+```hcl
+aws = {
+  # Include the other required AWS settings.
+  databricks_client_id         = "your-service-principal-client-id"
+  databricks_client_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:databricks-client-AbCdEf"
+  databricks_credential_arn    = "arn:aws:secretsmanager:us-east-1:123456789012:secret:databricks-credential-AbCdEf"
+}
+```
+
+Manage both secret values outside Terraform. The first secret must contain the
+raw client secret; the second must contain `client_id:client_secret` for the
+Iceberg REST catalog. Neither value is a JSON object. Keep both secrets in sync
+when rotating credentials. Terraform passes their ARNs to runtime configuration
+and grants the Flink, Spark, and orchestration roles read access to those ARNs.
+Ray training head, worker, and submitter pods use the configured Spark service
+account (`spark-operator-spark` by default), so they assume the same
+`<name_prefix>-spark-compute-execution` role and receive this policy, including
+its customer-managed KMS decrypt permissions. There is no separate Ray IAM role
+in this configuration.
+
+To migrate, replace `aws.databricks_client_secret` with the ARNs of the two
+existing secrets before applying. Terraform relinquishes management of both
+secrets and their versions without deleting them. The old plaintext input is
+rejected even when empty or Databricks is disabled. Historical Terraform state
+may still contain the old values. Docker Hub token inputs are unchanged.
+
+Databricks ARN inputs must include the six-character Secrets Manager suffix.
+Terraform resolves both references with metadata-only `DescribeSecret` lookups
+and checks that AWS returns exactly the supplied ARN. With these tfvars inputs,
+missing, inaccessible, or partial references fail during planning. The Terraform
+identity needs `secretsmanager:DescribeSecret` on both secrets; it does not need
+`GetSecretValue` for these lookups. Lookups use the configured AWS provider region.
+This checks metadata access and existence, not secret contents or the runtime
+roles' `GetSecretValue`/KMS permissions.
+
+For customer-managed encryption keys, Terraform reads `kms_key_id` from each
+secret's metadata and resolves it to a key ARN with `DescribeKey`. It grants
+`kms:Decrypt` to the Databricks runtime roles only for that key, through Secrets
+Manager in the secret's region, with the corresponding secret ARN as encryption
+context. AWS-managed keys receive no additional decrypt statement. There is no
+KMS tfvars input. The Terraform identity needs `kms:DescribeKey` on explicitly
+configured encryption keys; runtime roles do not need it to read secret values.
+
+The externally managed key policy must also allow the runtime roles to decrypt
+(or enable their IAM permissions). Terraform does not modify key policies. After
+changing a secret's encryption key, apply Terraform to refresh these permissions.
+
 ## Cost tracking
 
 Cost tracking turns on once `cost_tracking.cur_export_path` is set. A daily Spark job
