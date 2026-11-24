@@ -526,6 +526,11 @@ raw client secret; the second must contain `client_id:client_secret` for the
 Iceberg REST catalog. Neither value is a JSON object. Keep both secrets in sync
 when rotating credentials. Terraform passes their ARNs to runtime configuration
 and grants the Flink, Spark, and orchestration roles read access to those ARNs.
+Ray training head, worker, and submitter pods use the configured Spark service
+account (`spark-operator-spark` by default), so they assume the same
+`<name_prefix>-spark-compute-execution` role and receive this policy, including
+its customer-managed KMS decrypt permissions. There is no separate Ray IAM role
+in this configuration.
 
 To migrate, replace `aws.databricks_client_secret` with the ARNs of the two
 existing secrets before applying. Terraform relinquishes management of both

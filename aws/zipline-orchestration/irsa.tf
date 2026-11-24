@@ -608,6 +608,8 @@ resource "aws_iam_role_policy_attachment" "flink_compute_databricks_secrets" {
   policy_arn = aws_iam_policy.databricks_secrets_policy[0].arn
 }
 
+# Ray head, worker, and submitter pods also use the Spark service account and
+# this execution role, so this attachment covers training secret resolution.
 # Spark compute pods resolve the same refs. A batch Iceberg job reads its catalog
 # OAuth config from DATABRICKS_CLIENT_SECRET_VAULT_URI at startup, so without this
 # the driver is denied on GetSecretValue and the write fails as
