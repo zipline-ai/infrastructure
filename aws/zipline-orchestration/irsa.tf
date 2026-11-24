@@ -581,8 +581,8 @@ resource "aws_iam_policy" "databricks_secrets_policy" {
           "secretsmanager:DescribeSecret",
         ]
         Resource = [
-          local.cloud_args.databricks_client_secret_arn,
-          local.cloud_args.databricks_credential_arn,
+          data.aws_secretsmanager_secret.databricks["client_secret"].arn,
+          data.aws_secretsmanager_secret.databricks["credential"].arn,
         ]
       }
     ]

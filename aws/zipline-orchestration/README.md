@@ -532,3 +532,12 @@ existing secrets before applying. Terraform relinquishes management of both
 secrets and their versions without deleting them. The old plaintext input is
 rejected even when empty or Databricks is disabled. Historical Terraform state
 may still contain the old values. Docker Hub token inputs are unchanged.
+
+Databricks ARN inputs must include the six-character Secrets Manager suffix.
+Terraform resolves both references with metadata-only `DescribeSecret` lookups
+and checks that AWS returns exactly the supplied ARN. With these tfvars inputs,
+missing, inaccessible, or partial references fail during planning. The Terraform
+identity needs `secretsmanager:DescribeSecret` on both secrets; it does not need
+`GetSecretValue` for these lookups. Lookups use the configured AWS provider region.
+This checks metadata access and existence, not secret contents or the runtime
+roles' `GetSecretValue`/KMS permissions.

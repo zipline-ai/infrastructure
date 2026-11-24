@@ -25,7 +25,15 @@ class DatabricksInputsTest(unittest.TestCase):
 
     def test_require_both_valid_references_when_enabled(self):
         for key in ("databricks_client_secret_arn", "databricks_credential_arn"):
-            for value in (None, "", "plaintext", "arn:aws:ssm:us-east-1:123456789012:parameter/client"):
+            for value in (
+                None, "", "plaintext",
+                "arn:aws:ssm:us-east-1:123456789012:parameter/client",
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:client",
+                "arn:aws:secretsmanager:us-east-1:123456789012:secret:client-AbCdE",
+                "arn:-:secretsmanager:-:123456789012:secret:x",
+                "arn:-:secretsmanager:us-east-1:123456789012:secret:client-AbCdEf",
+                "arn:aws:secretsmanager:-:123456789012:secret:client-AbCdEf",
+            ):
                 with self.subTest(key=key, value=value):
                     result = self.plan({**self.references, key: value})
                     self.assertNotEqual(result.returncode, 0)

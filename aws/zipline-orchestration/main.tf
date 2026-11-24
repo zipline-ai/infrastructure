@@ -30,7 +30,7 @@ variable "aws" {
   validation {
     condition = try(trimspace(var.aws.databricks_client_id), "") == "" || alltrue([
       for key in ["databricks_client_secret_arn", "databricks_credential_arn"] :
-      can(regex("^arn:[a-z0-9-]+:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+$", var.aws[key]))
+      can(regex("^arn:aws(-[a-z0-9]+)*:secretsmanager:[a-z]+(-[a-z0-9]+)+-[0-9]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+-[A-Za-z0-9]{6}$", var.aws[key]))
     ])
     error_message = "Databricks requires valid AWS Secrets Manager ARNs in aws.databricks_client_secret_arn and aws.databricks_credential_arn when aws.databricks_client_id is set."
   }
