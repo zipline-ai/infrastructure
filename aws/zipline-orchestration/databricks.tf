@@ -16,3 +16,14 @@ data "aws_secretsmanager_secret" "databricks" {
     }
   }
 }
+
+# Secrets Manager can report a key ID, ARN, or alias. Resolve it to a key ARN
+# before using it as an IAM resource. Default encryption omits kms_key_id.
+data "aws_kms_key" "databricks" {
+  for_each = {
+    for name, secret in data.aws_secretsmanager_secret.databricks : name => secret.kms_key_id
+    if try(trimspace(secret.kms_key_id), "") != ""
+  }
+
+  key_id = each.value
+}

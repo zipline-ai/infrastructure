@@ -573,7 +573,7 @@ resource "aws_iam_policy" "databricks_secrets_policy" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       {
         Effect = "Allow"
         Action = [
@@ -585,7 +585,19 @@ resource "aws_iam_policy" "databricks_secrets_policy" {
           data.aws_secretsmanager_secret.databricks["credential"].arn,
         ]
       }
-    ]
+    ], [
+      for name, key in data.aws_kms_key.databricks : {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = [key.arn]
+        Condition = {
+          StringEquals = {
+            "kms:ViaService"                  = "secretsmanager.${split(":", data.aws_secretsmanager_secret.databricks[name].arn)[3]}.amazonaws.com"
+            "kms:EncryptionContext:SecretARN" = data.aws_secretsmanager_secret.databricks[name].arn
+          }
+        }
+      } if key.key_manager == "CUSTOMER"
+    ])
   })
 }
 

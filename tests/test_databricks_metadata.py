@@ -36,11 +36,11 @@ locals {
 mock_provider "aws" {}
 override_data {
   target = data.aws_secretsmanager_secret.databricks["client_secret"]
-  values = { id = "''' + ARN + '''" }
+  values = { id = "''' + ARN + '''", kms_key_id = "" }
 }
 override_data {
   target = data.aws_secretsmanager_secret.databricks["credential"]
-  values = { id = "''' + ARN + '''" }
+  values = { id = "''' + ARN + '''", kms_key_id = "" }
 }
 variables { secret_arn = "''' + ARN + '''" }
 run "matching_metadata" { command = plan }

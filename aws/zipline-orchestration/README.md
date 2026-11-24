@@ -541,3 +541,15 @@ identity needs `secretsmanager:DescribeSecret` on both secrets; it does not need
 `GetSecretValue` for these lookups. Lookups use the configured AWS provider region.
 This checks metadata access and existence, not secret contents or the runtime
 roles' `GetSecretValue`/KMS permissions.
+
+For customer-managed encryption keys, Terraform reads `kms_key_id` from each
+secret's metadata and resolves it to a key ARN with `DescribeKey`. It grants
+`kms:Decrypt` to the Databricks runtime roles only for that key, through Secrets
+Manager in the secret's region, with the corresponding secret ARN as encryption
+context. AWS-managed keys receive no additional decrypt statement. There is no
+KMS tfvars input. The Terraform identity needs `kms:DescribeKey` on explicitly
+configured encryption keys; runtime roles do not need it to read secret values.
+
+The externally managed key policy must also allow the runtime roles to decrypt
+(or enable their IAM permissions). Terraform does not modify key policies. After
+changing a secret's encryption key, apply Terraform to refresh these permissions.
