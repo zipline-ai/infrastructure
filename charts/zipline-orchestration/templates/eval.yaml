@@ -38,7 +38,7 @@ spec:
       {{- end }}
       containers:
         - name: eval
-          image: "{{ required "orchestration.eval.image is required" .Values.orchestration.eval.image }}:{{ .Values.global.version }}"
+          image: "{{ required "orchestration.eval.image is required" .Values.orchestration.eval.image }}:{{ include "zipline-orchestration.spark4Version" . }}"
           securityContext:
             {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
             runAsUser: 10000

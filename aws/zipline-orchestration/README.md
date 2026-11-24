@@ -39,7 +39,6 @@ orchestration = {
 
 aws = {
   region              = "us-west-2"
-  warehouse_bucket    = "example-warehouse"
   vpc_id              = "vpc-..."
   primary_subnet_id   = "subnet-..."
   secondary_subnet_id = "subnet-..."
@@ -53,6 +52,16 @@ Run with a backend configured for the target environment:
 tofu init -reconfigure -backend-config=backend.hcl
 ```
 
+For the public demo, use the same wrapper with a separate git-ignored config:
+
+```shell
+cp public-demo.auto.tfvars.example public-demo.auto.tfvars
+../../push_public_demo_config.sh
+```
+
+The public demo should keep datasource buckets in
+`../public-demo-datasources` and reset only this orchestration layer weekly.
+
 ## Required Inputs
 
 Set these for every environment.
@@ -60,11 +69,10 @@ Set these for every environment.
 | Field | Why it is required |
 | --- | --- |
 | `orchestration.deployment.customer_name` | Used as the environment/customer prefix for generated resources. |
-| `orchestration.deployment.artifact_prefix` | S3 URI for Zipline artifacts. The wrapper creates the bucket portion of this URI. |
-| `orchestration.deployment.zipline_version` | Image tag used across Zipline services. |
+| `orchestration.deployment.artifact_prefix` | S3 URI for Zipline artifacts. Defaults to `s3://zipline-<customer_name>-artifacts`. The wrapper creates the bucket portion of this URI. |
+| `orchestration.deployment.zipline_version` | Base image tag. Hub and Eval use its Spark 4 variant; `nightly` stays `nightly` and other tags gain `-spark4`. |
 | `orchestration.ingress.domain` | Public host used by the UI, Hub, Eval, and supporting ingress routes. |
 | `aws.region` | AWS region for all regional resources and providers. |
-| `aws.warehouse_bucket` | S3 bucket for the warehouse. The wrapper creates this bucket. |
 | `aws.vpc_id` | VPC for EKS and RDS. |
 | `aws.primary_subnet_id` | First subnet for EKS, RDS, AWS Managed Prometheus scraping, and load balancer placement. |
 | `aws.secondary_subnet_id` | Second subnet for EKS, RDS, AWS Managed Prometheus scraping, and load balancer placement. |
@@ -97,9 +105,11 @@ shape.
 
 ### Images and Pull Secrets
 
-The default Spark and Flink images are public defaults. Configure a pull secret
-when the environment pulls from a private Docker Hub image or needs authenticated
-pulls.
+Crucible always runs Spark 4. Spark jobs and the History Server use
+`ziplineai/spark:nightly`, Flink uses `ziplineai/flink:1.20.3-spark4`, and Hub
+and Eval use the Spark 4 variant of `orchestration.deployment.zipline_version`.
+These images cannot be overridden through Terraform. Configure a pull secret
+when the environment needs authenticated Docker Hub pulls.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -107,10 +117,6 @@ pulls.
 | `orchestration.image_pull_secret.create` | `false` | Terraform should create the Docker Hub pull Secret. |
 | `orchestration.image_pull_secret.dockerhub_username` | `ziplineai` | The pull token belongs to a different Docker Hub user. |
 | `orchestration.image_pull_secret.dockerhub_token` | `""` | Required when `create = true`. |
-| `orchestration.compute.spark_image` | `ziplineai/spark:nightly` | You need a pinned or custom Spark image. |
-| `orchestration.compute.flink_image` | `ziplineai/flink:1.20.3` | You need a pinned or custom Flink image. |
-| `orchestration.hub.image` | AWS wrapper default | You need to override the AWS Hub image. |
-| `orchestration.eval.image` | AWS wrapper default | You need to override the AWS Eval image. |
 
 ### Ingress and TLS
 
@@ -147,7 +153,6 @@ Choose one of these secret sources:
 | --- | --- |
 | `aws.auth_secret_arn` | Auth secrets already exist in AWS Secrets Manager. |
 | `orchestration.auth.secrets_arn` | You want to use the shared auth secret ARN field instead of the AWS-specific alias. |
-| `aws.auth_secret_values` | Terraform should create the AWS Secrets Manager secret from supplied values. |
 
 The expected auth secret properties are:
 
@@ -158,21 +163,23 @@ The expected auth secret properties are:
 - `sso-client-secret`
 - `sso-saml-cert`, only when `orchestration.auth.sso_use_saml = true`
 
-When using `aws.auth_secret_values`, provide the same values with Terraform-safe
-map keys:
+Populate the secret in Secrets Manager outside Terraform, then reference its ARN
+in tfvars (alongside the other required AWS settings):
 
 ```hcl
 aws = {
-  auth_secret_values = {
-    auth_secret                         = "..."
-    google_oauth_client_secret          = "..."
-    github_oauth_client_secret          = "..."
-    microsoft_entra_oauth_client_secret = "..."
-    sso_client_secret                   = "..."
-    sso_saml_cert                       = "..."
-  }
+  auth_secret_arn = "arn:aws:secretsmanager:us-east-1:123456789012:secret:zipline-auth-AbCdEf"
 }
 ```
+
+`aws.auth_secret_values` is rejected, including empty maps. For existing installs,
+set the ARN of the previously created auth secret and remove `auth_secret_values`
+from tfvars before applying. Terraform relinquishes management of the existing
+auth secret and its version without deleting them. Historical Terraform state
+may still contain the old values.
+
+`orchestration.image_pull_secret.dockerhub_token` remains supported. Arbitrary
+Helm overrides remain unrestricted. Generated database credentials are unchanged.
 
 Set only the auth provider fields that the environment uses:
 
@@ -209,7 +216,7 @@ namespace policy.
 | `orchestration.compute.flink_service_account` | `flink` | Flink jobs use a non-default service account name. |
 | `orchestration.compute.rbac_create` | `true` | RBAC is managed outside this chart. |
 | `orchestration.compute.image_prepull_enabled` | `true` | You want to disable image prepull. |
-| `orchestration.compute.image_prepull_images` | Spark image | You want to prepull additional or different images. |
+| `orchestration.compute.image_prepull_images` | Spark 4 image | You want to prepull additional images alongside the Spark 4 image. |
 | `orchestration.compute.warm_pool` | disabled in shared defaults, enabled by AWS provider values | You need to tune pre-warmed Spark driver capacity. |
 | `orchestration.compute.system_priority_class` | disabled | Compute support workloads need a PriorityClass. |
 
@@ -220,8 +227,22 @@ wrapper supplies the warehouse bucket and region from `aws.warehouse_bucket` and
 ### Karpenter and EKS Capacity
 
 Karpenter is enabled by default. The wrapper creates a tainted `system` NodePool
-for Zipline system services and tainted compute NodePools for Spark drivers,
-Spark executors, Flink job managers, and Flink task managers.
+for Zipline system services and three compute NodePools shared by all teams:
+
+| NodePool | Engine / workload taint value | `zipline.ai/role` label |
+| --- | --- | --- |
+| `spark-driver` | `spark` | `driver` |
+| `spark-executor` | `spark` | `executor` |
+| `flink` | `flink` | Unset (shared by both roles) |
+
+Compute nodes carry engine and workload labels and a
+`zipline.ai/workload=<engine>:NoSchedule` taint. Spark drivers use the on-demand
+driver pool, and executors use the Spot executor pool. The Flink pool uses
+on-demand capacity for both JobManagers and TaskManagers.
+Team and role labels stay on pods. Adding a team namespace does not add NodePools.
+Namespace ResourceQuotas, including mode-scoped quotas, enforce team budgets.
+The pool limits below cap capacity across all teams using each pool; they do
+not reserve capacity for a team.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -232,6 +253,7 @@ Spark executors, Flink job managers, and Flink task managers.
 | `aws.eks_desired_size` | `3` | The default node group desired size should change. |
 | `aws.eks_max_size` | `8` | The default node group maximum should change. |
 | `aws.eks_disk_size` | `100` | EKS node root volumes need a different size in GB. |
+| `aws.ingress_traffic_policy` | `Cluster` | Set `Local` when the ingress NLB should preserve client source IPs. |
 | `aws.personnel_arns` | `[]` | Human or automation IAM principals need EKS cluster-admin access. |
 | `aws.karpenter.enabled` | `true` | Karpenter should be disabled for an environment. |
 | `aws.karpenter.namespace` | `kube-system` | Karpenter should run in a different namespace. |
@@ -247,24 +269,68 @@ Common Karpenter sizing knobs:
 
 | Field | Default | Use when |
 | --- | --- | --- |
-| `aws.karpenter.driver_arch` | `["arm64"]` | Driver nodes must use another architecture. |
-| `aws.karpenter.driver_categories` | `["m"]` | Driver nodes need other EC2 instance families. |
-| `aws.karpenter.executor_arch` | `["arm64"]` | Executor nodes must use another architecture. |
-| `aws.karpenter.executor_categories` | `["c", "m", "r"]` | Executor nodes need other EC2 instance families. |
-| `aws.karpenter.executor_capacity_type` | `["spot"]` | Executors should run on on-demand, spot, or both. |
-| `aws.karpenter.executor_min_categories` | `2` | Spot diversification requirements need tuning. |
+| `aws.karpenter.compute_arch` | `["arm64"]` | Compute nodes must use another architecture. |
+| `aws.karpenter.compute_categories` | `["c", "m", "r"]` | Compute nodes need other EC2 instance families. |
+| `aws.karpenter.compute_instance_types` | `[]` | Pin compute pools to explicit EC2 instance types instead of category/generation selectors. |
 | `aws.karpenter.min_instance_generation` | `"6"` | Pools should allow older or require newer instance generations. |
-| `aws.karpenter.pool_limits` | `{ cpu = "1000", memory = "4000Gi" }` | You want a global pool launch cap. |
-| `aws.karpenter.driver_limits` | `{ cpu = "100", memory = "400Gi" }` | Driver pools need a different launch cap. |
-| `aws.karpenter.executor_limits` | `{ cpu = "1000", memory = "4000Gi" }` | Executor pools need a different launch cap. |
+| `aws.karpenter.pool_limits` | `{ cpu = "1000", memory = "4000Gi" }` | The system pool needs a different launch cap. |
+| `aws.karpenter.compute_limits` | `{}` | Apply common CPU or memory overrides to each compute pool. |
+| `aws.karpenter.spark_driver_limits` | `{ cpu = "100", memory = "400Gi" }` | Spark drivers need a different launch cap; overrides common limits. |
+| `aws.karpenter.spark_executor_limits` | `{ cpu = "1000", memory = "4000Gi" }` | Spark executors need a different launch cap; overrides common limits. |
+| `aws.karpenter.flink_limits` | `{ cpu = "1100", memory = "4400Gi" }` | Flink needs a different launch cap; overrides common limits. |
 | `aws.karpenter.system_expire_after` | `Never` | System nodes should be periodically recycled. |
 | `aws.karpenter.compute_expire_after` | `720h` | Compute nodes should recycle more or less often. |
 | `aws.karpenter.system_termination_grace_period` | `5m` | System nodes need a different drain grace period. |
 
-Spark executor pools require EC2 instance types with local NVMe. Karpenter
+The Spark executor pool requires EC2 instance types with local NVMe. Karpenter
 combines all instance-store disks into RAID0 and exposes the result as standard
 Kubernetes ephemeral storage, so Spark can use its default `emptyDir` local
-directories without provider-specific mounts or node labels.
+directories without provider-specific mounts. Drivers and the on-demand warm
+pool do not require NVMe; image prepull selects nodes supporting Spark executors.
+
+CPU Ray jobs use the shared `ray-control` / `ray-worker` pools through the
+Hub's `CRUCIBLE_RAY_{HEAD,WORKER,SUBMITTER}_NODE_SELECTOR` and
+`CRUCIBLE_RAY_{HEAD,WORKER,SUBMITTER}_TOLERATIONS`.
+
+#### Ray GPU execution profiles
+
+GPU training jobs opt into a named profile with `ray.placement.profile=<name>`
+(platform `contracts/training-v1`, "Profile placement interface"). Each profile
+configured here creates, in its own Helm release:
+
+- NodePool `<name>`: GPU workers (`zipline.ai/role=worker`), pinned instance types, AMD64.
+- NodePool `<name>-control`: on-demand c/m/r AMD64 nodes for the Ray head and submitter (`zipline.ai/role=control`).
+
+Both carry `zipline.ai/engine=ray`, `zipline.ai/execution-profile=<name>` and the
+`zipline.ai/workload=ray-<name>:NoSchedule` taint, scale from zero, and remove
+empty nodes after one minute. One NVIDIA device plugin DaemonSet runs on every
+Karpenter NVIDIA node; the shared EC2NodeClass resolves the AL2023 NVIDIA AMI for
+GPU instance types, which supplies the driver and container runtime.
+
+| Field | Default | Use when |
+| --- | --- | --- |
+| `aws.karpenter.ray_gpu_profiles.<name>.instance_types` | required | GPU instance types the workers may use, in any order (e.g. `["g6e.xlarge", "g5.xlarge"]`). |
+| `aws.karpenter.ray_gpu_profiles.<name>.max_gpus` | required | Hard cap on concurrent GPUs for the profile (NodePool `nvidia.com/gpu` limit). |
+| `aws.karpenter.ray_gpu_profiles.<name>.capacity_type` | `on-demand` | Workers may use `spot`. The control pool is always on-demand. |
+| `aws.karpenter.ray_gpu_profiles.<name>.expire_after` | `48h` | Backstop node lifetime for both pools; whole hours. Job deadlines are the primary bound. |
+| `aws.karpenter.ray_gpu_profiles.<name>.worker_limits` / `control_limits` | GPU cap / `{ cpu = "32", memory = "128Gi" }` | Extra NodePool limits. |
+| `aws.karpenter.ray_gpu_namespace_quotas` | `{}` | Map of namespace to maximum `requests.nvidia.com/gpu`. |
+
+```json
+"karpenter": {
+  "ray_gpu_profiles": { "s6e11-l40s": { "instance_types": ["g6e.xlarge", "g5.xlarge"], "max_gpus": 5 } },
+  "ray_gpu_namespace_quotas": { "zipline-default": 5 }
+}
+```
+
+Enable the profile on the Hub with `CRUCIBLE_RAY_GPU_PROFILES=<name>`.
+
+Run the placement and chart tests without cloud credentials:
+
+```bash
+# Terraform or OpenTofu and Helm must be on PATH; TERRAFORM can override the binary.
+uv run --with PyYAML python -m unittest discover -s tests -v
+```
 
 ### Storage, Logs, and IAM Grants
 
@@ -275,10 +341,12 @@ buckets.
 | Field | Default | Use when |
 | --- | --- | --- |
 | `aws.logs_bucket` | `zipline-logs-<customer_name>` | You need a specific logs bucket name. |
+| `aws.warehouse_bucket` | `zipline-<customer_name>-warehouse` | You want a specific warehouse bucket name. The wrapper creates it either way. |
 | `aws.shared_warehouse_bucket` | `""` | Orchestration services need read access to an existing shared warehouse bucket. |
 | `aws.spark_libs_bucket` | `""` | Spark needs access to an existing bucket for shared libraries. |
 | `aws.additional_data_buckets` | `[]` | Spark compute and orchestration read paths need access to more buckets. |
 | `aws.additional_flink_s3_buckets` | `[]` | Flink compute needs access to more buckets. |
+| `aws.additional_flink_readonly_s3_buckets` | `[]` | Flink compute needs read-only access to externally managed artifact buckets. |
 | `aws.encryption_kms_key_arn` | `""` | RDS, Secrets Manager, DynamoDB, or Polaris storage policy should use a specific KMS key. |
 | `aws.encryption_kms_key_arns` | `{}` | DynamoDB replica regions need region-specific KMS keys. |
 
@@ -300,17 +368,80 @@ for the environment.
 
 ### DynamoDB, Glue, MSK, and Observability
 
+To publish sampled fetch responses and their schemas to an existing MSK topic,
+set `aws.fetcher_ooc.cluster_name` and `aws.fetcher_ooc.topic` in your deployment
+tfvars. The fetcher must be enabled and able to reach the cluster’s IAM brokers.
+The wrapper resolves the bootstrap addresses and grants the orchestration role
+producer access for the selected topic.
+
+The AWS fetcher uses the Terraform-managed DynamoDB tables. The wrapper passes
+the table prefix, TTL setting, and replica regions to the fetcher automatically.
+
 | Field | Default | Use when |
 | --- | --- | --- |
 | `aws.kv_table_prefix` | `""` | Hub needs a prefix for Chronon KV tables. |
+| `aws.redis.enabled` | `false` | Use Redis for the Chronon KV store instead of DynamoDB. With no existing cluster nodes, Terraform creates a TLS-enabled ElastiCache Redis cluster. |
+| `aws.redis.cluster_nodes` | `""` | Existing Redis seed nodes as comma-separated `host:port` values. Leave empty to create a managed cluster. For ElastiCache, use its cluster configuration endpoint. |
+| `aws.redis.password_secret_arn` | `""` | Optional Secrets Manager ARN holding the existing Redis password as a JSON field. Managed clusters generate and store a password automatically. |
+| `aws.redis.password_secret_key` | `"password"` | JSON field name containing the Redis password in Secrets Manager. |
+| `aws.redis.use_ssl` | `true` | Use TLS for Redis connections. |
+| `aws.redis.node_type` | `"cache.t4g.small"` | ElastiCache node type for a managed cluster. |
+| `aws.redis.shards` | `1` | Number of shards in a managed Redis cluster. |
+| `aws.redis.replicas_per_shard` | `1` | Replica count per shard in a managed cluster. Set to `0` for a single-node test cluster. |
 | `aws.kv_enable_ttl` | `true` | TTL should be disabled for KV records. |
 | `aws.kv_replica_regions` | `[]` | DynamoDB global table replicas are required. |
+| `aws.kv_batch_table_gc_age_days` | `""` | Override (in days) for the DynamoDB batch-table GC age used by the Hub's `AWSCleanupVerticle`. Empty falls back to the platform default of 30 days. Set to e.g. `"7"` to sweep batch upload tables more aggressively, or a larger value to retain them longer. No effect when `aws.kv_enable_ttl` is `false`. |
 | `aws.kv_read_capacity` | `10` | Provisioned read capacity for the table-partitions table needs tuning. |
 | `aws.kv_write_capacity` | `10` | Provisioned write capacity for the table-partitions table needs tuning. |
 | `aws.glue_schema_registry_name` | `zipline-<customer_name>` | You want to use an existing Glue registry or a specific registry name. |
 | `aws.msk_cluster_arn` | `""` | Flink needs IAM permissions for an MSK cluster. |
 | `aws.amp_workspace_arn` | created workspace ARN | Scraping, UI queries, and IAM permissions should use an existing AWS Managed Prometheus workspace. |
 | `aws.eks_log_group` | `/aws/eks/<cluster_name>/containers` | UI log links should point at a different EKS log group. |
+
+To let Terraform create a managed cluster, set `aws.redis.enabled = true` and
+leave `cluster_nodes` empty. To use a cluster managed elsewhere, provide its
+seed endpoint and, when needed, a Secrets Manager secret ARN containing the
+password JSON field:
+
+```hcl
+redis = {
+  enabled       = true
+  cluster_nodes = "clustercfg.example.abc123.usw2.cache.amazonaws.com:6379"
+  password_secret_arn = "arn:aws:secretsmanager:us-west-2:123456789012:secret:existing-redis-auth-AbCdEf"
+  password_secret_key = "password"
+  use_ssl       = true
+}
+```
+
+For an existing unauthenticated cluster, omit `password_secret_arn`. The
+orchestration Hub and fetcher receive the Redis settings, and the Hub passes
+them to submitted Spark and Flink jobs. When a password is configured, the
+secret is synchronized into each configured compute namespace and Spark injects
+it into driver and executor pods as `REDIS_PASSWORD`. Managed Redis creates a
+cluster-mode enabled ElastiCache replication group and a generated credential
+in Secrets Manager. When Redis is disabled, the existing DynamoDB configuration
+remains active.
+
+### Fetcher metrics
+
+When `orchestration.deployment.deploy_fetcher` is enabled, the chart enables
+Prometheus metrics by default. The AMP `fetcher` scrape job discovers the
+`chronon-metrics` and `vertx-metrics` container ports (8905 and 8906) and scrapes
+both `/metrics` endpoints. No pod scrape annotations or tfvars changes are
+required for the default configuration.
+
+Explicit metrics environment variables in `orchestration.fetcher_env` or
+`orchestration.runtime_env` are preserved. For example, an existing `http`
+reader continues to use its OTLP collector instead of the AMP fetcher job.
+Chart settings can also be overridden through
+`orchestration.values.orchestration.fetcher`; see the
+[chart metrics configuration](../../charts/zipline-orchestration/README.md#fetcher-metrics).
+
+Apply the wrapper to update both the Helm deployment and AMP scraper. After
+the fetcher rollout, run fetch requests and query `up{job="fetcher"}` in the
+configured AMP workspace. Each running fetcher pod should have two healthy
+targets. Check `vertx_http_server_requests_total` for HTTP metrics and
+`join_fetch_java_overall_latency_millis_bucket` for join latency metrics.
 
 ### Secrets
 
@@ -352,14 +483,14 @@ covered by a typed input above.
 | `orchestration.runtime_env` | Environment variables should be added to all services. |
 | `orchestration.hub_env` | Hub needs extra environment variables. |
 | `orchestration.ui_env` | UI needs extra environment variables. |
-| `orchestration.fetcher_env` | Fetcher needs extra environment variables. |
+| `orchestration.fetcher_env` | Fetcher needs extra environment variables, including metrics reader or port overrides. |
 | `orchestration.eval_env` | Eval needs extra environment variables. |
 | `orchestration.hub.pod_annotations` | Hub pods need additional annotations, such as scrape annotations. |
 | `orchestration.hub.chronon_metrics_reader` | Hub metrics should use a reader other than the Prometheus default. |
 | `orchestration.hub.metrics_port` | Hub Prometheus metrics should expose a different port. |
 | `orchestration.hub.data_quality_metrics_dataset` | Hub should publish data-quality metrics to a specific dataset. |
 | `orchestration.ui.origin` | The public UI origin differs from `https://<ingress.domain>`. |
-| `orchestration.deployment.deploy_fetcher` | The optional fetcher service should be deployed. |
+| `orchestration.deployment.deploy_fetcher` | Defaults to `true`. Set `false` to skip the fetcher service, which serves online fetches and dynamic profile values. |
 | `orchestration.values` | Raw Helm values should be merged before provider values. |
 | `orchestration.extra_values` | Raw Helm values should be merged after typed and provider values. |
 | `orchestration.extra_values_yaml` | Raw Helm values are easier to provide as YAML strings. |
@@ -390,3 +521,107 @@ principal, grants it access to the seeded catalog role, writes its
 `client_id:client_secret` value into the `polaris-client-credentials`
 Kubernetes Secret as `OC_CREDENTIAL`, and restarts Hub so Spark catalog
 placeholders can be resolved without customer-supplied Polaris credentials.
+
+## Data Explorer
+
+Data Explorer is enabled by default. To turn it off, add this field to the
+existing `orchestration` object in the environment's tfvars:
+
+```hcl
+orchestration = {
+  # Existing deployment and other settings...
+  data_explorer = {
+    enabled = false
+  }
+}
+```
+
+`enabled = false` disables the UI feature, StarRocks Helm release (operator and
+cluster), and catalog initialization job.
+This setting takes precedence over additional Helm values so the UI and
+StarRocks deployment stay consistent. Polaris remains available for other services.
+
+Existing deployments that omit `data_explorer` get StarRocks on their next
+apply. Set `enabled = false` first to keep it off.
+
+## Cost tracking
+
+Cost tracking turns on once `cost_tracking.cur_export_path` is set. A daily Spark job
+(`ScheduledSparkApplication` `cost-export` in the default compute namespace) reads the CUR 2.0
+export and writes `zipline_catalog.cost.daily_cost` in Polaris, one row per day, account, cluster,
+namespace, service and usage type. Data Explorer can query it. GCP writes the same table from its
+billing export.
+
+Prerequisites, done once by the customer in the payer (management) account:
+
+1. Billing and Cost Management → Cost Management preferences → **Split cost allocation data**:
+   turn on Amazon EKS with **Resource requests**. Pod-level rows only cover usage after this.
+2. Data Exports → create a **CUR 2.0** export with **Include split cost allocation data**, daily
+   granularity, Parquet, overwrite mode.
+3. Allow the cluster account to read the export bucket:
+
+   ```json
+   {
+     "Sid": "ZiplineCostExportRead",
+     "Effect": "Allow",
+     "Principal": { "AWS": "arn:aws:iam::<cluster account>:root" },
+     "Action": ["s3:ListBucket", "s3:GetBucketLocation", "s3:GetObject"],
+     "Resource": ["arn:aws:s3:::<bucket>", "arn:aws:s3:::<bucket>/*"]
+   }
+   ```
+
+```hcl
+orchestration = {
+  # Existing settings...
+  cost_tracking = {
+    cur_export_path = "s3://<bucket>/<prefix>/<export name>/data"
+    # Optional:
+    # enabled       = false                 # turn off while keeping the path
+    # accounts      = ["<account id>"]      # default: the cluster account
+    # schedule      = "0 6 * * *"
+    # lookback_days = 5
+  }
+}
+```
+
+Terraform adds an inline policy (`<name_prefix>-spark-compute-cost-export`) to the Spark compute
+role for read access to that path. Each run rewrites the last `lookback_days` days, because billing
+rows keep arriving for a few days after usage.
+
+How rows map: pod rows carry their pod's share of the node (`allocated`); each pod's share of
+unused node capacity is a separate `idle` row; the node's own EC2 rows are dropped for days its pods
+cover, and the part of the node cost no pod covered becomes an `unallocated` row, so totals still
+match the bill. Team is derived from the namespace: `zipline-<team>` maps to `<team>`; other
+namespaces, idle capacity and costs outside Kubernetes map to `shared`.
+
+## Conf repository sandbox
+
+Set `orchestration.conf_repo.url` to enable the internal sandbox and repository
+editor configuration. See the [sandbox configuration guide](../../charts/zipline-orchestration/SANDBOX.md)
+for inputs, cloud secret references, and image availability requirements.
+
+## Sandbox network isolation
+
+Sandbox networking uses an allowlisted egress proxy and NetworkPolicies.
+See the [sandbox network guide](../../charts/zipline-orchestration/SANDBOX.md#sandbox-network-isolation)
+for configuration, cluster enforcement, and rollout considerations.
+
+## Agents UI configuration
+
+Set `orchestration.agents.enable = true` to add `AGENTS=true` and
+`AGENTS_LLM_PROXY_URL=http://orchestration-ui-service` to the UI container.
+The URL points back to the UI as reached by the sandbox, using the UI Service's
+port 80. Set `orchestration.agents.llm_proxy_url` to override that URL.
+When `enable` is false or omitted, neither variable is added.
+This configures the UI only; it does not provision agent runtime services.
+
+### Agent provider API keys
+
+Set `orchestration.agents.anthropic_api_key_remote_ref`,
+`orchestration.agents.openai_api_key_remote_ref`, and/or
+`orchestration.agents.gemini_api_key_remote_ref` to cloud secret references.
+When agents are enabled, External Secrets syncs these into the UI through
+`secretKeyRef` as `AGENTS_ANTHROPIC_API_KEY`, `AGENTS_OPENAI_API_KEY`, and
+`AGENTS_GOOGLE_API_KEY`, respectively.
+See [provider credential configuration](../../charts/zipline-orchestration/AGENT_CREDENTIALS.md)
+for reference formats and examples. All references are optional.

@@ -17,7 +17,7 @@ The chart renders:
 The chart does not branch on a cloud provider. Cloud-specific infrastructure is supplied through values by Terraform:
 
 - `serviceAccount.annotations` and `podLabels` for workload identity
-- `secrets.externalSecrets.*` for External Secrets Operator SecretStores and ExternalSecrets
+- `secrets.externalSecrets.*` for External Secrets Operator SecretStores and ExternalSecrets, including an optional cluster-scoped store for secrets synced into compute namespaces
 - `database.*` and `database.credentialsSecret.*` for Postgres connectivity
 - `compute.objectStore.*`, `compute.sparkDefaults.eventLogDir`, and Loki storage settings for object storage
 - `polaris.bootstrap.rbac.catalog.storage.*` for Polaris storage config
@@ -27,12 +27,24 @@ The chart does not branch on a cloud provider. Cloud-specific infrastructure is 
 - `orchestration.hub.metricsReader`, `orchestration.hub.metricsPort`, and
   optional `orchestration.hub.podAnnotations` for Hub metrics exposure
 
+## Spark 4 Runtime
+
+Crucible has one compute runtime across every cloud. Spark jobs and the History
+Server use `ziplineai/spark:nightly`, and Flink uses
+`ziplineai/flink:1.20.3-spark4`. `CRUCIBLE_SPARK_IMAGE` and
+`CRUCIBLE_FLINK_IMAGE` are chart-owned environment variables and cannot be set
+through `runtime.env` or `orchestration.hub.env`.
+
+`global.version` is the base service tag. Hub and Eval use its Spark 4 variant:
+`nightly` stays `nightly`, while release and commit tags gain a `-spark4`
+suffix. UI and Fetcher continue to use the base tag.
+
 ## Required Overrides
 
 At minimum, each Terraform module should provide:
 
 - `global.customer_name`
-- `global.version`
+- `global.version` (the base tag before any `-spark4` suffix)
 - `database.host`
 - `orchestration.hub.image`
 - `orchestration.hub.verticleClass`
@@ -41,13 +53,18 @@ At minimum, each Terraform module should provide:
 - `compute.sparkDefaults.eventLogDir`
 - `polaris.bootstrap.rbac.catalog.storage.type`
 - `secrets.externalSecrets.secretStore` and `secrets.externalSecrets.targets` when the chart should create runtime Kubernetes Secrets
+- `secrets.externalSecrets.clusterSecretStore` when ExternalSecrets in selected namespaces should use a shared provider store; set `targets[].namespace` to place a target outside the release namespace
 
 `compute.objectStore.bucket` is the bucket or container name only. Do not pass an object-store URI there; pass full provider-native paths only to values that expect paths, such as Spark event logs or Polaris base locations.
 
 ## Data Explorer
 
-The chart always deploys StarRocks for the Data Explorer at
-`starrocks-service:9030` and passes that endpoint to the web UI. Its
+Data Explorer is disabled by default. Set `dataExplorer.enabled: true` to
+enable the UI feature and catalog initialization job. The Terraform setting
+`orchestration.data_explorer.enabled` controls this value and installation of
+the separate StarRocks operator and cluster Helm release on both AWS and Azure.
+When using Helm directly, provision that release separately before enabling
+this feature. The UI connects to `<starrocks.clusterName>-fe-service:9030`. Its
 `zipline_catalog` external catalog is recreated after every install or upgrade
 using the runtime credential created by Polaris. It connects to the
 `polaris_<realm>` Polaris warehouse. The catalog uses the Iceberg
@@ -67,6 +84,70 @@ across the catalog, including namespaces created after bootstrap. Cloud
 Terraform wrappers should pass this grant explicitly when they construct
 provider values.
 
+## Fetcher metrics
+
+When `global.deploy_fetcher` is enabled, the fetcher defaults to the `prometheus`
+metrics reader. It exposes Chronon metrics on the `chronon-metrics` container
+port (8905) and Vert.x HTTP metrics on `vertx-metrics` (8906), both at `/metrics`.
+The AWS wrapper scrapes both named ports directly. Metrics ports are not added
+to the public Service or Ingress.
+
+Set `orchestration.fetcher.metricsReader` to an empty string to disable metrics,
+or to `http`/`grpc` to use an existing OTLP collector. Set `metricsPort` and
+`vertxMetricsPort` under the same object to change the Prometheus ports.
+Explicit `CHRONON_METRICS_READER`, `CHRONON_PROMETHEUS_SERVER_PORT`, and
+`VERTX_PROMETHEUS_SERVER_PORT` entries in `runtime.env` or
+`orchestration.fetcher.env` take precedence over these defaults. Fetcher env
+entries take precedence over runtime env entries, as with other fetcher settings.
+
+Use literal `value` entries for the reader when using direct scraping: Helm
+cannot determine the reader from `valueFrom`, so it preserves that entry but
+does not declare metrics ports. If a port uses `valueFrom`, set its chart port
+to the same number so discovery matches the exporter.
+
+## Team compute namespaces
+
+Team namespace provisioning is part of the in-cluster compute installation.
+The chart always mounts the compute namespace template in the Hub at
+`/etc/zipline/compute-namespace` and sets
+`CRUCIBLE_COMPUTE_NAMESPACE_TEMPLATE_DIR` to that directory. The Hub uses this
+template to create service accounts, RoleBindings, and the configured namespace
+ResourceQuota and LimitRange for synced teams. Changes to the template restart
+the Hub. `compute.namespaceDefaults` controls the template's quota and
+LimitRange policies; compute service account annotations preserve the cloud
+workload identities supplied by the Terraform wrapper.
+
+With `compute.rbac.create: true` (the default), the chart grants the Hub
+namespace-provisioner access and installs the shared Spark driver, Flink
+JobManager, and compute submitter ClusterRoles.
+
+With `compute.rbac.create: false`, the chart still mounts the complete template.
+Before syncing teams, provision those shared ClusterRoles and bind the
+namespace-provisioner permissions to the Hub service account externally. The
+template's RoleBindings reference `<chart-fullname>-spark-driver`,
+`<chart-fullname>-flink-jobmanager`, and `<chart-fullname>-compute-submitter`.
+Use `templates/compute-cluster-roles.yaml` and
+`templates/compute-namespace-provisioning-rbac.yaml` as the permission contracts;
+the provisioner needs permission to create namespaces and template resources,
+bind those three roles, and manage the named `zipline-team` ResourceQuota.
+Also provide the cluster-wide compute watch permissions from
+`templates/compute-cluster-rbac.yaml`. Disabling chart RBAC delegates these
+permissions to the cluster administrator; it does not disable team provisioning.
+
+## Compute workload quotas
+
+The chart creates `zipline-backfill` and `zipline-deploy` PriorityClasses that
+preempt lower-priority pods, including warm pool placeholders. Deploy can also
+preempt backfill. Set a class's `preemptionPolicy` to `Never` to disable its
+preemption. Pods select one of these classes, and namespace ResourceQuotas use
+the class name to account for backfill and deploy resources separately.
+
+Mode quotas are initially enabled only for `zipline-default` through
+`compute.modeResourceQuotas`. An empty mode `hard` map inherits the namespace's
+aggregate `resourceQuota.hard` values, so enabling the scoped quotas does not
+reduce existing capacity. Add another namespace key with explicit `hard` values
+when extending mode quotas to another team.
+
 ## Pod Security Admission
 
 The shared chart defaults target the Kubernetes Restricted Pod Security
@@ -80,6 +161,13 @@ Pods and read their logs across namespaces. Set `alloy.enabled=false` when
 another collector handles Pod logs. Alloy uses no host mounts.
 
 ## Validation
+
+Run the fetcher rendering and AWS scrape discovery regression tests (requires
+Helm and Python with PyYAML):
+
+```sh
+uv run --with PyYAML python -m unittest discover -s tests -v
+```
 
 Render the chart with explicit overrides before wiring a cloud module:
 

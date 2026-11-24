@@ -108,7 +108,8 @@ locals {
   }
   install = merge(local.install_defaults, try(local.orchestration.install, {}))
 
-  starrocks_input = try(local.orchestration.values.starrocks, {})
+  data_explorer_enabled = try(local.orchestration.data_explorer.enabled, false)
+  starrocks_input       = try(local.orchestration.values.starrocks, {})
   starrocks_defaults = {
     chartVersion = "1.11.7"
     clusterName  = "starrocks"
@@ -247,10 +248,13 @@ locals {
     install_external_secrets_operator = true
     install_cert_manager              = true
     install_flink_operator            = true
+    install_kuberay_operator          = true
     install_opentelemetry_operator    = false
     install_metrics_server            = true
     external_secrets_operator_values  = {}
     cert_manager_values               = {}
+    kuberay_operator_skip_crds        = false
+    kuberay_operator_values           = {}
   }
   addons = merge(local.addons_defaults, try(local.orchestration.addons, {}))
 
@@ -293,6 +297,11 @@ locals {
       kind   = "SecretStore"
       spec   = {}
     }
+    cluster_secret_store = {
+      create = false
+      name   = "zipline-cluster-secret-store"
+      spec   = {}
+    }
     database_remote_refs = {
       username = {}
       password = {}
@@ -303,6 +312,7 @@ locals {
   secrets_input = try(local.orchestration.secrets, {})
   secrets = merge(local.secrets_defaults, local.secrets_input, {
     secret_store         = merge(local.secrets_defaults.secret_store, try(local.secrets_input.secret_store, {}))
+    cluster_secret_store = merge(local.secrets_defaults.cluster_secret_store, try(local.secrets_input.cluster_secret_store, {}))
     database_remote_refs = merge(local.secrets_defaults.database_remote_refs, try(local.secrets_input.database_remote_refs, {}))
     auth_remote_refs     = merge(local.secrets_defaults.auth_remote_refs, try(local.secrets_input.auth_remote_refs, {}))
   })
@@ -367,6 +377,94 @@ locals {
     origin = ""
   }
   ui = merge(local.ui_defaults, try(local.orchestration.ui, {}))
+
+  # Cloud SecretStore implementations resolve these references without secret values in Helm.
+  conf_repo = merge({
+    url                             = ""
+    path                            = ""
+    branch                          = "main"
+    zipline_env                     = "default"
+    github_client_id                = ""
+    github_scope                    = "repo"
+    github_token_remote_ref         = {}
+    github_client_secret_remote_ref = {}
+  }, try(local.orchestration.conf_repo, {}))
+  conf_repo_enabled = trimspace(local.conf_repo.url) != ""
+  conf_repo_remote_refs = {
+    for key, ref in {
+      github-token         = local.conf_repo.github_token_remote_ref
+      github-client-secret = local.conf_repo.github_client_secret_remote_ref
+    } : key => ref if local.conf_repo_enabled && try(ref.key, "") != ""
+  }
+  conf_repo_external_secret = {
+    name = "conf-repo-credentials"
+    spec = {
+      refreshInterval = local.secrets.refresh_interval
+      secretStoreRef = {
+        name = local.secrets.secret_store.name
+        kind = local.secrets.secret_store.kind
+      }
+      target = {
+        name           = "conf-repo-credentials"
+        creationPolicy = "Owner"
+      }
+      data = [for key, ref in local.conf_repo_remote_refs : {
+        secretKey = key
+        remoteRef = ref
+      }]
+    }
+  }
+
+  agents_remote_refs = {
+    for name, ref in {
+      AGENTS_ANTHROPIC_API_KEY = try(local.orchestration.agents.anthropic_api_key_remote_ref, {})
+      AGENTS_OPENAI_API_KEY    = try(local.orchestration.agents.openai_api_key_remote_ref, {})
+      AGENTS_GOOGLE_API_KEY    = try(local.orchestration.agents.gemini_api_key_remote_ref, {})
+    } : name => ref if try(local.orchestration.agents.enable, false) && try(ref.key, "") != ""
+  }
+  agents_external_secret = {
+    name = "agents-provider-credentials"
+    spec = {
+      refreshInterval = local.secrets.refresh_interval
+      secretStoreRef = {
+        name = local.secrets.secret_store.name
+        kind = local.secrets.secret_store.kind
+      }
+      target = {
+        name           = "agents-provider-credentials"
+        creationPolicy = "Owner"
+      }
+      data = [for name, ref in local.agents_remote_refs : {
+        secretKey = name
+        remoteRef = ref
+      }]
+    }
+  }
+
+  ui_env_all = concat(
+    local.orchestration.metrics_provider == "" ? [] : [{ name = "METRICS_PROVIDER", value = local.orchestration.metrics_provider }],
+    try(local.orchestration.agents.enable, false) ? [
+      { name = "AGENTS", value = "true" },
+      { name = "AGENTS_LLM_PROXY_URL", value = try(local.orchestration.agents.llm_proxy_url, "http://orchestration-ui-service") },
+    ] : [],
+    [for name, ref in local.agents_remote_refs : {
+      name = name
+      valueFrom = {
+        secretKeyRef = {
+          name = "agents-provider-credentials"
+          key  = name
+        }
+      }
+    }],
+    try(local.orchestration.provider_ui_env, []),
+    try(local.orchestration.ui_env, []),
+  )
+  # Duplicate env names make Kubernetes reject Deployment patches once the list
+  # changes shape. Keep one entry per name; the last wins, as kubelet would.
+  ui_env = [
+    for name in distinct([for e in local.ui_env_all : e.name]) :
+    [for e in local.ui_env_all : e if e.name == name][length([for e in local.ui_env_all : e if e.name == name]) - 1]
+  ]
 
   hub_env = concat(
     local.hub.data_quality_metrics_dataset == "" ? [] : [
@@ -434,6 +532,8 @@ locals {
 
   external_secret_targets = concat(
     [local.database_external_secret],
+    length(local.agents_remote_refs) > 0 ? [local.agents_external_secret] : [],
+    length(local.conf_repo_remote_refs) > 0 ? [local.conf_repo_external_secret] : [],
     local.auth_enabled ? [local.auth_external_secret] : [],
     local.secrets.extra_external_secrets,
   )
@@ -490,19 +590,41 @@ locals {
   compute_defaults = {
     default_namespace      = "zipline-default"
     namespaces             = [{ name = "zipline-default", team = "default" }]
-    spark_image            = "ziplineai/spark:nightly"
-    flink_image            = "ziplineai/flink:1.20.3"
     spark_service_account  = "spark-operator-spark"
     flink_service_account  = "flink"
     spark_event_log_dir    = ""
     rbac_create            = true
     image_prepull_enabled  = true
     image_prepull_images   = []
-    history_server_image   = ""
     history_server_options = []
     spark_defaults         = {}
     flink_defaults         = {}
     namespace_defaults     = {}
+    workload_priority_classes = {
+      enabled = true
+      backfill = {
+        name             = "zipline-backfill"
+        value            = 100
+        preemptionPolicy = "PreemptLowerPriority"
+      }
+      deploy = {
+        name             = "zipline-deploy"
+        value            = 200
+        preemptionPolicy = "PreemptLowerPriority"
+      }
+    }
+    mode_resource_quotas = {
+      "zipline-default" = {
+        backfill = {
+          priorityClassName = "zipline-backfill"
+          hard              = {}
+        }
+        deploy = {
+          priorityClassName = "zipline-deploy"
+          hard              = {}
+        }
+      }
+    }
     object_store = {
       bucket = ""
       region = ""
@@ -522,29 +644,27 @@ locals {
   compute_spark_defaults = merge(
     {
       eventLogDir = local.compute.spark_event_log_dir
-      image       = local.compute.spark_image
     },
-    local.compute.spark_defaults,
+    { for key, value in local.compute.spark_defaults : key => value if key != "image" },
   )
 
   compute_flink_defaults = merge(
     {
-      image                     = local.compute.flink_image
       serviceAccount            = local.compute.flink_service_account
       serviceAccountAnnotations = local.compute_service_account.annotations
     },
-    local.compute.flink_defaults,
+    { for key, value in local.compute.flink_defaults : key => value if key != "image" },
   )
 
   compute_image_prepull = merge(
     {
       enabled = local.compute.image_prepull_enabled
-      images  = length(local.compute.image_prepull_images) > 0 ? local.compute.image_prepull_images : (local.compute.image_prepull_enabled ? [local.compute.spark_image] : [])
+      images  = local.compute.image_prepull_images
     },
     local.compute.image_prepull_overrides,
   )
   # Crucible warm pool pause pods + compute priority classes.
-  # Disabled by default; enable + target a driver pool via compute.warm_pool.
+  # Disabled by default; enable + target Spark capacity via compute.warm_pool.
   # do-not-disrupt keeps Karpenter from consolidating the pre-warmed nodes away.
   compute_warm_pool = merge(
     {
@@ -570,7 +690,6 @@ locals {
   )
 
   compute_history_server = {
-    image                 = local.compute.history_server_image != "" ? local.compute.history_server_image : local.compute.spark_image
     extraSparkHistoryOpts = local.compute.history_server_options
   }
 
@@ -621,10 +740,11 @@ locals {
 
     secrets = {
       externalSecrets = {
-        enabled         = local.secrets.external_secrets_enabled
-        refreshInterval = local.secrets.refresh_interval
-        secretStore     = local.secrets.secret_store
-        targets         = local.external_secret_targets
+        enabled            = local.secrets.external_secrets_enabled
+        refreshInterval    = local.secrets.refresh_interval
+        secretStore        = local.secrets.secret_store
+        clusterSecretStore = local.secrets.cluster_secret_store
+        targets            = local.external_secret_targets
       }
     }
 
@@ -640,13 +760,15 @@ locals {
       rbac = {
         create = local.compute.rbac_create
       }
-      sparkDefaults       = local.compute_spark_defaults
-      flinkDefaults       = local.compute_flink_defaults
-      namespaceDefaults   = local.compute.namespace_defaults
-      imagePrepull        = local.compute_image_prepull
-      historyServer       = local.compute_history_server
-      warmPool            = local.compute_warm_pool
-      systemPriorityClass = local.compute_system_priority_class
+      sparkDefaults           = local.compute_spark_defaults
+      flinkDefaults           = local.compute_flink_defaults
+      namespaceDefaults       = local.compute.namespace_defaults
+      workloadPriorityClasses = local.compute.workload_priority_classes
+      modeResourceQuotas      = local.compute.mode_resource_quotas
+      imagePrepull            = local.compute_image_prepull
+      historyServer           = local.compute_history_server
+      warmPool                = local.compute_warm_pool
+      systemPriorityClass     = local.compute_system_priority_class
     }
 
     ingress = {
@@ -705,6 +827,17 @@ locals {
     }
 
     orchestration = {
+      confRepo = {
+        url             = trimspace(local.conf_repo.url)
+        path            = local.conf_repo.path
+        branch          = local.conf_repo.branch
+        ziplineEnv      = local.conf_repo.zipline_env
+        githubClientId  = local.conf_repo.github_client_id
+        githubScope     = local.conf_repo.github_scope
+        tokenKey        = contains(keys(local.conf_repo_remote_refs), "github-token") ? "github-token" : ""
+        clientSecretKey = contains(keys(local.conf_repo_remote_refs), "github-client-secret") ? "github-client-secret" : ""
+      }
+      sandbox = try(local.orchestration.sandbox, {})
       hub = {
         image          = local.hub.image
         verticleClass  = local.hub_verticle_class
@@ -715,11 +848,7 @@ locals {
       }
       ui = {
         origin = local.ui.origin
-        env = concat(
-          local.orchestration.metrics_provider == "" ? [] : [{ name = "METRICS_PROVIDER", value = local.orchestration.metrics_provider }],
-          try(local.orchestration.provider_ui_env, []),
-          try(local.orchestration.ui_env, []),
-        )
+        env    = local.ui_env
       }
       fetcher = {
         env = concat(
@@ -757,7 +886,7 @@ resource "terraform_data" "configuration_validation" {
     }
 
     precondition {
-      condition     = length(local.starrocks.feConfig) > 0
+      condition     = !local.data_explorer_enabled || length(local.starrocks.feConfig) > 0
       error_message = "orchestration.values.starrocks.feConfig must configure cloud-native storage for the shared-data StarRocks cluster."
     }
 
@@ -816,13 +945,25 @@ resource "kubernetes_secret_v1" "docker_hub_creds" {
 module "addons" {
   source = "../zipline-kubernetes-addons"
 
+  namespace                         = local.install.namespace
   install_external_secrets_operator = local.addons.install_external_secrets_operator
   external_secrets_operator_values  = local.addons.external_secrets_operator_values
   install_cert_manager              = local.addons.install_cert_manager
   cert_manager_values               = local.addons.cert_manager_values
   install_flink_operator            = local.addons.install_flink_operator
+  install_kuberay_operator          = local.addons.install_kuberay_operator
+  kuberay_operator_skip_crds        = local.addons.kuberay_operator_skip_crds
+  kuberay_operator_values           = local.addons.kuberay_operator_values
   install_opentelemetry_operator    = local.addons.install_opentelemetry_operator
   install_metrics_server            = local.addons.install_metrics_server
+
+  depends_on = [kubernetes_namespace_v1.this]
+}
+
+# Preserve the existing release address when Data Explorer remains enabled.
+moved {
+  from = helm_release.starrocks
+  to   = helm_release.starrocks[0]
 }
 
 # The upstream chart installs both the StarRocksCluster CRD/operator and the
@@ -836,6 +977,8 @@ module "addons" {
 # latest makes plan == apply. Bump chartVersion when StarRocks publishes a new
 # kube-starrocks release.
 resource "helm_release" "starrocks" {
+  count = local.data_explorer_enabled ? 1 : 0
+
   name       = local.starrocks.clusterName
   repository = "https://starrocks.github.io/starrocks-kubernetes-operator"
   chart      = "kube-starrocks"
@@ -924,6 +1067,9 @@ resource "helm_release" "this" {
     [yamlencode(try(local.orchestration.values, {}))],
     [for value in try(local.orchestration.extra_values, []) : yamlencode(value)],
     try(local.orchestration.extra_values_yaml, []),
+    # Keep the UI and catalog job consistent with the Terraform-managed release,
+    # including when callers supply additional Helm values.
+    [yamlencode({ dataExplorer = { enabled = local.data_explorer_enabled } })],
   )
 
   depends_on = [

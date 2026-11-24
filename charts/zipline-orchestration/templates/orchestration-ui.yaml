@@ -48,6 +48,36 @@ spec:
             - name: FETCHER_BASE_URL
               value: "http://fetcher-service"
             {{- end }}
+            {{- if .Values.orchestration.confRepo.url }}
+            - name: SANDBOX_URL
+              value: "http://sandbox-service:{{ .Values.orchestration.sandbox.port }}"
+            - name: CONF_REPO_URL
+              value: {{ .Values.orchestration.confRepo.url | quote }}
+            - name: CONF_REPO_PATH
+              value: {{ .Values.orchestration.confRepo.path | quote }}
+            - name: CONF_REPO_BRANCH
+              value: {{ .Values.orchestration.confRepo.branch | quote }}
+            - name: ZIPLINE_ENV
+              value: {{ .Values.orchestration.confRepo.ziplineEnv | quote }}
+            - name: CONF_REPO_GITHUB_CLIENT_ID
+              value: {{ .Values.orchestration.confRepo.githubClientId | quote }}
+            - name: CONF_REPO_GITHUB_SCOPE
+              value: {{ .Values.orchestration.confRepo.githubScope | quote }}
+            {{- if .Values.orchestration.confRepo.tokenKey }}
+            - name: CONF_REPO_GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.orchestration.confRepo.credentialsSecret }}
+                  key: {{ .Values.orchestration.confRepo.tokenKey }}
+            {{- end }}
+            {{- if .Values.orchestration.confRepo.clientSecretKey }}
+            - name: CONF_REPO_GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.orchestration.confRepo.credentialsSecret }}
+                  key: {{ .Values.orchestration.confRepo.clientSecretKey }}
+            {{- end }}
+            {{- end }}
             - name: EVAL_URL
               value: "http://eval-service"
             - name: ORIGIN
@@ -64,8 +94,14 @@ spec:
                   key: {{ include "zipline-orchestration.databaseCredentialsUsernameKey" . }}
             - name: DATABASE_URL
               value: {{ include "zipline-orchestration.databaseUrl" . | quote }}
+            {{- $uiEnvNames := list }}
+            {{- range concat (.Values.runtime.env | default list) (.Values.orchestration.ui.env | default list) }}
+            {{- $uiEnvNames = append $uiEnvNames .name }}
+            {{- end }}
+            {{- if not (has "LOG_PROVIDER" $uiEnvNames) }}
             - name: LOG_PROVIDER
               value: "loki"
+            {{- end }}
             - name: LOKI_URL
               value: "http://{{ include "zipline-orchestration.fullname" . }}-loki.{{ include "zipline-orchestration.computeSystemNamespace" . }}.svc.cluster.local:3100"
             - name: LOKI_NAMESPACE
@@ -78,9 +114,15 @@ spec:
               value: "{{ .Values.prometheus.queryEndpoint }}"
             - name: PROMETHEUS_NAMESPACE
               value: "{{ .Values.prometheus.namespace }}"
+            {{- if .Values.dataExplorer.enabled }}
             - name: STARROCKS_HOST
               value: "{{ .Values.starrocks.clusterName }}-fe-service:{{ .Values.starrocks.ports.mysql }}"
+            {{- end }}
             - name: DATA_EXPLORER
+              value: {{ .Values.dataExplorer.enabled | quote }}
+            # Gates the Trials screens. Set here rather than left to `kubectl set env`,
+            # which a chart re-apply would wipe without anyone noticing the tab had gone.
+            - name: TRIALS
               value: "true"
             - name: AUTH_ENABLED
               value: "{{ .Values.auth.enabled }}"

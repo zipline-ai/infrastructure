@@ -19,6 +19,10 @@ secrets:
       name: zipline-secret-store
       kind: SecretStore
       spec: {}
+    clusterSecretStore:
+      create: false
+      name: zipline-cluster-secret-store
+      spec: {}
     targets: []
 
 compute:
@@ -28,24 +32,41 @@ compute:
     annotations: {}
     resourceQuota:
       enabled: true
+      # The budget is expressed in LIMITS, because that is what every pod here is
+      # guaranteed to carry: a container that sets no limit is given the default
+      # below before the quota counts it, whereas requests are now defaulted to
+      # zero and only the engines set real ones.
+      #
+      # Mind the granularity this implies: a container that declares nothing books
+      # the full default limit, so a pod doing nothing still costs 15 cpu / 56Gi of
+      # the budget below. Sizing a team ceiling in limits is therefore coarse —
+      # roughly 26 defaulted pods per 400 cpu.
       hard:
-        requests.cpu: "200"
-        requests.memory: "800Gi"
         limits.cpu: "400"
         limits.memory: "1600Gi"
         pods: "500"
     limitRange:
       enabled: true
-      # Default LIMIT (ceiling) for containers that don't set their own — sized
-      # for a fat Spark executor's node so executors can burst above their
-      # request (request stays the guaranteed floor). Raise if using larger
-      # executor instance sizes. Small pods are unaffected (they request 500m).
+      # Default LIMIT (ceiling) for containers that don't set their own, sized to
+      # the largest node a compute pool provisions so a defaulted pod can use a
+      # whole machine rather than being throttled against an arbitrary number.
       default:
-        cpu: "16"
-        memory: "64Gi"
+        cpu: "15"
+        memory: "56Gi"
+      # Nothing is held in reserve. The scheduler packs by what pods actually
+      # consume rather than by what they declared, which oversubscribes nodes on
+      # purpose; the kubelet decides who is evicted under pressure. Engines that
+      # set their own requests (Spark executors, Flink TaskManagers) are unaffected
+      # by this default — it applies only to containers that declare nothing.
       defaultRequest:
-        cpu: "500m"
-        memory: "1Gi"
+        cpu: "0"
+        memory: "0"
+      # Refused at admission, with a clear message, rather than left Pending for
+      # ever: a container may not ask for more than the largest node can hold.
+      # Raise this in step with the biggest instance type the pools can grow to.
+      max:
+        cpu: "15"
+        memory: "56Gi"
   namespaces:
     - name: zipline-default
       team: default
@@ -59,21 +80,40 @@ compute:
     flinkName: flink
     annotations: {}
   rbac:
+    # When false, provision compute ClusterRoles and Hub namespace-provisioner access externally.
+    # The Hub still receives the namespace template and provisions synced teams.
     create: true
   sparkDefaults:
     eventLogDir: ""
-    image: "ziplineai/spark:nightly"
     imagePullPolicy: "Always"
     chrononJarPath: "/opt/chronon/chronon-spark.jar"
-    spotNodeSelector: {}
   flinkDefaults:
-    image: "ziplineai/flink:1.20.3"
     serviceAccount: flink
     serviceAccountAnnotations: {}
   systemPriorityClass:
     enabled: true
     name: "zipline-compute-system"
     value: 1000
+  workloadPriorityClasses:
+    enabled: true
+    backfill:
+      name: "zipline-backfill"
+      value: 100
+      preemptionPolicy: PreemptLowerPriority
+    deploy:
+      name: "zipline-deploy"
+      value: 200
+      preemptionPolicy: PreemptLowerPriority
+  # Mode quotas are enabled only for listed namespaces. An empty hard map
+  # inherits that namespace's aggregate resourceQuota.hard values.
+  modeResourceQuotas:
+    zipline-default:
+      backfill:
+        priorityClassName: "zipline-backfill"
+        hard: {}
+      deploy:
+        priorityClassName: "zipline-deploy"
+        hard: {}
   warmPool:
     enabled: false
     replicas: 2
@@ -93,7 +133,6 @@ compute:
     nodeSelector: {}
     tolerations: []
   historyServer:
-    image: "ziplineai/spark:nightly"
     proxyBase: "spark-history"
     daemonMemory: "5g"
     hybridStoreMemory: "4g"
@@ -255,8 +294,13 @@ polaris:
       cpu: "2"
       memory: "4Gi"
 
-# StarRocks is the query engine behind the Data Explorer. It is always
-# deployed and is initialized against the Polaris Iceberg REST catalog below.
+# Opt in to the Data Explorer UI and StarRocks catalog initialization.
+# Terraform uses this same flag to control the StarRocks Helm release.
+dataExplorer:
+  enabled: false
+
+# StarRocks is the query engine behind the Data Explorer. When enabled, it is
+# deployed and initialized against the Polaris Iceberg REST catalog below.
 # Polaris vends the storage credentials, keeping this configuration independent
 # of the cloud object-store provider.
 starrocks:
@@ -296,6 +340,10 @@ starrocks:
   # Cloud wrappers provide this configuration because the storage provider and
   # workload identity differ by cloud. It must enable `run_mode=shared_data`.
   feConfig: {}
+  awsGlueCatalog:
+    enabled: false
+    name: aws_glue
+    region: ""
   serviceAccount: ""
   podLabels: {}
   cnAutoscaling:
@@ -370,10 +418,52 @@ orchestration:
         cpu: "250m"
         memory: "256Mi"
 
+  confRepo:
+    url: ""
+    path: ""
+    branch: "main"
+    ziplineEnv: "default"
+    githubClientId: ""
+    githubScope: "repo"
+    credentialsSecret: conf-repo-credentials
+    tokenKey: ""
+    clientSecretKey: ""
+
+  sandbox:
+    image: ziplineai/sandbox
+    port: 8000
+    cli: source
+    nodeSelector: {}
+    tolerations: []
+    # Requires a CNI that enforces Kubernetes NetworkPolicy.
+    egress:
+      image: ubuntu/squid:6.13-25.04_beta
+      allowedHosts:
+        - github.com
+        - pypi.org
+        - files.pythonhosted.org
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: "1"
+          memory: 512Mi
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "1Gi"
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+
   fetcher:
     image: "ziplineai/chronon-fetcher"
     replicas: 3
     port: 9000
+    metricsReader: prometheus
+    metricsPort: 8905
+    vertxMetricsPort: 8906
     env: []
     nodeSelector: {}
     tolerations: []
@@ -410,19 +500,20 @@ ingress-nginx-ui:
       default: false
       controllerValue: "k8s.io/ingress-nginx-ui"
     ingressClass: nginx-ui
+    # A config reload briefly runs the old and new nginx workers side by side; at 256Mi the
+    # controller was OOM-killed on reloads once crucible-gcp had a few more ingresses
     resources:
       requests:
         cpu: 50m
-        memory: 128Mi
+        memory: 256Mi
       limits:
         cpu: 200m
-        memory: 256Mi
+        memory: 1Gi
     service:
       annotations: {}
     admissionWebhooks:
       enabled: false
     electionID: ingress-controller-leader-ui
-    namespaceOverride: ingress-nginx-ui
 
 # Ingress configuration
 ingress:
@@ -517,6 +608,117 @@ spark-operator:
       name: spark-operator-spark
     rbac:
       create: false
+
+# Node-pool autoscaler limits for the monitor's Node Pools section. GKE only: the exporter reads
+# kube-system/cluster-autoscaler-status, which Karpenter-based clusters do not have, so it is
+# disabled by default and switched on through GCP provider values.
+nodepoolExporter:
+  enabled: false
+  image: python:3.12-slim
+  port: 9101
+  # Used to turn the managed instance group id (gke-<cluster>-<pool>-<hash>-grp) into a pool name.
+  clusterName: ""
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 96Mi
+  nodeSelector: {}
+  tolerations: []
+
+costExport:
+  # Daily job: cloud billing export -> cloud-neutral Iceberg table in Polaris, read by Data Explorer.
+  enabled: false
+  cloud: ""  # gcp or aws
+  schedule: "0 6 * * *"
+  # Runs as this compute namespace's Spark service account, which already holds the billing read
+  # and warehouse write permissions.
+  namespace: zipline-default
+  # Billing rows keep arriving for days after usage, so each run rewrites this many trailing days.
+  lookbackDays: 5
+  outputTable: zipline_catalog.cost.daily_cost
+  # Defaults to <global.artifact_prefix>/release/<engineVersion>/jars/cloud_<cloud>_lib_spark4_deploy.jar.
+  engineJar: ""
+  # Artifact release folder for the engine jar. Matches the hub's default team VERSION; global.version
+  # is the image tag (for example nightly) and has no release folder.
+  engineVersion: latest
+  gcp:
+    billingExportDataset: ""  # project.dataset holding the detailed usage cost export
+    projects: []              # projects whose costs are kept
+    jobProject: ""            # project that runs and pays for the BigQuery read
+  aws:
+    curExportPath: ""  # s3://<bucket>/<prefix>/<export>/data, the CUR 2.0 folder holding BILLING_PERIOD=YYYY-MM
+    accounts: []       # account IDs whose costs are kept
+  priorityClassName: zipline-backfill
+  driver:
+    cores: 1
+    memory: 2g
+  nodeSelector: {}
+  tolerations: []
+
+kube-state-metrics:
+  enabled: true
+  # Scraped by the existing pod_exporter AMP job via these annotations.
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+  # Expose Zipline / Karpenter pod and node labels on kube_{pod,node}_labels so
+  # Hub Monitor queries can group by team / engine / role / nodepool.
+  metricLabelsAllowlist:
+    - "pods=[zipline.ai/team,zipline.ai/engine,zipline.ai/role,zipline.ai/workload,zipline.ai/mode,crucible.ai/type]"
+    # GKE labels are here alongside Karpenter's so the monitor's node-pool charts can read the
+    # same dimension on every provider (nodes carry cloud.google.com/gke-nodepool; spot nodes
+    # add cloud.google.com/gke-spot). Harmless on clusters that never set them.
+    - "nodes=[karpenter.sh/nodepool,karpenter.sh/capacity-type,zipline.ai/team,zipline.ai/node-pool,cloud.google.com/gke-nodepool,cloud.google.com/gke-spot]"
+    - "namespaces=[zipline.ai/team,zipline.ai/namespace-type]"
+  rbac:
+    extraRules:
+      - apiGroups: ["karpenter.sh"]
+        resources: ["nodeclaims"]
+        verbs: ["list", "watch"]
+  # Karpenter's own metrics don't say why a NodeClaim failed to launch
+  # (e.g. UnfulfillableCapacity); the Launched condition reason does.
+  customResourceState:
+    enabled: true
+    config:
+      kind: CustomResourceStateMetrics
+      spec:
+        resources:
+          - groupVersionKind: {group: karpenter.sh, version: v1, kind: NodeClaim}
+            metricNamePrefix: karpenter_nodeclaim
+            labelsFromPath:
+              nodeclaim: [metadata, name]
+              nodepool: [metadata, labels, karpenter.sh/nodepool]
+              capacity_type: [metadata, labels, karpenter.sh/capacity-type]
+              instance_type: [metadata, labels, node.kubernetes.io/instance-type]
+              zone: [metadata, labels, topology.kubernetes.io/zone]
+            metrics:
+              - name: status_condition
+                help: "NodeClaim status conditions; 1 for the condition's current status, with Karpenter's reason."
+                each:
+                  type: StateSet
+                  stateSet:
+                    path: [status, conditions]
+                    labelName: status
+                    list: ["True", "False", "Unknown"]
+                    valueFrom: [status]
+                    labelsFromPath:
+                      type: [type]
+                      reason: [reason]
+              - name: created_timestamp_seconds
+                help: "NodeClaim creation time (unix seconds)."
+                each:
+                  type: Gauge
+                  gauge:
+                    path: [metadata, creationTimestamp]
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
 
 alloy:
   enabled: true

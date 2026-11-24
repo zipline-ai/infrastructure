@@ -13,6 +13,7 @@ locals {
     aks_pod_cidr                            = "10.244.0.0/16"
     default_node_pool                       = {}
     node_pools                              = {}
+    existing_keyvault_id                   = ""
     keyvault_name                           = ""
     admin_principal_names                   = []
     workload_identity_name                  = ""
@@ -44,14 +45,23 @@ locals {
     monitor_workspace_public_network_access = true
     monitor_metrics_annotations_allowed     = null
     monitor_metrics_labels_allowed          = null
+    fetcher_cosmos_account_name             = ""
+    fetcher_cosmos_database                 = "chronon"
+    fetcher_cosmos_preferred_regions        = []
+    fetcher_cosmos_secret_name              = "secretcosmos-primary-key"
+    fetcher_cosmos_secret_key               = "COSMOS_KEY"
   }, var.azure)
 
   deployment                       = var.orchestration.deployment
+  deploy_fetcher                   = try(local.deployment.deploy_fetcher, false)
   name_prefix                      = local.deployment.customer_name
   resource_group_name              = local.cloud_args.resource_group_name != "" ? local.cloud_args.resource_group_name : "${local.name_prefix}-crucible-rg"
   cluster_name                     = local.cloud_args.cluster_name != "" ? local.cloud_args.cluster_name : "${local.name_prefix}-aks"
   aks_dns_prefix                   = local.cloud_args.aks_dns_prefix != "" ? local.cloud_args.aks_dns_prefix : local.cluster_name
-  keyvault_name                    = local.cloud_args.keyvault_name != "" ? local.cloud_args.keyvault_name : "${local.name_prefix}-zipline-secrets"
+  use_existing_keyvault            = trimspace(local.cloud_args.existing_keyvault_id) != ""
+  created_keyvault_name            = local.cloud_args.keyvault_name != "" ? local.cloud_args.keyvault_name : "${local.name_prefix}-zipline-secrets"
+  keyvault_name                    = local.use_existing_keyvault ? element(reverse(split("/", trimsuffix(local.cloud_args.existing_keyvault_id, "/"))), 0) : local.created_keyvault_name
+  keyvault_id                      = local.use_existing_keyvault ? trimsuffix(local.cloud_args.existing_keyvault_id, "/") : azurerm_key_vault.main[0].id
   workload_identity_name           = local.cloud_args.workload_identity_name != "" ? local.cloud_args.workload_identity_name : "${local.name_prefix}-workload-identity"
   storage_account_resource_group   = local.cloud_args.storage_account_resource_group != "" ? local.cloud_args.storage_account_resource_group : local.resource_group_name
   database_name                    = local.cloud_args.database_name != "" ? local.cloud_args.database_name : try(var.orchestration.database.name, "execution_info")
@@ -152,6 +162,33 @@ locals {
           key = key
         }
       }
+      extra_external_secrets = local.deploy_fetcher ? [
+        {
+          name = local.cloud_args.fetcher_cosmos_secret_name
+          spec = {
+            refreshInterval = "1h"
+            secretStoreRef = {
+              name = try(var.orchestration.secrets.secret_store.name, "zipline-secret-store")
+              kind = "SecretStore"
+            }
+            target = {
+              name           = local.cloud_args.fetcher_cosmos_secret_name
+              creationPolicy = "Owner"
+              template = {
+                type = "Opaque"
+              }
+            }
+            data = [
+              {
+                secretKey = local.cloud_args.fetcher_cosmos_secret_key
+                remoteRef = {
+                  key = azurerm_key_vault_secret.fetcher_cosmos_key[0].name
+                }
+              }
+            ]
+          }
+        }
+      ] : []
     }
     service_account_annotations = local.workload_identity_annotations
     runtime_env = [
@@ -159,6 +196,25 @@ locals {
       { name = "AZURE_TENANT_ID", value = local.tenant_id },
       { name = "AZURE_CLIENT_ID", value = local.workload_identity_client_id },
       { name = "AZURE_STORAGE_ACCOUNT_NAME", value = local.cloud_args.storage_account_name },
+    ]
+    fetcher_env = [
+      { name = "PROVIDER", value = "AZURE" },
+      { name = "KV_STORE_TYPE", value = "cosmos" },
+      { name = "COSMOS_ENDPOINT", value = local.deploy_fetcher ? azurerm_cosmosdb_account.fetcher[0].endpoint : "" },
+      { name = "COSMOS_DATABASE", value = local.cloud_args.fetcher_cosmos_database },
+      {
+        name  = "COSMOS_PREFERRED_REGIONS"
+        value = join(",", length(local.cloud_args.fetcher_cosmos_preferred_regions) > 0 ? local.cloud_args.fetcher_cosmos_preferred_regions : [local.cloud_args.location])
+      },
+      {
+        name = "COSMOS_KEY"
+        valueFrom = {
+          secretKeyRef = {
+            name = local.cloud_args.fetcher_cosmos_secret_name
+            key  = local.cloud_args.fetcher_cosmos_secret_key
+          }
+        }
+      },
     ]
     values = local.provider_values
   }
@@ -173,7 +229,7 @@ locals {
   polaris_base_location       = "${local.abfs_base_uri}polaris/polaris_${local.deployment.customer_name}/"
   hub_image                   = "ziplineai/hub-azure"
   eval_image                  = "ziplineai/eval-azure"
-  hub_verticle_class          = "ai.chronon.hub.AzureOrchestrationVerticle,ai.chronon.hub.AzureWorkflowExecutionVerticle"
+  hub_verticle_class          = "ai.chronon.hub.AzureOrchestrationVerticle,ai.chronon.hub.AzureWorkflowExecutionVerticle,ai.chronon.hub.cleanup.AzureCleanupVerticle"
   hub_metrics_reader          = try(var.orchestration.hub.chronon_metrics_reader, try(var.orchestration.hub.metricsReader, "prometheus"))
   hub_metrics_port            = try(var.orchestration.hub.metrics_port, try(var.orchestration.hub.metricsPort, 8905))
   hub_prometheus_pod_annotations = local.hub_metrics_reader == "prometheus" ? {

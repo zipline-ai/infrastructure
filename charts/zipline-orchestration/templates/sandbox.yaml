@@ -1,0 +1,91 @@
+{{- if .Values.orchestration.confRepo.url }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zipline-sandbox
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zipline-sandbox
+  template:
+    metadata:
+      labels:
+        app: zipline-sandbox
+    spec:
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.orchestration.sandbox.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.orchestration.sandbox.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        fsGroup: 1001
+      containers:
+        - name: sandbox
+          image: "{{ .Values.orchestration.sandbox.image }}:{{ .Values.global.version }}"
+          imagePullPolicy: Always
+          args: ["uvicorn", "zipline_sandbox.app:app", "--host", "0.0.0.0", "--port", {{ .Values.orchestration.sandbox.port | quote }}]
+          env:
+            - name: http_proxy
+              value: "http://sandbox-egress:3128"
+            - name: https_proxy
+              value: "http://sandbox-egress:3128"
+            - name: HTTP_PROXY
+              value: "http://sandbox-egress:3128"
+            - name: HTTPS_PROXY
+              value: "http://sandbox-egress:3128"
+            - name: no_proxy
+              value: "localhost,127.0.0.1,orchestration-ui-service,orchestration-ui-service.{{ .Release.Namespace }},orchestration-ui-service.{{ .Release.Namespace }}.svc,orchestration-ui-service.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: NO_PROXY
+              value: "localhost,127.0.0.1,orchestration-ui-service,orchestration-ui-service.{{ .Release.Namespace }},orchestration-ui-service.{{ .Release.Namespace }}.svc,orchestration-ui-service.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: AUTH_ENABLED
+              value: {{ .Values.auth.enabled | quote }}
+            - name: AUTH_JWKS_URL
+              value: "http://orchestration-ui-service/api/auth/jwks"
+            - name: SANDBOX_ZIPLINE_CLI
+              value: {{ .Values.orchestration.sandbox.cli | quote }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.orchestration.sandbox.port }}
+          resources:
+            {{- toYaml .Values.orchestration.sandbox.resources | nindent 12 }}
+          volumeMounts:
+            - name: workspaces
+              mountPath: /sandboxes
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+      volumes:
+        - name: workspaces
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandbox-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: ClusterIP
+  selector:
+    app: zipline-sandbox
+  ports:
+    - name: http
+      port: {{ .Values.orchestration.sandbox.port }}
+      targetPort: http
+{{- end }}

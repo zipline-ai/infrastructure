@@ -17,7 +17,7 @@ resource "aws_dynamodb_table" "chronon_metadata" {
 
   ttl {
     attribute_name = "ttl"
-    enabled        = false
+    enabled        = local.cloud_args.kv_enable_ttl
   }
 
   server_side_encryption {

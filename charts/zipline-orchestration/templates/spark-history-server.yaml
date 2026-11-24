@@ -86,7 +86,7 @@ spec:
       {{- end }}
       initContainers:
         - name: prepare-cache
-          image: {{ .Values.compute.historyServer.image }}
+          image: {{ include "zipline-orchestration.sparkImage" . | quote }}
           securityContext:
             {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
           command: ["sh", "-c", "mkdir -p /data/spark-history-cache"]
@@ -95,7 +95,7 @@ spec:
               mountPath: /data
       containers:
         - name: history-server
-          image: {{ .Values.compute.historyServer.image }}
+          image: {{ include "zipline-orchestration.sparkImage" . | quote }}
           securityContext:
             {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
           imagePullPolicy: Always

@@ -1,0 +1,76 @@
+{{- if not .Values.costExport.enabled }}
+{{- $ce := .Values.costExport }}
+{{- $name := "cost-export-cleanup" }}
+{{- $labels := include "zipline-orchestration.labels" . }}
+{{- /*
+  The cost-export ScheduledSparkApplication is a hook, so Helm does not delete it when costExport is
+  turned off. Rendered only while it still exists, so other installs get nothing.
+*/}}
+{{- if lookup "sparkoperator.k8s.io/v1beta2" "ScheduledSparkApplication" $ce.namespace "cost-export" }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ce.namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+rules:
+  - apiGroups: ["sparkoperator.k8s.io"]
+    resources: ["scheduledsparkapplications"]
+    resourceNames: ["cost-export"]
+    verbs: ["delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ $ce.namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "zipline-orchestration.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-upgrade,post-rollback
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: 300
+  backoffLimit: 2
+  template:
+    spec:
+      serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
+      {{- with .Values.orchestration.hub.nodeSelector }}
+      nodeSelector:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.orchestration.hub.tolerations }}
+      tolerations:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: Never
+      containers:
+      - name: delete-cost-export
+        image: alpine/k8s:1.28.3
+        command:
+        - kubectl
+        - delete
+        - scheduledsparkapplication
+        - cost-export
+        - -n
+        - {{ $ce.namespace }}
+        - --ignore-not-found
+{{- end }}
+{{- end }}

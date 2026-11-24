@@ -45,7 +45,12 @@ output "aks_oidc_issuer_url" {
 
 output "keyvault_name" {
   description = "Azure Key Vault used for orchestration secrets."
-  value       = azurerm_key_vault.main.name
+  value       = local.keyvault_name
+}
+
+output "keyvault_id" {
+  description = "Resource ID of the Azure Key Vault used for orchestration secrets."
+  value       = local.keyvault_id
 }
 
 output "postgres_fqdn" {
@@ -63,7 +68,17 @@ output "monitor_workspace_id" {
   value       = azurerm_monitor_workspace.prometheus.id
 }
 
+output "prometheus_data_collection_rule_id" {
+  description = "Azure Monitor data collection rule associated with AKS managed Prometheus."
+  value       = azurerm_monitor_data_collection_rule.prometheus.id
+}
+
 output "prometheus_query_endpoint" {
   description = "PromQL query endpoint passed to the Zipline UI."
   value       = azurerm_monitor_workspace.prometheus.query_endpoint
+}
+
+output "fetcher_cosmos_endpoint" {
+  description = "Endpoint for the Terraform-managed fetcher Cosmos DB account."
+  value       = local.deploy_fetcher ? azurerm_cosmosdb_account.fetcher[0].endpoint : ""
 }

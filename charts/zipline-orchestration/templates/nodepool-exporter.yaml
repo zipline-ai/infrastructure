@@ -1,0 +1,158 @@
+{{- if .Values.nodepoolExporter.enabled }}
+{{- $name := printf "%s-nodepool-exporter" (include "zipline-orchestration.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- $labels := include "zipline-orchestration.labels" . }}
+{{- /*
+  GKE keeps node-pool autoscaling limits in two places, neither of which is a metric: the GKE API
+  (nodePools[].autoscaling.maxNodeCount) and, inside the cluster, the ConfigMap the cluster
+  autoscaler rewrites on every loop (kube-system/cluster-autoscaler-status: one nodeGroup per
+  managed instance group, with minSize/maxSize/nodeCounts). kube-state-metrics cannot read
+  ConfigMap contents, so this exporter turns that ConfigMap into the pool limit series the
+  monitor needs:
+
+    gke_nodepool_min_nodes{pool}  gke_nodepool_max_nodes{pool}  gke_nodepool_nodes{pool}
+    gke_cluster_autoscaler_healthy
+
+  It needs get on that one ConfigMap and no cloud credentials. Disabled by default because the
+  ConfigMap is GKE-only; the GCP stack enables it through provider values.
+*/}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: kube-system
+  labels:
+    {{- $labels | nindent 4 }}
+rules:
+  - apiGroups: ['']
+    resources: ['configmaps']
+    resourceNames: ['cluster-autoscaler-status']
+    verbs: ['get']
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: kube-system
+  labels:
+    {{- $labels | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+data:
+  exporter.py: |
+{{ .Files.Get "files/nodepool-exporter.py" | indent 4 }}
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ $name }}
+  template:
+    metadata:
+      annotations:
+        # Rolls the pod when the exporter script changes; a ConfigMap-only edit does not.
+        checksum/script: {{ .Files.Get "files/nodepool-exporter.py" | sha256sum }}
+      labels:
+        app: {{ $name }}
+        app.kubernetes.io/component: nodepool-exporter
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ $name }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodepoolExporter.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodepoolExporter.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: exporter
+          image: {{ .Values.nodepoolExporter.image }}
+          imagePullPolicy: IfNotPresent
+          command: ['python', '/app/exporter.py']
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.nodepoolExporter.port }}
+          env:
+            - name: PORT
+              value: {{ .Values.nodepoolExporter.port | quote }}
+            - name: CLUSTER_NAME
+              value: {{ .Values.nodepoolExporter.clusterName | quote }}
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.nodepoolExporter.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ['ALL']
+          volumeMounts:
+            - name: script
+              mountPath: /app
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: {{ $name }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- $labels | nindent 4 }}
+spec:
+  selector:
+    app: {{ $name }}
+  ports:
+    - name: metrics
+      port: {{ .Values.nodepoolExporter.port }}
+      targetPort: metrics
+{{- end }}

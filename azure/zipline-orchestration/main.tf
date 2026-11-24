@@ -22,6 +22,14 @@ variable "azure" {
     ])
     error_message = "azure must include non-empty location, warehouse_container_name, and storage_account_name."
   }
+
+  validation {
+    condition = (
+      trimspace(tostring(try(var.azure.existing_keyvault_id, ""))) == "" ||
+      can(regex("(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\\.KeyVault/vaults/[^/]+/?$", trimspace(tostring(try(var.azure.existing_keyvault_id, "")))))
+    )
+    error_message = "azure.existing_keyvault_id must be an Azure Key Vault resource ID when set."
+  }
 }
 
 module "zipline_orchestration" {
@@ -35,10 +43,15 @@ module "zipline_orchestration" {
     azurerm_key_vault_secret.db_password,
     azurerm_key_vault_secret.db_username,
     azurerm_private_endpoint.postgres,
+    azurerm_private_endpoint.cosmos,
+    azurerm_cosmosdb_sql_database.fetcher,
     azurerm_storage_data_lake_gen2_path.spark_events,
     azurerm_monitor_data_collection_rule_association.prometheus_endpoint,
     azurerm_monitor_data_collection_rule_association.prometheus_rule,
+    azurerm_role_assignment.aks_monitoring_metrics_publisher,
     azurerm_role_assignment.workload_monitoring_reader,
+    kubernetes_config_map_v1.ama_metrics_settings,
+    kubernetes_config_map_v1.ama_metrics_prometheus_config,
     azurerm_role_assignment.workload_keyvault_secrets_user,
     azurerm_role_assignment.workload_storage,
     azurerm_role_assignment.aks_acr_pull,

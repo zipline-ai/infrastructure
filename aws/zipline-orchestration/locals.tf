@@ -1,40 +1,45 @@
 locals {
-  cloud_args = merge({
-    cluster_name                   = ""
-    eks_version                    = "1.36"
-    eks_instance_type              = "m8a.4xlarge"
-    eks_desired_size               = 3
-    eks_min_size                   = 3
-    eks_max_size                   = 8
-    eks_disk_size                  = 100
-    personnel_arns                 = []
-    kv_table_prefix                = ""
-    kv_enable_ttl                  = true
-    kv_replica_regions             = []
-    kv_read_capacity               = 10
-    kv_write_capacity              = 10
-    eks_log_group                  = ""
-    auth_secret_arn                = ""
-    auth_secret_values             = {}
-    extra_external_secrets         = []
-    extra_secret_arns              = []
-    additional_data_buckets        = []
-    additional_flink_s3_buckets    = []
-    shared_warehouse_bucket        = ""
-    spark_libs_bucket              = ""
-    logs_bucket                    = ""
-    glue_schema_registry_name      = ""
-    msk_cluster_arn                = ""
-    amp_workspace_arn              = ""
-    encryption_kms_key_arn         = ""
-    encryption_kms_key_arns        = {}
-    database_name                  = "execution_info"
-    database_username              = "locker_user"
-    database_instance_class        = "db.t3.medium"
-    database_allocated_storage     = 20
-    database_multi_az              = true
-    database_publicly_accessible   = false
-    database_backup_retention_days = 7
+  cloud_args_input = merge({
+    cluster_name                         = ""
+    eks_version                          = "1.36"
+    eks_instance_type                    = "m8a.4xlarge"
+    eks_desired_size                     = 3
+    eks_min_size                         = 3
+    eks_max_size                         = 8
+    eks_disk_size                        = 100
+    ingress_traffic_policy               = "Cluster"
+    personnel_arns                       = []
+    kv_table_prefix                      = ""
+    kv_enable_ttl                        = true
+    kv_replica_regions                   = []
+    kv_batch_table_gc_age_days           = ""
+    kv_read_capacity                     = 10
+    kv_write_capacity                    = 10
+    eks_log_group                        = ""
+    auth_secret_arn                      = ""
+    extra_external_secrets               = []
+    extra_secret_arns                    = []
+    additional_data_buckets              = []
+    additional_flink_s3_buckets          = []
+    additional_flink_readonly_s3_buckets = []
+    warehouse_bucket                     = ""
+    shared_warehouse_bucket              = ""
+    spark_libs_bucket                    = ""
+    logs_bucket                          = ""
+    glue_schema_registry_name            = ""
+    msk_cluster_arn                      = ""
+    databricks_client_id                 = ""
+    databricks_client_secret             = ""
+    amp_workspace_arn                    = ""
+    encryption_kms_key_arn               = ""
+    encryption_kms_key_arns              = {}
+    database_name                        = "execution_info"
+    database_username                    = "locker_user"
+    database_instance_class              = "db.t3.medium"
+    database_allocated_storage           = 20
+    database_multi_az                    = true
+    database_publicly_accessible         = false
+    database_backup_retention_days       = 7
     # Prod-safe default: take a final snapshot on destroy. Test/POC accounts set
     # aws.database_skip_final_snapshot = true for clean, snapshot-free teardown.
     database_skip_final_snapshot = false
@@ -50,6 +55,32 @@ locals {
     karpenter           = {}
   }, var.aws)
 
+  # Bucket names are global, so the default derives from customer_name.
+  cloud_args = merge(local.cloud_args_input, {
+    warehouse_bucket = try(trimspace(local.cloud_args_input.warehouse_bucket), "") != "" ? local.cloud_args_input.warehouse_bucket : "zipline-${local.name_prefix}-warehouse"
+  })
+
+  redis = merge({
+    enabled             = false
+    cluster_nodes       = ""
+    password_secret_arn = ""
+    password_secret_key = "password"
+    use_ssl             = true
+    node_type           = "cache.t4g.small"
+    shards              = 1
+    replicas_per_shard  = 1
+  }, try(local.cloud_args.redis, {}))
+  redis_managed = local.redis.enabled && trimspace(local.redis.cluster_nodes) == ""
+  redis_password_enabled = local.redis.enabled && (
+    local.redis_managed || trimspace(local.redis.password_secret_arn) != ""
+  )
+  redis_password_secret_arn = local.redis_password_enabled ? (
+    local.redis_managed ? aws_secretsmanager_secret.redis[0].arn : trimspace(local.redis.password_secret_arn)
+  ) : ""
+  redis_cluster_nodes = local.redis.enabled ? (
+    local.redis_managed ? "${aws_elasticache_replication_group.redis[0].configuration_endpoint_address}:6379" : trimspace(local.redis.cluster_nodes)
+  ) : ""
+
   # When no VPC is supplied, provision one (network.tf) and resolve ids here.
   # Kept out of cloud_args: the aws provider reads cloud_args.region, so folding
   # these resource refs into cloud_args would cycle provider -> network -> provider.
@@ -59,7 +90,9 @@ locals {
   resolved_secondary_subnet_id = local.create_network ? aws_subnet.zipline["secondary"].id : trimspace(tostring(try(var.aws.secondary_subnet_id, "")))
 
   install                       = try(var.orchestration.install, {})
-  deployment                    = var.orchestration.deployment
+  default_artifact_prefix       = "s3://zipline-${var.orchestration.deployment.customer_name}-artifacts"
+  deployment                    = merge(var.orchestration.deployment, { artifact_prefix = trimspace(try(var.orchestration.deployment.artifact_prefix, "")) != "" ? var.orchestration.deployment.artifact_prefix : local.default_artifact_prefix })
+  deploy_fetcher                = try(local.deployment.deploy_fetcher, true)
   name_prefix                   = local.deployment.customer_name
   cluster_name                  = local.cloud_args.cluster_name != "" ? local.cloud_args.cluster_name : "${local.name_prefix}-eks"
   orchestration_namespace       = try(local.install.namespace, "zipline-system")
@@ -68,13 +101,17 @@ locals {
   spark_service_account         = try(var.orchestration.compute.spark_service_account, "spark-operator-spark")
   flink_service_account         = try(var.orchestration.compute.flink_service_account, "flink")
 
-  compute_namespaces        = try(var.orchestration.compute.namespaces, [{ name = try(var.orchestration.compute.default_namespace, "zipline-default"), team = "default" }])
-  compute_teams             = distinct([for namespace in local.compute_namespaces : try(tostring(namespace.team), "default")])
-  default_compute_namespace = try(var.orchestration.compute.default_namespace, try(local.compute_namespaces[0].name, "zipline-default"))
-  default_compute_team = try(
-    [for namespace in local.compute_namespaces : tostring(namespace.team) if try(namespace.name, "") == local.default_compute_namespace][0],
-    try(tostring(local.compute_namespaces[0].team), "default"),
-  )
+  compute_namespaces       = try(var.orchestration.compute.namespaces, [{ name = try(var.orchestration.compute.default_namespace, "zipline-default"), team = "default" }])
+  redis_compute_namespaces = length(local.compute_namespaces) > 0 ? local.compute_namespaces : [{ name = try(var.orchestration.compute.default_namespace, "zipline-default"), team = "default" }]
+
+  cost_tracking        = try(var.orchestration.cost_tracking, {})
+  cost_cur_export_path = trimsuffix(trimspace(try(local.cost_tracking.cur_export_path, "")), "/")
+  # The CUR bucket is customer-named, so there is no default path; the job turns on once it is set.
+  cost_tracking_enabled = try(local.cost_tracking.enabled, local.cost_cur_export_path != "")
+  cost_cur_location     = trimprefix(trimprefix(local.cost_cur_export_path, "s3a://"), "s3://")
+  cost_cur_bucket       = split("/", local.cost_cur_location)[0]
+  cost_cur_prefix       = trimprefix(local.cost_cur_location, "${local.cost_cur_bucket}/")
+
   karpenter = merge({
     enabled            = true
     namespace          = "kube-system"
@@ -91,67 +128,6 @@ locals {
     ec2_node_class = {}
     node_pools     = {}
   }, local.cloud_args.karpenter)
-  compute_team_slug_bases = {
-    for team in local.compute_teams :
-    team => trim(replace(replace(lower(trimspace(team)), "/[^a-z0-9-]/", "-"), "/-+/", "-"), "-")
-  }
-  compute_team_slugs = {
-    for team, slug in local.compute_team_slug_bases :
-    team => (
-      slug == "" ? "default" :
-      length(slug) <= 63 ? slug :
-      "${trimsuffix(substr(slug, 0, 54), "-")}-${substr(sha1(slug), 0, 8)}"
-    )
-  }
-  compute_node_pool_workloads = [
-    { engine = "spark", role = "driver", size = "driver" },
-    { engine = "spark", role = "executor", size = "executor" },
-    { engine = "flink", role = "jobmanager", size = "driver" },
-    { engine = "flink", role = "taskmanager", size = "executor" },
-  ]
-  compute_node_pool_pairs = [
-    for workload in local.compute_node_pool_workloads : {
-      team      = "default"
-      engine    = workload.engine
-      role      = workload.role
-      size      = workload.size
-      node_pool = "default-${workload.engine}-${workload.role}"
-    }
-  ]
-  compute_node_pool_slugs = {
-    for pool in local.compute_node_pool_pairs :
-    "${pool.team}:${pool.engine}:${pool.role}" => (
-      length(pool.node_pool) <= 63 ? pool.node_pool :
-      "${trimsuffix(substr(pool.node_pool, 0, 54), "-")}-${substr(sha1(pool.node_pool), 0, 8)}"
-    )
-  }
-  default_compute_team_slug = try(local.compute_team_slugs[local.default_compute_team], "default")
-  system_node_pool          = "system"
-  image_prepull_node_pool   = local.compute_node_pool_slugs["default:spark:executor"]
-  system_node_selector = local.karpenter.enabled ? {
-    "zipline.ai/node-pool" = local.system_node_pool
-  } : {}
-  image_prepull_node_selector = local.karpenter.enabled ? {
-    "zipline.ai/team"   = "default"
-    "zipline.ai/engine" = "spark"
-    "zipline.ai/role"   = "executor"
-  } : {}
-  system_node_tolerations = local.karpenter.enabled ? [
-    {
-      key      = "zipline.ai/node-pool"
-      operator = "Equal"
-      value    = local.system_node_pool
-      effect   = "NoSchedule"
-    }
-  ] : []
-  image_prepull_node_tolerations = local.karpenter.enabled ? [
-    {
-      key      = "zipline.ai/workload"
-      operator = "Equal"
-      value    = local.image_prepull_node_pool
-      effect   = "NoSchedule"
-    }
-  ] : []
   karpenter_ec2_node_class = merge({
     name       = "zipline"
     ami_family = "AL2023"
@@ -191,173 +167,6 @@ locals {
     tags                  = {}
     user_data             = ""
   }, try(local.karpenter.ec2_node_class, {}))
-  karpenter_node_pool_requirements = [
-    {
-      key      = "kubernetes.io/os"
-      operator = "In"
-      values   = ["linux"]
-    },
-    {
-      key      = "kubernetes.io/arch"
-      operator = "In"
-      values   = ["amd64"]
-    },
-    {
-      key      = "karpenter.sh/capacity-type"
-      operator = "In"
-      values   = ["on-demand"]
-    },
-    {
-      key      = "karpenter.k8s.aws/instance-category"
-      operator = "In"
-      values   = ["c", "m", "r"]
-    },
-    {
-      key      = "karpenter.k8s.aws/instance-generation"
-      operator = "Gt"
-      values   = ["2"]
-    },
-  ]
-  # ───────────────────────────────────────────────────────────────────────
-  # Karpenter tunables — override any of these via aws.karpenter.<key> in the
-  # tfvars. All optional; the defaults shown here apply when unset. The
-  # instance-shape knobs (arch / categories / capacity / generation / minValues)
-  # build the driver & executor pool requirements below.
-  #   aws.karpenter.driver_arch              (default ["arm64"])
-  #   aws.karpenter.driver_categories        (default ["m"])
-  #   aws.karpenter.executor_arch            (default ["arm64"])
-  #   aws.karpenter.executor_categories      (default ["c","m","r"])
-  #   aws.karpenter.executor_capacity_type   (default ["spot"])
-  #   aws.karpenter.executor_min_categories  (default 2)     # spot diversity
-  #   aws.karpenter.min_instance_generation  (default "6")   # 7th-gen+
-  #   aws.karpenter.pool_limits/driver_limits/executor_limits  ({cpu,memory})
-  #   aws.karpenter.system_expire_after / compute_expire_after
-  #   aws.karpenter.system_termination_grace_period
-  # ───────────────────────────────────────────────────────────────────────
-  karpenter_driver_arch         = tolist(try(local.karpenter.driver_arch, ["arm64"]))
-  karpenter_driver_categories   = tolist(try(local.karpenter.driver_categories, ["m"]))
-  karpenter_executor_arch       = tolist(try(local.karpenter.executor_arch, ["arm64"]))
-  karpenter_executor_categories = tolist(try(local.karpenter.executor_categories, ["c", "m", "r"]))
-  karpenter_executor_capacity   = tolist(try(local.karpenter.executor_capacity_type, ["spot"]))
-  karpenter_executor_min_values = try(local.karpenter.executor_min_categories, 2)
-  karpenter_min_generation      = try(local.karpenter.min_instance_generation, "6")
-  # Provisioning caps (max aggregate a pool may launch); memory cap alongside
-  # cpu so a runaway pool can't exhaust either. Role-sized: drivers small,
-  # executors fat.
-  karpenter_pool_limits     = merge({ cpu = "1000", memory = "4000Gi" }, try(local.karpenter.pool_limits, {}))
-  karpenter_driver_limits   = merge({ cpu = "100", memory = "400Gi" }, try(local.karpenter.driver_limits, {}))
-  karpenter_executor_limits = merge({ cpu = "1000", memory = "4000Gi" }, try(local.karpenter.executor_limits, {}))
-  # Driver pool: on-demand — drivers are lightweight (1/job) and must NOT run on
-  # spot (a spot eviction kills the whole job).
-  karpenter_driver_requirements = [
-    { key = "kubernetes.io/os", operator = "In", values = tolist(["linux"]) },
-    { key = "kubernetes.io/arch", operator = "In", values = local.karpenter_driver_arch },
-    { key = "karpenter.sh/capacity-type", operator = "In", values = tolist(["on-demand"]) },
-    { key = "karpenter.k8s.aws/instance-category", operator = "In", values = local.karpenter_driver_categories, minValues = null },
-    { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = tolist([local.karpenter_min_generation]) },
-  ]
-  # Executor pool: spot by default — the compute; spot decommission migrates
-  # shuffle. minValues forces instance-type diversity for spot availability.
-  karpenter_executor_requirements = [
-    { key = "kubernetes.io/os", operator = "In", values = tolist(["linux"]) },
-    { key = "kubernetes.io/arch", operator = "In", values = local.karpenter_executor_arch },
-    { key = "karpenter.sh/capacity-type", operator = "In", values = local.karpenter_executor_capacity },
-    { key = "karpenter.k8s.aws/instance-category", operator = "In", values = local.karpenter_executor_categories, minValues = local.karpenter_executor_min_values },
-    { key = "karpenter.k8s.aws/instance-generation", operator = "Gt", values = tolist([local.karpenter_min_generation]) },
-  ]
-  karpenter_spark_executor_instance_store_requirements = [
-    { key = "karpenter.k8s.aws/instance-local-nvme", operator = "Exists", values = null, minValues = null },
-  ]
-  # The system pool hosts stateful control-plane pods (loki + spark-history
-  # PVCs, polaris). Default to no forced node rotation and a real drain grace
-  # period so a rotation doesn't strand a PVC in the wrong AZ or cut loki off
-  # mid-flush. Compute pools keep the 30-day recycle. All configurable.
-  karpenter_system_expire_after             = try(local.karpenter.system_expire_after, "Never")
-  karpenter_system_termination_grace_period = try(local.karpenter.system_termination_grace_period, "5m")
-  karpenter_compute_expire_after            = try(local.karpenter.compute_expire_after, "720h")
-  compute_node_pool_matrix = [
-    for pool in local.compute_node_pool_pairs : {
-      key            = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
-      team           = pool.team
-      engine         = pool.engine
-      role           = pool.role
-      size           = pool.size
-      node_pool      = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
-      instance_store = pool.engine == "spark" && pool.role == "executor"
-      taints = [
-        {
-          key      = "zipline.ai/workload"
-          operator = "Equal"
-          value    = local.compute_node_pool_slugs["${pool.team}:${pool.engine}:${pool.role}"]
-          effect   = "NoSchedule"
-        }
-      ]
-    }
-  ]
-  karpenter_system_node_pool = {
-    system = {
-      enabled = true
-      name    = local.system_node_pool
-      labels = {
-        "zipline.ai/team"      = "system"
-        "zipline.ai/node-pool" = local.system_node_pool
-      }
-      taints                 = local.system_node_tolerations
-      requirements           = local.karpenter_node_pool_requirements
-      expireAfter            = local.karpenter_system_expire_after
-      terminationGracePeriod = local.karpenter_system_termination_grace_period
-      limits                 = local.karpenter_pool_limits
-      disruption = {
-        # Only reclaim genuinely-empty nodes. WhenEmptyOrUnderutilized would
-        # drain still-in-use nodes, disrupting running Spark executors / Flink
-        # taskmanagers and stateful control-plane pods (loki, spark-history);
-        # the platform submitter does not set karpenter.sh/do-not-disrupt.
-        consolidationPolicy = "WhenEmpty"
-        consolidateAfter    = "1m"
-      }
-    }
-  }
-  karpenter_compute_node_pools = {
-    for pool in local.compute_node_pool_matrix :
-    pool.key => {
-      enabled = true
-      name    = pool.node_pool
-      labels = {
-        "zipline.ai/team"     = pool.team
-        "zipline.ai/engine"   = pool.engine
-        "zipline.ai/role"     = pool.role
-        "zipline.ai/workload" = pool.node_pool
-      }
-      taints = pool.taints
-      requirements = concat(
-        pool.size == "driver" ? local.karpenter_driver_requirements : local.karpenter_executor_requirements,
-        pool.instance_store ? local.karpenter_spark_executor_instance_store_requirements : [],
-      )
-      expireAfter = local.karpenter_compute_expire_after
-      limits      = pool.size == "driver" ? local.karpenter_driver_limits : local.karpenter_executor_limits
-      disruption = {
-        # Only reclaim genuinely-empty nodes. WhenEmptyOrUnderutilized would
-        # drain still-in-use nodes, disrupting running Spark executors / Flink
-        # taskmanagers and stateful control-plane pods (loki, spark-history);
-        # the platform submitter does not set karpenter.sh/do-not-disrupt.
-        consolidationPolicy = "WhenEmpty"
-        consolidateAfter    = "1m"
-      }
-    }
-  }
-  karpenter_default_node_pools = merge(
-    local.karpenter_system_node_pool,
-    local.karpenter_compute_node_pools,
-  )
-  karpenter_node_pool_inputs = {
-    for key, pool in merge(local.karpenter_default_node_pools, try(local.karpenter.node_pools, {})) :
-    key => merge(try(local.karpenter_default_node_pools[key], {}), pool)
-  }
-  karpenter_node_pools = {
-    for key, pool in local.karpenter_node_pool_inputs :
-    key => pool
-    if local.karpenter.enabled && try(pool.enabled, true)
-  }
 
   auth_saml_enabled = try(var.orchestration.auth.sso_use_saml, false)
   auth_secret_keys = concat(
@@ -371,10 +180,12 @@ locals {
     local.auth_saml_enabled ? ["sso-saml-cert"] : [],
   )
 
-  auth_enabled               = try(var.orchestration.auth.enabled, false)
-  configured_auth_secret_arn = try(local.cloud_args.auth_secret_arn, try(var.orchestration.auth.secrets_arn, ""))
-  create_auth_secret         = local.auth_enabled && length(keys(local.cloud_args.auth_secret_values)) > 0
-  auth_secret_arn            = local.create_auth_secret ? aws_secretsmanager_secret.zipline_auth[0].arn : local.configured_auth_secret_arn
+  auth_enabled = try(var.orchestration.auth.enabled, false)
+
+  auth_secret_arn = try(coalesce(
+    try(local.cloud_args.auth_secret_arn, ""),
+    try(var.orchestration.auth.secrets_arn, ""),
+  ), "")
 
   legacy_extra_secret_provider_objects = try(local.cloud_args.extra_secret_provider_objects, [])
   legacy_extra_secret_objects          = try(var.orchestration.secrets.extra_secret_objects, [])
@@ -424,9 +235,60 @@ locals {
   extra_external_secrets = concat(
     try(local.cloud_args.extra_external_secrets, []),
     local.legacy_extra_external_secrets,
+    local.redis_password_enabled ? [{
+      name = "redis-credentials"
+      spec = {
+        refreshInterval = "1h"
+        secretStoreRef  = { name = "zipline-secret-store", kind = "SecretStore" }
+        target = {
+          name           = "redis-credentials"
+          creationPolicy = "Owner"
+          template       = { type = "Opaque" }
+        }
+        data = [{
+          secretKey = "REDIS_PASSWORD"
+          remoteRef = {
+            key      = local.redis_password_secret_arn
+            property = local.redis.password_secret_key
+          }
+        }]
+      }
+    }] : [],
+    local.redis_password_enabled ? [
+      for namespace in local.redis_compute_namespaces : {
+        name      = "redis-credentials"
+        namespace = tostring(namespace.name)
+        spec = {
+          refreshInterval = "1h"
+          secretStoreRef  = { name = "zipline-cluster-secret-store", kind = "ClusterSecretStore" }
+          target = {
+            name           = "redis-credentials"
+            creationPolicy = "Owner"
+            template       = { type = "Opaque" }
+          }
+          data = [{
+            secretKey = "REDIS_PASSWORD"
+            remoteRef = {
+              key      = local.redis_password_secret_arn
+              property = local.redis.password_secret_key
+            }
+          }]
+        }
+      } if tostring(namespace.name) != local.orchestration_namespace
+    ] : [],
   )
   extra_external_secret_arns = distinct(compact(concat(
     try(local.cloud_args.extra_secret_arns, []),
+    try(var.orchestration.agents.enable, false) ? compact([
+      try(var.orchestration.agents.anthropic_api_key_remote_ref.key, ""),
+      try(var.orchestration.agents.openai_api_key_remote_ref.key, ""),
+      try(var.orchestration.agents.gemini_api_key_remote_ref.key, ""),
+    ]) : [],
+    trimspace(try(var.orchestration.conf_repo.url, "")) == "" ? [] : compact([
+      try(var.orchestration.conf_repo.github_token_remote_ref.key, ""),
+      try(var.orchestration.conf_repo.github_client_secret_remote_ref.key, ""),
+    ]),
+    local.redis_password_enabled ? [local.redis_password_secret_arn] : [],
     flatten([
       for external_secret in local.extra_external_secrets : [
         for item in try(external_secret.spec.data, []) : tostring(try(item.remoteRef.key, ""))
@@ -436,6 +298,11 @@ locals {
   )))
 
   module_orchestration = merge(var.orchestration, {
+    # On by default here (not in the module) because this root always supplies
+    # the StarRocks storage config that Data Explorer needs.
+    data_explorer        = { enabled = try(var.orchestration.data_explorer.enabled, true) }
+    # On by default: dynamic profiles and online fetches are served by the fetcher.
+    deployment = merge(local.deployment, { deploy_fetcher = local.deploy_fetcher })
     extra_secret_objects = []
     secrets = merge(try(var.orchestration.secrets, {}), {
       extra_secret_objects = []
@@ -506,6 +373,31 @@ locals {
           }
         }
       }
+      cluster_secret_store = {
+        create = local.redis_password_enabled
+        name   = "zipline-cluster-secret-store"
+        spec = {
+          provider = {
+            aws = {
+              service = "SecretsManager"
+              region  = local.cloud_args.region
+              auth = {
+                jwt = {
+                  serviceAccountRef = {
+                    name      = local.orchestration_service_account
+                    namespace = local.orchestration_namespace
+                  }
+                }
+              }
+            }
+          }
+          conditions = [{
+            namespaceSelector = {
+              matchLabels = { "zipline.ai/namespace-type" = "compute" }
+            }
+          }]
+        }
+      }
       database_remote_refs = {
         username = {
           key      = aws_secretsmanager_secret.db_credentials.arn
@@ -528,29 +420,81 @@ locals {
       { name = "AWS_REGION", value = local.cloud_args.region },
       { name = "AWS_DEFAULT_REGION", value = local.cloud_args.region },
     ]
+    fetcher_env = concat(local.fetcher_ooc == null ? [] : [{
+      name  = "FETCHER_OOC_TOPIC_INFO"
+      value = local.fetcher_ooc_topic_info
+    }], [
+      { name = "PROVIDER", value = "AWS" },
+      { name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix },
+      { name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) },
+      { name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) },
+      { name = "CHRONON_METRICS_READER", value = "prometheus" },
+      { name = "KV_STORE_TYPE", value = local.redis.enabled ? "redis" : "dynamodb" },
+      ], local.redis.enabled ? [
+      { name = "REDIS_CLUSTER_NODES", value = local.redis_cluster_nodes },
+      { name = "REDIS_USE_SSL", value = tostring(local.redis.use_ssl) },
+      ] : [], local.redis_password_enabled ? [{
+        name      = "REDIS_PASSWORD"
+        valueFrom = { secretKeyRef = { name = "redis-credentials", key = "REDIS_PASSWORD" } }
+      }] : [], [
+      { name = "AWS_STS_REGIONAL_ENDPOINTS", value = "regional" },
+    ])
     hub_env = concat(
-      local.cloud_args.kv_table_prefix == "" ? [] : [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }],
-      local.cloud_args.kv_enable_ttl ? [] : [{ name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) }],
-      length(local.cloud_args.kv_replica_regions) == 0 ? [] : [{ name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) }],
+      local.redis.enabled ? [
+        { name = "KV_STORE_TYPE", value = "redis" },
+        { name = "REDIS_CLUSTER_NODES", value = local.redis_cluster_nodes },
+        { name = "REDIS_USE_SSL", value = tostring(local.redis.use_ssl) },
+      ] : (local.cloud_args.kv_table_prefix == "" ? [] : [{ name = "KV_TABLE_PREFIX", value = local.cloud_args.kv_table_prefix }]),
+      local.redis.enabled || local.cloud_args.kv_enable_ttl ? [] : [{ name = "KV_ENABLE_TTL", value = tostring(local.cloud_args.kv_enable_ttl) }],
+      local.redis.enabled ? [] : (length(local.cloud_args.kv_replica_regions) == 0 ? [] : [{ name = "KV_REPLICA_REGIONS", value = join(",", local.cloud_args.kv_replica_regions) }]),
+      local.redis.enabled ? [] : (local.cloud_args.kv_batch_table_gc_age_days == "" ? [] : [{ name = "KV_BATCH_TABLE_GC_AGE_DAYS", value = local.cloud_args.kv_batch_table_gc_age_days }]),
+      local.redis_password_enabled ? [{ name = "REDIS_PASSWORD", valueFrom = { secretKeyRef = { name = "redis-credentials", key = "REDIS_PASSWORD" } } }] : [],
+      local.redis_password_enabled ? [{
+        name = "CRUCIBLE_SPARK_ADMIN_CONF"
+        value = jsonencode({
+          "spark.kubernetes.driver.secretKeyRef.REDIS_PASSWORD"   = "redis-credentials:REDIS_PASSWORD"
+          "spark.kubernetes.executor.secretKeyRef.REDIS_PASSWORD" = "redis-credentials:REDIS_PASSWORD"
+        })
+      }] : [],
       # Cluster name drives the AWS-console deployment URL emitted by
       # CrucibleSubmitter.getJobUrl. Without it the per-step "open in
       # console" link on each job comes up empty.
       [{ name = "EKS_CLUSTER_NAME", value = local.cluster_name }],
-      [
-        {
-          name = "OC_CREDENTIAL"
-          valueFrom = {
-            secretKeyRef = {
-              name     = local.polaris_client_secret_name
-              key      = local.polaris_client_secret_key
-              optional = true
-            }
-          }
-        }
+      # Databricks vault URI refs — giga tile / batch Iceberg jobs resolve these
+      # at startup; the hub fills {NAME} placeholders without holding the secrets.
+      try(trimspace(local.cloud_args.databricks_client_id), "") == "" ? [] : [
+        { name = "DATABRICKS_CLIENT_ID", value = local.cloud_args.databricks_client_id },
+        { name = "DATABRICKS_CLIENT_SECRET_VAULT_URI", value = aws_secretsmanager_secret.databricks_client_secret[0].arn },
+        { name = "DATABRICKS_CREDENTIAL_VAULT_URI", value = aws_secretsmanager_secret.databricks_credential[0].arn },
       ],
+      [local.polaris_credential_env],
+    )
+    # Eval reads Databricks credentials from its own env for UC schema lookups and resolves
+    # the secret's vault ref itself (orchestration IRSA already grants read on it).
+    eval_env = concat(
+      try(trimspace(local.cloud_args.databricks_client_id), "") == "" ? [] : [
+        { name = "DATABRICKS_CLIENT_ID", value = local.cloud_args.databricks_client_id },
+        { name = "DATABRICKS_CLIENT_SECRET_VAULT_URI", value = aws_secretsmanager_secret.databricks_client_secret[0].arn },
+      ],
+      [local.polaris_credential_env],
     )
     ui_env = local.eks_log_group == "" ? [] : [{ name = "AWS_EKS_LOG_GROUP", value = local.eks_log_group }]
-    values = local.provider_values
+    values = merge(
+      local.provider_values,
+      try(var.orchestration.values, {}),
+      {
+        orchestration = merge(
+          try(local.provider_values.orchestration, {}),
+          try(var.orchestration.values.orchestration, {}),
+          {
+            fetcher = merge(
+              try(local.provider_values.orchestration.fetcher, {}),
+              try(var.orchestration.values.orchestration.fetcher, {}),
+            )
+          }
+        )
+      }
+    )
   }
 
   spark_event_log_dir = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "s3a://${local.cloud_args.warehouse_bucket}/spark-events"
@@ -561,7 +505,7 @@ locals {
   ]
   hub_image                   = "ziplineai/hub-aws"
   eval_image                  = "ziplineai/eval-aws"
-  hub_verticle_class          = "ai.chronon.hub.AWSOrchestrationVerticle,ai.chronon.hub.AWSWorkflowExecutionVerticle"
+  hub_verticle_class          = "ai.chronon.hub.AWSOrchestrationVerticle,ai.chronon.hub.AWSWorkflowExecutionVerticle,ai.chronon.hub.cleanup.AWSCleanupVerticle"
   polaris_base_location       = "s3://${local.cloud_args.warehouse_bucket}/polaris/polaris_${local.deployment.customer_name}/"
   polaris_client_secret_name  = "polaris-client-credentials"
   polaris_client_secret_key   = "OC_CREDENTIAL"
@@ -577,6 +521,18 @@ locals {
     [local.cloud_args.encryption_kms_key_arn],
     values(local.cloud_args.encryption_kms_key_arns),
   )))
+  # Hub fills {OC_CREDENTIAL} in team confs for jobs; eval needs it too to read Polaris schemas for
+  # team-scoped catalogs. Optional so pods still start before the Polaris bootstrap writes the secret.
+  polaris_credential_env = {
+    name = "OC_CREDENTIAL"
+    valueFrom = {
+      secretKeyRef = {
+        name     = local.polaris_client_secret_name
+        key      = local.polaris_client_secret_key
+        optional = true
+      }
+    }
+  }
   artifact_bucket      = split("/", trimsuffix(trimprefix(trimspace(local.deployment.artifact_prefix), "s3://"), "/"))[0]
   logs_bucket          = local.cloud_args.logs_bucket != "" ? local.cloud_args.logs_bucket : "zipline-logs-${local.name_prefix}"
   glue_registry_name   = local.cloud_args.glue_schema_registry_name != "" ? local.cloud_args.glue_schema_registry_name : "zipline-${local.name_prefix}"
@@ -617,6 +573,7 @@ locals {
   )))
 
   ingress_lb_service = {
+    externalTrafficPolicy = local.cloud_args.ingress_traffic_policy
     annotations = {
       "service.beta.kubernetes.io/aws-load-balancer-type"    = "nlb"
       "service.beta.kubernetes.io/aws-load-balancer-scheme"  = "internet-facing"
@@ -640,6 +597,11 @@ locals {
         aws_s3_use_aws_sdk_default_behavior = true
         aws_s3_use_instance_profile         = true
         enable_load_volume_from_conf        = true
+      }
+      awsGlueCatalog = {
+        enabled = true
+        name    = "aws_glue"
+        region  = local.cloud_args.region
       }
       serviceAccount = local.orchestration_service_account
       nodeSelector   = local.system_node_selector
@@ -695,14 +657,7 @@ locals {
         nodeSelector = local.image_prepull_node_selector
         tolerations  = local.image_prepull_node_tolerations
       }
-      # Warm pool (driver-sized pause pods) pre-provisions a Spark driver node so
-      # real drivers skip a cold Karpenter launch. Reuse the driver pool's own
-      # labels/taints so the pause pods land there and can't drift from the pool.
-      warmPool = {
-        enabled      = local.karpenter.enabled
-        nodeSelector = local.karpenter_compute_node_pools[local.compute_node_pool_slugs["default:spark:driver"]].labels
-        tolerations  = local.karpenter_compute_node_pools[local.compute_node_pool_slugs["default:spark:driver"]].taints
-      }
+      warmPool = local.compute_warm_pool
     }
 
     orchestration = {
@@ -751,6 +706,23 @@ locals {
         nodeSelector = local.system_node_selector
         tolerations  = local.system_node_tolerations
       }
+    }
+
+    costExport = {
+      enabled      = local.cost_tracking_enabled
+      cloud        = "aws"
+      namespace    = try(local.cost_tracking.namespace, try(var.orchestration.compute.default_namespace, "zipline-default"))
+      schedule     = try(local.cost_tracking.schedule, "0 6 * * *")
+      lookbackDays = try(local.cost_tracking.lookback_days, 5)
+      aws = {
+        curExportPath = local.cost_cur_export_path
+        accounts      = try(local.cost_tracking.accounts, [data.aws_caller_identity.current.account_id])
+      }
+      nodeSelector = { "zipline.ai/engine" = "spark", "zipline.ai/role" = "driver" }
+      tolerations = [
+        { key = "zipline.ai/workload", operator = "Equal", value = "spark", effect = "NoSchedule" },
+        { key = "kubernetes.io/arch", operator = "Exists", effect = "NoSchedule" },
+      ]
     }
   }
 }

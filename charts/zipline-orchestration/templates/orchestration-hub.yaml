@@ -1,3 +1,4 @@
+{{- include "zipline-orchestration.validateComputeImageEnv" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,10 +16,12 @@ spec:
       app: orchestration-hub
   template:
     metadata:
-      {{- with .Values.orchestration.hub.podAnnotations }}
       annotations:
-      {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- with .Values.orchestration.hub.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        # Restart on template change.
+        checksum/compute-namespace-template: {{ include (print $.Template.BasePath "/compute-namespace-template.yaml") . | sha256sum }}
       labels:
         app: orchestration-hub
         {{- with .Values.podLabels }}
@@ -42,7 +45,7 @@ spec:
       {{- end }}
       containers:
         - name: orchestration-hub
-          image: "{{ required "orchestration.hub.image is required" .Values.orchestration.hub.image }}:{{ .Values.global.version }}"
+          image: "{{ required "orchestration.hub.image is required" .Values.orchestration.hub.image }}:{{ include "zipline-orchestration.spark4Version" . }}"
           securityContext:
             {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
             runAsUser: {{ .Values.orchestration.hub.runAsUser }}
@@ -82,9 +85,11 @@ spec:
             - name: CRUCIBLE_DEFAULT_NAMESPACE
               value: {{ include "zipline-orchestration.computeJobNamespace" . | quote }}
             - name: CRUCIBLE_SPARK_IMAGE
-              value: "{{ .Values.compute.sparkDefaults.image }}"
+              value: {{ include "zipline-orchestration.sparkImage" . | quote }}
             - name: CRUCIBLE_SPARK_SERVICE_ACCOUNT
               value: "{{ .Values.compute.serviceAccount.sparkName }}"
+            - name: CRUCIBLE_COMPUTE_NAMESPACE_TEMPLATE_DIR
+              value: "/etc/zipline/compute-namespace"
             {{- $historyServerPublicUrl := include "zipline-orchestration.historyServerPublicUrl" . }}
             {{- if $historyServerPublicUrl }}
             - name: CRUCIBLE_SPARK_HISTORY_PUBLIC_URL
@@ -94,12 +99,8 @@ spec:
               value: {{ include "zipline-orchestration.sparkEventLogDir" . | quote }}
             - name: LOKI_URL
               value: "http://{{ include "zipline-orchestration.fullname" . }}-loki.{{ include "zipline-orchestration.computeSystemNamespace" . }}.svc.cluster.local:3100"
-            {{- with .Values.compute.sparkDefaults.spotNodeSelector }}
-            - name: CRUCIBLE_SPOT_NODE_SELECTOR
-              value: {{ toJson . | quote }}
-            {{- end }}
             - name: CRUCIBLE_FLINK_IMAGE
-              value: "{{ .Values.compute.flinkDefaults.image }}"
+              value: {{ include "zipline-orchestration.flinkImage" . | quote }}
             - name: CRUCIBLE_FLINK_SERVICE_ACCOUNT
               value: "{{ .Values.compute.flinkDefaults.serviceAccount | default "flink" }}"
             - name: AUTH_ENABLED
@@ -134,6 +135,11 @@ spec:
             - name: CHRONON_PROMETHEUS_SERVER_PORT
               value: {{ .Values.orchestration.hub.metricsPort | quote }}
             {{- end }}
+            {{- /* The hub only registers /dynamic/v1/* routes when EVAL_URL is set */}}
+            {{- if not (has "EVAL_URL" $configuredEnvNames) }}
+            - name: EVAL_URL
+              value: "http://eval-service"
+            {{- end }}
             {{- with .Values.runtime.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -161,6 +167,14 @@ spec:
               port: {{ .Values.orchestration.hub.port }}
             initialDelaySeconds: 10
             periodSeconds: 5
+          volumeMounts:
+            - name: compute-namespace-template
+              mountPath: /etc/zipline/compute-namespace
+              readOnly: true
+      volumes:
+        - name: compute-namespace-template
+          configMap:
+            name: {{ include "zipline-orchestration.fullname" . }}-compute-namespace-template
 ---
 apiVersion: v1
 kind: Service

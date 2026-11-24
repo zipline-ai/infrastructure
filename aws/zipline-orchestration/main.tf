@@ -1,6 +1,22 @@
 variable "orchestration" {
   description = "Shared Zipline orchestration install inputs consumed by modules/zipline-orchestration."
   type        = any
+
+  validation {
+    condition = (
+      trimspace(try(var.orchestration.cost_tracking.cur_export_path, "")) == "" ||
+      can(regex("^s3a?://[a-z0-9.-]+/.+", trimspace(var.orchestration.cost_tracking.cur_export_path)))
+    )
+    error_message = "orchestration.cost_tracking.cur_export_path must be s3://<bucket>/<prefix>/<export>/data."
+  }
+
+  validation {
+    condition = (
+      try(var.orchestration.cost_tracking.enabled, false) != true ||
+      trimspace(try(var.orchestration.cost_tracking.cur_export_path, "")) != ""
+    )
+    error_message = "orchestration.cost_tracking.enabled = true requires cost_tracking.cur_export_path."
+  }
 }
 
 variable "aws" {
@@ -10,11 +26,15 @@ variable "aws" {
   validation {
     condition = alltrue([
       for key in [
-        "warehouse_bucket",
         "region",
       ] : trimspace(tostring(try(var.aws[key], ""))) != ""
     ])
-    error_message = "aws must include non-empty warehouse_bucket and region."
+    error_message = "aws must include non-empty region."
+  }
+
+  validation {
+    condition     = !contains(keys(var.aws), "auth_secret_values")
+    error_message = "aws.auth_secret_values is no longer supported. Store authentication values in AWS Secrets Manager and set aws.auth_secret_arn or orchestration.auth.secrets_arn."
   }
 
   # vpc_id/primary_subnet_id/secondary_subnet_id are provisioned on the fly when
@@ -38,15 +58,26 @@ variable "aws" {
 
 resource "terraform_data" "configuration_validation" {
   input = {
-    auth_enabled       = local.auth_enabled
-    auth_secret_arn    = local.configured_auth_secret_arn
-    create_auth_secret = local.create_auth_secret
+    auth_enabled    = local.auth_enabled
+    auth_secret_arn = local.auth_secret_arn
+    redis_enabled   = local.redis.enabled
+    redis_managed   = local.redis_managed
   }
 
   lifecycle {
     precondition {
-      condition     = !local.auth_enabled || local.create_auth_secret || trimspace(local.configured_auth_secret_arn) != ""
-      error_message = "When auth.enabled is true, set aws.auth_secret_arn, orchestration.auth.secrets_arn, or aws.auth_secret_values so the AWS wrapper can provide the auth secret."
+      condition     = !local.auth_enabled || can(regex("^arn:[a-z0-9-]+:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[A-Za-z0-9/_+=.@-]+$", local.auth_secret_arn))
+      error_message = "When auth.enabled is true, set aws.auth_secret_arn or orchestration.auth.secrets_arn to a valid AWS Secrets Manager secret ARN."
+    }
+
+    precondition {
+      condition     = !local.redis.enabled || local.redis_managed || trimspace(local.redis.password_secret_arn) == "" || startswith(trimspace(local.redis.password_secret_arn), "arn:")
+      error_message = "aws.redis.password_secret_arn must be a Secrets Manager ARN when using an existing Redis cluster."
+    }
+
+    precondition {
+      condition     = !local.redis_managed || (local.redis.shards >= 1 && local.redis.replicas_per_shard >= 0)
+      error_message = "Managed Redis requires aws.redis.shards >= 1 and aws.redis.replicas_per_shard >= 0."
     }
   }
 }
@@ -59,11 +90,16 @@ module "zipline_orchestration" {
 
   depends_on = [
     aws_eks_addon.aws_ebs_csi_driver,
+    aws_eks_addon.vpc_cni,
     aws_eks_node_group.default,
+    aws_iam_role_policy.orchestration_secrets,
+    aws_iam_role_policy.fetcher_ooc,
     kubernetes_storage_class_v1.gp3,
+    aws_secretsmanager_secret_version.redis,
     helm_release.aws_load_balancer_controller,
     helm_release.fluent_bit,
     helm_release.karpenter_nodepools,
     terraform_data.configuration_validation,
+    terraform_data.controller_resource_cleanup,
   ]
 }

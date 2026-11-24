@@ -13,6 +13,11 @@ module/chart layer, so AWS and Azure wrappers inherit the same behavior. Set
 `orchestration.hub.chronon_metrics_reader` or `orchestration.hub.metrics_port`
 to override it.
 
+The shared chart fixes Crucible compute to Spark 4 for every provider. The
+module ignores legacy Spark, Flink, and History Server image fields, always
+prepulls the Spark 4 image when prepulling is enabled, and derives Spark 4 Hub
+and Eval tags from `orchestration.deployment.zipline_version`.
+
 The module owns common Kubernetes installation mechanics:
 
 - Namespace creation.
@@ -27,3 +32,33 @@ The module owns common Kubernetes installation mechanics:
 Provider-specific controllers such as the AWS Load Balancer Controller and cloud
 identity bindings stay in cloud-specific wrappers. Shared controllers such as
 External Secrets Operator are installed through the add-ons module.
+
+Team compute namespaces are provisioned automatically when teams sync to the
+Hub. There is no separate `orchestration.compute.team_namespaces_enabled`
+setting. Set `orchestration.compute.rbac_create = false` only when the Hub's
+namespace-provisioner permissions and shared compute ClusterRoles are managed
+externally. The namespace template remains installed in that mode; see the
+[chart's team namespace requirements](../../charts/zipline-orchestration/README.md#team-compute-namespaces).
+
+## Data Explorer
+
+Data Explorer is disabled by default. Add this field to the existing
+`orchestration` object in each environment's tfvars to enable it:
+
+```hcl
+orchestration = {
+  # Existing deployment and other settings...
+  data_explorer = {
+    enabled = true
+  }
+}
+```
+
+Set `enabled = false` or omit `data_explorer` to disable the UI feature,
+StarRocks Helm release (operator and cluster), and catalog initialization job.
+This setting takes precedence over additional Helm values so the UI and
+StarRocks deployment stay consistent. Polaris remains available for other services.
+
+For existing deployments, set `enabled = true` before applying to retain
+Data Explorer. Applying with the default `false` removes the existing StarRocks
+release. A Terraform state migration preserves the release when enabled.
