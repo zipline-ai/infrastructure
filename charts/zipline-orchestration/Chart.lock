@@ -5,8 +5,5 @@ dependencies:
 - name: spark-operator
   repository: https://kubeflow.github.io/spark-operator
   version: 2.5.0
-- name: promtail
-  repository: https://grafana.github.io/helm-charts
-  version: 6.16.6
-digest: sha256:df7bccbf568f7cbf4503b39afc3c974c955d21ed3909b31a9ba22bd6d83c88a1
+digest: sha256:900720da008773aa0fbd0d55de525a203285c4648e5f05f0fd1ad6ebecdd6993
 generated: "2026-06-25T21:02:17.113162-07:00"

@@ -74,10 +74,10 @@ Standard. If you use a custom Hub image, set `orchestration.hub.runAsUser`
 to its numeric non-root UID. The Spark history server uses UID and group 185.
 Its cache volume must support writes by that group.
 
-Promtail is disabled by default because collecting node logs requires
-`hostPath` volumes. Enabling `promtail.daemonset.enabled` requires a namespace
-whose policy allows those mounts. Without a separate collector, disabling
-Promtail stops forwarding those logs to Loki.
+Grafana Alloy streams Pod stdout and stderr through the Kubernetes API and
+forwards it to the bundled Loki service. Its service account can discover
+Pods and read their logs across namespaces. Set `alloy.enabled=false` when
+another collector handles Pod logs. Alloy uses no host mounts.
 
 ## Validation
 

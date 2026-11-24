@@ -518,40 +518,15 @@ spark-operator:
     rbac:
       create: false
 
-promtail:
-  daemonset:
-    # Host log mounts require a namespace that permits hostPath volumes.
-    enabled: false
-  config:
-    clients: []
-    snippets:
-      pipelineStages:
-        - cri: {}
-        - json:
-            expressions:
-              workflowId: workflowId
-              stepId: stepId
-        - structured_metadata:
-            workflowId:
-            stepId:
-      extraRelabelConfigs:
-        - source_labels: [__meta_kubernetes_namespace]
-          action: drop
-          regex: kube-system|kube-public|kube-node-lease|cert-manager|default
-        - source_labels: [__meta_kubernetes_pod_label_chronon_job_id]
-          action: replace
-          target_label: chronon_job_id
-        - source_labels: [__meta_kubernetes_pod_label_spark_role]
-          action: replace
-          target_label: spark_role
-  tolerations:
-    - operator: Exists
+alloy:
+  enabled: true
+  image: grafana/alloy:v1.22.0
   resources:
     requests:
       cpu: 50m
-      memory: 64Mi
-    limits:
       memory: 128Mi
+    limits:
+      memory: 512Mi
 
 auth:
   enabled: false
