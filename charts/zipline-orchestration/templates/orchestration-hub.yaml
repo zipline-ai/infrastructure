@@ -25,6 +25,8 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      securityContext:
+        {{- include "zipline-orchestration.restrictedPodSecurityContext" . | nindent 8 }}
       serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -41,6 +43,9 @@ spec:
       containers:
         - name: orchestration-hub
           image: "{{ required "orchestration.hub.image is required" .Values.orchestration.hub.image }}:{{ .Values.global.version }}"
+          securityContext:
+            {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
+            runAsUser: {{ .Values.orchestration.hub.runAsUser }}
           imagePullPolicy: Always
           env:
             - name: VERTICLE_CLASS

@@ -220,3 +220,16 @@ reachable.
 {{- printf "https://%s%s" .Values.ingress.ui.host (include "zipline-orchestration.historyServerProxyBase" .) -}}
 {{- end -}}
 {{- end }}
+
+{{- define "zipline-orchestration.restrictedPodSecurityContext" -}}
+runAsNonRoot: true
+seccompProfile:
+  type: RuntimeDefault
+{{- end -}}
+
+{{- define "zipline-orchestration.restrictedContainerSecurityContext" -}}
+allowPrivilegeEscalation: false
+capabilities:
+  drop:
+    - ALL
+{{- end -}}

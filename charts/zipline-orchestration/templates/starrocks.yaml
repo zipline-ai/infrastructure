@@ -39,11 +39,16 @@ spec:
         app: starrocks
         app.kubernetes.io/component: catalog-init
     spec:
+      securityContext:
+        {{- include "zipline-orchestration.restrictedPodSecurityContext" . | nindent 8 }}
       restartPolicy: OnFailure
       serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
       initContainers:
         - name: wait-for-starrocks
           image: {{ $starrocks.mysqlImage | quote }}
+          securityContext:
+            {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
+            runAsUser: 10000
           command: ["/bin/sh", "-ec"]
           args:
             - |
@@ -58,6 +63,9 @@ spec:
       containers:
         - name: initialize-catalog
           image: {{ $starrocks.mysqlImage | quote }}
+          securityContext:
+            {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
+            runAsUser: 10000
           command: ["/bin/sh", "-ec"]
           args:
             - |

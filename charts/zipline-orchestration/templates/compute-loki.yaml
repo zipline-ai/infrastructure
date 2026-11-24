@@ -123,6 +123,7 @@ spec:
     spec:
       serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
       securityContext:
+        {{- include "zipline-orchestration.restrictedPodSecurityContext" . | nindent 8 }}
         fsGroup: 10001
         fsGroupChangePolicy: OnRootMismatch
       {{- with .Values.compute.loki.nodeSelector }}
@@ -142,6 +143,9 @@ spec:
       containers:
         - name: loki
           image: {{ .Values.compute.loki.image | default "grafana/loki:3.4.2" }}
+          securityContext:
+            {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
+            runAsUser: 10001
           args:
             - -config.file=/etc/loki/loki.yaml
           ports:

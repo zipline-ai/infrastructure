@@ -335,6 +335,7 @@ domains:
 # Orchestration services configuration
 orchestration:
   hub:
+    runAsUser: 999 # Numeric UID of hubuser in the default Hub images.
     image: ""
     verticleClass: ""
     replicas: 1
@@ -518,7 +519,9 @@ spark-operator:
       create: false
 
 promtail:
-  enabled: true
+  daemonset:
+    # Host log mounts require a namespace that permits hostPath volumes.
+    enabled: false
   config:
     clients: []
     snippets:

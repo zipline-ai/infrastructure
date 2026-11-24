@@ -158,12 +158,14 @@ spec:
       {{- toYaml . | nindent 8 }}
       {{- end }}
       securityContext:
+        {{- include "zipline-orchestration.restrictedPodSecurityContext" . | nindent 8 }}
         fsGroup: 10001
-        seccompProfile:
-          type: RuntimeDefault
       initContainers:
         - name: prepare-polaris-bootstrap
           image: {{ $polaris.database.initImage | quote }}
+          securityContext:
+            {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
+            runAsUser: 10000
           imagePullPolicy: IfNotPresent
           env:
             - name: PGUSER
@@ -284,6 +286,9 @@ spec:
       containers:
         - name: bootstrap-polaris
           image: "{{ $polaris.bootstrap.image.repository }}:{{ default $polaris.image.tag $polaris.bootstrap.image.tag }}"
+          securityContext:
+            {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
+            runAsUser: 10000
           imagePullPolicy: {{ default $polaris.image.pullPolicy $polaris.bootstrap.image.pullPolicy }}
           env:
             - name: POLARIS_PERSISTENCE_TYPE
@@ -322,6 +327,9 @@ spec:
 {{- toYaml $polaris.bootstrap.resources | nindent 12 }}
         - name: configure-polaris-rbac
           image: "{{ $polaris.bootstrap.rbac.image.repository }}:{{ $polaris.bootstrap.rbac.image.tag }}"
+          securityContext:
+            {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
+            runAsUser: 10000
           imagePullPolicy: {{ $polaris.bootstrap.rbac.image.pullPolicy }}
           env:
             - name: POLARIS_BASE_URL
@@ -977,13 +985,15 @@ spec:
       {{- toYaml . | nindent 8 }}
       {{- end }}
       securityContext:
+        {{- include "zipline-orchestration.restrictedPodSecurityContext" . | nindent 8 }}
         fsGroup: 10001
-        seccompProfile:
-          type: RuntimeDefault
       {{- if $polaris.database.create }}
       initContainers:
         - name: create-polaris-database
           image: {{ $polaris.database.initImage | quote }}
+          securityContext:
+            {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
+            runAsUser: 10000
           imagePullPolicy: IfNotPresent
           env:
             - name: PGUSER
@@ -1023,14 +1033,8 @@ spec:
           image: "{{ $polaris.image.repository }}:{{ $polaris.image.tag }}"
           imagePullPolicy: {{ $polaris.image.pullPolicy }}
           securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
+            {{- include "zipline-orchestration.restrictedContainerSecurityContext" . | nindent 12 }}
             runAsUser: 10000
-            capabilities:
-              drop:
-                - ALL
-            seccompProfile:
-              type: RuntimeDefault
           env:
             - name: QUARKUS_DATASOURCE_USERNAME
               valueFrom:

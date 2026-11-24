@@ -67,6 +67,18 @@ across the catalog, including namespaces created after bootstrap. Cloud
 Terraform wrappers should pass this grant explicitly when they construct
 provider values.
 
+## Pod Security Admission
+
+The shared chart defaults target the Kubernetes Restricted Pod Security
+Standard. If you use a custom Hub image, set `orchestration.hub.runAsUser`
+to its numeric non-root UID. The Spark history server uses UID and group 185.
+Its cache volume must support writes by that group.
+
+Promtail is disabled by default because collecting node logs requires
+`hostPath` volumes. Enabling `promtail.daemonset.enabled` requires a namespace
+whose policy allows those mounts. Without a separate collector, disabling
+Promtail stops forwarding those logs to Loki.
+
 ## Validation
 
 Render the chart with explicit overrides before wiring a cloud module:

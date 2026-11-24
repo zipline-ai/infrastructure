@@ -19,6 +19,8 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      securityContext:
+        {{- include "zipline-orchestration.restrictedPodSecurityContext" . | nindent 8 }}
       serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -35,6 +37,9 @@ spec:
       containers:
         - name: web-ui
           image: "{{ .Values.orchestration.ui.image }}:{{ .Values.global.version }}"
+          securityContext:
+            {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
+            runAsUser: 1001
           imagePullPolicy: Always
           env:
             - name: API_BASE_URL
