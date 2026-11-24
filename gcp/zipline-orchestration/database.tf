@@ -72,6 +72,7 @@ resource "google_sql_database_instance" "zipline" {
   encryption_key_name = local.cloud_args.cmek_key_id != "" ? local.cloud_args.cmek_key_id : null
 
   depends_on = [
+    google_project_service.required,
     google_service_networking_connection.psa,
   ]
 }
@@ -85,4 +86,7 @@ resource "google_sql_user" "zipline" {
   name     = local.cloud_args.database_username
   instance = google_sql_database_instance.zipline.name
   password = random_password.db_password.result
+  # The chart creates polaris_catalog owned by this user outside tofu, so
+  # Postgres refuses DROP ROLE on destroy. Deleting the instance removes the user.
+  deletion_policy = "ABANDON"
 }

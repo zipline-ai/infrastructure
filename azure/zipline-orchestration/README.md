@@ -608,3 +608,35 @@ StarRocks deployment stay consistent. Polaris remains available for other servic
 For existing deployments, set `enabled = true` before applying to retain
 Data Explorer. Applying with the default `false` removes the existing StarRocks
 release. A Terraform state migration preserves the release when enabled.
+
+## Conf repository sandbox
+
+Set `orchestration.conf_repo.url` to enable the internal sandbox and repository
+editor configuration. See the [sandbox configuration guide](../../charts/zipline-orchestration/SANDBOX.md)
+for inputs, cloud secret references, and image availability requirements.
+
+## Sandbox network isolation
+
+Sandbox networking uses an allowlisted egress proxy and NetworkPolicies.
+See the [sandbox network guide](../../charts/zipline-orchestration/SANDBOX.md#sandbox-network-isolation)
+for configuration, cluster enforcement, and rollout considerations.
+
+## Agents UI configuration
+
+Set `orchestration.agents.enable = true` to add `AGENTS=true` and
+`AGENTS_LLM_PROXY_URL=http://orchestration-ui-service` to the UI container.
+The URL points back to the UI as reached by the sandbox, using the UI Service's
+port 80. Set `orchestration.agents.llm_proxy_url` to override that URL.
+When `enable` is false or omitted, neither variable is added.
+This configures the UI only; it does not provision agent runtime services.
+
+### Agent provider API keys
+
+Set `orchestration.agents.anthropic_api_key_remote_ref`,
+`orchestration.agents.openai_api_key_remote_ref`, and/or
+`orchestration.agents.gemini_api_key_remote_ref` to cloud secret references.
+When agents are enabled, External Secrets syncs these into the UI through
+`secretKeyRef` as `AGENTS_ANTHROPIC_API_KEY`, `AGENTS_OPENAI_API_KEY`, and
+`AGENTS_GOOGLE_API_KEY`, respectively.
+See [provider credential configuration](../../charts/zipline-orchestration/AGENT_CREDENTIALS.md)
+for reference formats and examples. All references are optional.

@@ -105,6 +105,35 @@ cannot determine the reader from `valueFrom`, so it preserves that entry but
 does not declare metrics ports. If a port uses `valueFrom`, set its chart port
 to the same number so discovery matches the exporter.
 
+## Team compute namespaces
+
+Team namespace provisioning is part of the in-cluster compute installation.
+The chart always mounts the compute namespace template in the Hub at
+`/etc/zipline/compute-namespace` and sets
+`CRUCIBLE_COMPUTE_NAMESPACE_TEMPLATE_DIR` to that directory. The Hub uses this
+template to create service accounts, RoleBindings, and the configured namespace
+ResourceQuota and LimitRange for synced teams. Changes to the template restart
+the Hub. `compute.namespaceDefaults` controls the template's quota and
+LimitRange policies; compute service account annotations preserve the cloud
+workload identities supplied by the Terraform wrapper.
+
+With `compute.rbac.create: true` (the default), the chart grants the Hub
+namespace-provisioner access and installs the shared Spark driver, Flink
+JobManager, and compute submitter ClusterRoles.
+
+With `compute.rbac.create: false`, the chart still mounts the complete template.
+Before syncing teams, provision those shared ClusterRoles and bind the
+namespace-provisioner permissions to the Hub service account externally. The
+template's RoleBindings reference `<chart-fullname>-spark-driver`,
+`<chart-fullname>-flink-jobmanager`, and `<chart-fullname>-compute-submitter`.
+Use `templates/compute-cluster-roles.yaml` and
+`templates/compute-namespace-provisioning-rbac.yaml` as the permission contracts;
+the provisioner needs permission to create namespaces and template resources,
+bind those three roles, and manage the named `zipline-team` ResourceQuota.
+Also provide the cluster-wide compute watch permissions from
+`templates/compute-cluster-rbac.yaml`. Disabling chart RBAC delegates these
+permissions to the cluster administrator; it does not disable team provisioning.
+
 ## Compute workload quotas
 
 The chart creates `zipline-backfill` and `zipline-deploy` PriorityClasses that

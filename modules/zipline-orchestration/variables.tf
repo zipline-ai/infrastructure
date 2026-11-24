@@ -10,6 +10,14 @@ variable "orchestration" {
 
   validation {
     condition = (
+      try(var.orchestration.agents.enable, false) == true ||
+      try(var.orchestration.agents.enable, false) == false
+    )
+    error_message = "orchestration.agents.enable must be a boolean."
+  }
+
+  validation {
+    condition = (
       try(var.orchestration.data_explorer.enabled, false) == true ||
       try(var.orchestration.data_explorer.enabled, false) == false
     )

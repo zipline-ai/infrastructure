@@ -16,10 +16,12 @@ spec:
       app: orchestration-hub
   template:
     metadata:
-      {{- with .Values.orchestration.hub.podAnnotations }}
       annotations:
-      {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- with .Values.orchestration.hub.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        # Restart on template change.
+        checksum/compute-namespace-template: {{ include (print $.Template.BasePath "/compute-namespace-template.yaml") . | sha256sum }}
       labels:
         app: orchestration-hub
         {{- with .Values.podLabels }}
@@ -81,6 +83,8 @@ spec:
               value: {{ include "zipline-orchestration.sparkImage" . | quote }}
             - name: CRUCIBLE_SPARK_SERVICE_ACCOUNT
               value: "{{ .Values.compute.serviceAccount.sparkName }}"
+            - name: CRUCIBLE_COMPUTE_NAMESPACE_TEMPLATE_DIR
+              value: "/etc/zipline/compute-namespace"
             {{- $historyServerPublicUrl := include "zipline-orchestration.historyServerPublicUrl" . }}
             {{- if $historyServerPublicUrl }}
             - name: CRUCIBLE_SPARK_HISTORY_PUBLIC_URL
@@ -126,6 +130,11 @@ spec:
             - name: CHRONON_PROMETHEUS_SERVER_PORT
               value: {{ .Values.orchestration.hub.metricsPort | quote }}
             {{- end }}
+            {{- /* The hub only registers /dynamic/v1/* routes when EVAL_URL is set */}}
+            {{- if not (has "EVAL_URL" $configuredEnvNames) }}
+            - name: EVAL_URL
+              value: "http://eval-service"
+            {{- end }}
             {{- with .Values.runtime.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -153,6 +162,14 @@ spec:
               port: {{ .Values.orchestration.hub.port }}
             initialDelaySeconds: 10
             periodSeconds: 5
+          volumeMounts:
+            - name: compute-namespace-template
+              mountPath: /etc/zipline/compute-namespace
+              readOnly: true
+      volumes:
+        - name: compute-namespace-template
+          configMap:
+            name: {{ include "zipline-orchestration.fullname" . }}-compute-namespace-template
 ---
 apiVersion: v1
 kind: Service

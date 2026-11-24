@@ -1,5 +1,16 @@
 locals {
-  wi_pool = "${local.cloud_args.project_id}.svc.id.goog"
+  # Read from a bucket rather than data.google_project: that lookup needs the
+  # Cloud Resource Manager API at plan time, before apis.tf can turn it on.
+  project_number = google_storage_bucket.warehouse.project_number
+
+  # Read from the cluster, not built from the project ID: GKE creates the pool
+  # with the project's first Workload Identity cluster, and in a fresh project
+  # binding before then fails with "Identity Pool does not exist".
+  wi_pool = google_container_cluster.main.workload_identity_config[0].workload_pool
+
+  # Keyed off the cluster resource, not the name variable, so the binding cannot
+  # name a cluster this stack did not create.
+  cluster_self_link = "https://container.googleapis.com/v1/projects/${local.cloud_args.project_id}/locations/${google_container_cluster.main.location}/clusters/${google_container_cluster.main.name}"
 
   # §7.2 bucket grant map:
   #   - orchestration/eval get objectAdmin on owned; objectViewer on shared +
@@ -70,31 +81,43 @@ locals {
 resource "google_service_account" "orchestration" {
   account_id   = "${local.name_prefix}-orchestration"
   display_name = "Orchestration (hub, ui, eval, external-secrets reader)"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_service_account" "spark" {
   account_id   = "${local.name_prefix}-spark"
   display_name = "Spark compute execution"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_service_account" "flink" {
   account_id   = "${local.name_prefix}-flink"
   display_name = "Flink compute execution"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_service_account" "eval" {
   account_id   = "${local.name_prefix}-eval"
   display_name = "Eval service"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_service_account" "polaris_storage" {
   account_id   = "${local.name_prefix}-polaris"
   display_name = "Polaris GCS credential-vending identity"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_service_account" "external_secrets" {
   account_id   = "${local.name_prefix}-eso"
   display_name = "External Secrets Operator"
+
+  depends_on = [google_project_service.required]
 }
 
 # ---------------------------------------------------------------------------
@@ -107,27 +130,26 @@ resource "google_service_account_iam_member" "orchestration_wi" {
   member             = "serviceAccount:${local.wi_pool}[${local.orchestration_namespace}/${local.orchestration_service_account}]"
 }
 
-# Spark/Flink KSAs live in per-team compute namespaces (orchestration.compute.
-# namespaces). Bind each namespace's KSA explicitly rather than using a
-# principalSet — the GKE default WI pool only accepts "principal" (single KSA)
-# references, not namespace-wide "principalSet" wildcards. The plan's §7.1
-# principalSet note targets attribute mappings that aren't configurable on the
-# default pool; parity (new team namespace = tfvars edit, no new resource type)
-# comes from this for_each.
+# One cluster-scoped principalSet per GSA, because the Hub creates a namespace
+# per team on team sync: the set is not known at apply time, so a for_each over
+# it cannot cover it. The namespace-scoped principalSet form is rejected on the
+# default WI pool; the kubernetes.cluster form is not.
+#
+# The trade-off, taken deliberately: this covers every namespace in the cluster,
+# kube-system included. Having the Hub write a binding per namespace instead
+# needs read-modify-write with etag retries, tolerates propagation delay on a
+# new namespace's first job, and breaks silently if this file ever moves to
+# google_service_account_iam_binding.
 resource "google_service_account_iam_member" "spark_wi" {
-  for_each = { for ns in local.compute_namespaces : ns.name => ns }
-
   service_account_id = google_service_account.spark.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${local.wi_pool}[${each.value.name}/${local.spark_service_account}]"
+  member             = "principalSet://iam.googleapis.com/projects/${local.project_number}/locations/global/workloadIdentityPools/${local.wi_pool}/kubernetes.cluster/${local.cluster_self_link}"
 }
 
 resource "google_service_account_iam_member" "flink_wi" {
-  for_each = { for ns in local.compute_namespaces : ns.name => ns }
-
   service_account_id = google_service_account.flink.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${local.wi_pool}[${each.value.name}/${local.flink_service_account}]"
+  member             = "principalSet://iam.googleapis.com/projects/${local.project_number}/locations/global/workloadIdentityPools/${local.wi_pool}/kubernetes.cluster/${local.cluster_self_link}"
 }
 
 resource "google_service_account_iam_member" "eval_wi" {
@@ -136,10 +158,12 @@ resource "google_service_account_iam_member" "eval_wi" {
   member             = "serviceAccount:${local.wi_pool}[${local.orchestration_namespace}/eval]"
 }
 
-resource "google_service_account_iam_member" "polaris_wi" {
+# Polaris runs as the orchestration KSA and impersonates this GSA to mint
+# downscoped GCS tokens. GCP parity with AWS's orchestration_polaris_storage_assume_role.
+resource "google_service_account_iam_member" "orchestration_polaris_token_creator" {
   service_account_id = google_service_account.polaris_storage.name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${local.wi_pool}[${local.orchestration_namespace}/polaris]"
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.orchestration.email}"
 }
 
 resource "google_service_account_iam_member" "external_secrets_wi" {
@@ -152,9 +176,13 @@ resource "google_service_account_iam_member" "external_secrets_wi" {
 # Project-level IAM
 # ---------------------------------------------------------------------------
 
-# Orchestration GSA roles (§7.1).
+# Orchestration GSA roles (§7.1). Hub, UI and eval share this GSA, as they share
+# the orchestration IRSA role on AWS. BigQuery is read-only, matching its Glue Get*.
 resource "google_project_iam_member" "orchestration" {
   for_each = toset([
+    "roles/bigquery.dataViewer",
+    "roles/bigquery.jobUser",
+    "roles/bigquery.readSessionUser",
     "roles/bigtable.user",
     "roles/cloudsql.client",
     "roles/monitoring.metricWriter",
@@ -184,13 +212,14 @@ resource "google_project_iam_member" "spark" {
   member  = "serviceAccount:${google_service_account.spark.email}"
 }
 
-# Flink GSA roles. Pub/Sub publisher is additive on top of what the plan lists
-# — most streaming sources live outside this stack, but the fetcher may publish
-# into Pub/Sub when offloaded. If unused, no cost.
+# Flink GSA roles. Pub/Sub editor lets jobs consume, read topic schemas for
+# pubsub_schema serde, and create their own subscriptions. Project-wide, like
+# the AWS Flink role's Kinesis read.
 resource "google_project_iam_member" "flink" {
   for_each = toset([
     "roles/bigtable.user",
     "roles/logging.logWriter",
+    "roles/pubsub.editor",
   ])
 
   project = local.cloud_args.project_id
@@ -242,4 +271,17 @@ resource "google_project_iam_member" "personnel" {
   project = local.cloud_args.project_id
   role    = "roles/container.admin"
   member  = each.value
+
+  depends_on = [google_project_service.required]
+}
+
+# Cost export reads the billing export as the Spark GSA. Same-project datasets are already covered
+# by the project-level BigQuery roles above; a dataset in another project needs this grant.
+resource "google_bigquery_dataset_iam_member" "spark_billing_export" {
+  count = local.cost_tracking_enabled && local.cost_billing_export_project != local.cloud_args.project_id ? 1 : 0
+
+  project    = local.cost_billing_export_project
+  dataset_id = split(".", local.cost_billing_export_dataset)[1]
+  role       = "roles/bigquery.dataViewer"
+  member     = "serviceAccount:${google_service_account.spark.email}"
 }

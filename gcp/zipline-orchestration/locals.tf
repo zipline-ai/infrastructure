@@ -1,6 +1,7 @@
 locals {
-  cloud_args = merge({
-    # Required (no default): project_id, region, warehouse_bucket.
+  cloud_args_input = merge({
+    # Required (no default): project_id, region.
+    enable_apis                         = true
     cluster_name                        = ""
     network                             = ""
     subnet                              = ""
@@ -19,7 +20,11 @@ locals {
     autoscaling_profile                 = "OPTIMIZE_UTILIZATION"
     storage_class                       = "premium-rwo"
     logging_components                  = ["APISERVER", "CONTROLLER_MANAGER", "SCHEDULER", "SYSTEM_COMPONENTS", "WORKLOADS"]
-    monitoring_components               = ["SYSTEM_COMPONENTS", "APISERVER", "SCHEDULER", "CONTROLLER_MANAGER", "STORAGE", "HPA", "POD", "DAEMONSET", "DEPLOYMENT", "STATEFULSET"]
+    # CADVISOR/KUBELET are what put container_cpu_* / container_memory_* in GMP at all — the
+    # AWS stack gets them from the `cadvisor` job in aws/zipline-orchestration/observability.tf,
+    # and /monitor/crucible's container CPU-throttling and working-set charts read them.
+    monitoring_components               = ["SYSTEM_COMPONENTS", "APISERVER", "SCHEDULER", "CONTROLLER_MANAGER", "STORAGE", "HPA", "POD", "DAEMONSET", "DEPLOYMENT", "STATEFULSET", "CADVISOR", "KUBELET"]
+    warehouse_bucket                    = ""
     shared_warehouse_bucket             = ""
     additional_data_buckets             = []
     additional_flink_buckets            = []
@@ -36,6 +41,7 @@ locals {
     ingress_load_balancer_ip            = ""
     ingress_traffic_policy              = "Cluster"
     gke_deletion_protection             = true
+    gke_cost_allocation                 = true
     bucket_force_destroy                = false
     # Cloud SQL knobs
     database_name                       = "execution_info"
@@ -62,13 +68,22 @@ locals {
     bigtable_storage_target_gib         = 2560
     bigtable_deletion_protection        = true
     secret_deletion_protection          = true
+    # Bigtable bulk loader passed to jobs as UPLOADER. "spark" because team output
+    # goes to Polaris, which the BigQuery loader can't read.
+    kv_bulk_uploader                    = "spark"
     # DNS / Cloudflare (optional)
     cloudflare_record_name              = ""
   }, var.gcp)
 
+  # Bucket names are global, so the default derives from customer_name.
+  cloud_args = merge(local.cloud_args_input, {
+    warehouse_bucket = try(trimspace(local.cloud_args_input.warehouse_bucket), "") != "" ? local.cloud_args_input.warehouse_bucket : "zipline-${local.name_prefix}-warehouse"
+  })
+
   install                       = try(var.orchestration.install, {})
-  deployment                    = var.orchestration.deployment
-  deploy_fetcher                = try(local.deployment.deploy_fetcher, false)
+  default_artifact_prefix       = "gs://zipline-${var.orchestration.deployment.customer_name}-artifacts"
+  deployment                    = merge(var.orchestration.deployment, { artifact_prefix = trimspace(try(var.orchestration.deployment.artifact_prefix, "")) != "" ? var.orchestration.deployment.artifact_prefix : local.default_artifact_prefix })
+  deploy_fetcher                = try(local.deployment.deploy_fetcher, true)
   name_prefix                   = local.deployment.customer_name
   orchestration_namespace       = try(local.install.namespace, "zipline-system")
   orchestration_service_account = try(var.orchestration.service_account.name, "orchestration-sa")
@@ -77,6 +92,13 @@ locals {
   flink_service_account         = try(var.orchestration.compute.flink_service_account, "flink")
 
   compute_namespaces = try(var.orchestration.compute.namespaces, [{ name = try(var.orchestration.compute.default_namespace, "zipline-default"), team = "default" }])
+
+  cost_tracking         = try(var.orchestration.cost_tracking, {})
+  # On by default; until the billing export exists the daily job fails with a message saying so.
+  cost_tracking_enabled = try(local.cost_tracking.enabled, true)
+  # The onboarding doc asks customers to export to <cluster project>.billing_export.
+  cost_billing_export_dataset = try(local.cost_tracking.billing_export_dataset, "") != "" ? local.cost_tracking.billing_export_dataset : "${local.cloud_args.project_id}.billing_export"
+  cost_billing_export_project = split(".", local.cost_billing_export_dataset)[0]
 
   bigtable_zone = local.cloud_args.bigtable_zone != "" ? local.cloud_args.bigtable_zone : "${local.cloud_args.region}-a"
   bigtable_instance_name = local.cloud_args.bigtable_instance != "" ? local.cloud_args.bigtable_instance : "zipline-${local.name_prefix}-instance"
@@ -108,14 +130,28 @@ locals {
 
   # Flink jar base path (§3.4, §9.4). Mandatory; empty =>
   # resolvedAdditionalJarUris drops bare filenames and Flink runs with no jars.
+  # `zipline admin install` publishes the Spark 4 helper jars under the artifact
+  # prefix; stacks that name a spark_libs_bucket keep reading their hand-uploaded copy.
   flink_jars_base_path = try(coalesce(
     try(local.cloud_args.flink_jars_base_path, ""),
-    "gs://${local.spark_libs_bucket_name}/spark-4.1.3/libs/",
+    local.cloud_args.spark_libs_bucket != "" ? "gs://${local.spark_libs_bucket_name}/spark-4.1.3/libs/" : "${trimsuffix(local.deployment.artifact_prefix, "/")}/spark-4.1.3/libs/",
   ), "")
 
   polaris_base_location      = "gs://${local.cloud_args.warehouse_bucket}/polaris/polaris_${local.name_prefix}/"
   polaris_client_secret_name = "polaris-client-credentials"
   polaris_client_secret_key  = "OC_CREDENTIAL"
+  # Hub fills {OC_CREDENTIAL} in team confs for jobs; eval needs it too to read Polaris schemas for
+  # team-scoped catalogs. Optional so pods still start before the Polaris bootstrap writes the secret.
+  polaris_credential_env = {
+    name = "OC_CREDENTIAL"
+    valueFrom = {
+      secretKeyRef = {
+        name     = local.polaris_client_secret_name
+        key      = local.polaris_client_secret_key
+        optional = true
+      }
+    }
+  }
 
   hub_metrics_reader   = try(var.orchestration.hub.chronon_metrics_reader, try(var.orchestration.hub.metricsReader, "prometheus"))
   hub_metrics_port     = try(var.orchestration.hub.metrics_port, try(var.orchestration.hub.metricsPort, 8905))
@@ -126,6 +162,11 @@ locals {
   } : {}
 
   module_orchestration = merge(var.orchestration, {
+    # On by default here (not in the module) because this root always supplies
+    # the StarRocks storage config that Data Explorer needs.
+    data_explorer        = { enabled = try(var.orchestration.data_explorer.enabled, true) }
+    # On by default: dynamic profiles and online fetches are served by the fetcher.
+    deployment = merge(local.deployment, { deploy_fetcher = local.deploy_fetcher })
     extra_secret_objects = []
     secrets = merge(try(var.orchestration.secrets, {}), {
       extra_secret_objects = []
@@ -174,29 +215,30 @@ locals {
       { name = "CRUCIBLE_FLINK_JARS_BASE_PATH", value = local.flink_jars_base_path },
       { name = "LOG_PROVIDER", value = "gcp" },
     ],
-    [{
-      name = "OC_CREDENTIAL"
-      valueFrom = {
-        secretKeyRef = {
-          name     = local.polaris_client_secret_name
-          key      = local.polaris_client_secret_key
-          optional = true
-        }
-      }
-    }],
+    trimspace(local.cloud_args.kv_bulk_uploader) == "" ? [] : [
+      { name = "KV_BULK_UPLOADER", value = trimspace(local.cloud_args.kv_bulk_uploader) },
+    ],
+    # Pub/Sub streaming needs the connector on the Flink classpath; it ships in
+    # engine-gcp and `zipline admin install` uploads it to release/latest.
+    contains([for e in try(var.orchestration.hub.env, []) : e.name], "CRUCIBLE_FLINK_ADDITIONAL_JARS") ? [] : [
+      { name = "CRUCIBLE_FLINK_ADDITIONAL_JARS", value = "${trimsuffix(local.deployment.artifact_prefix, "/")}/release/latest/jars/connectors_pubsub_spark4_deploy.jar" },
+    ],
+    [local.polaris_credential_env],
   )
 
   # Eval reads project-id so BigQuery SDK/jobs resolve the current project
   # without extra config.
   eval_env = [
     { name = "GCP_PROJECT_ID", value = local.cloud_args.project_id },
+    local.polaris_credential_env,
   ]
 
   # UI knob (§11): the UI *queries* Managed Prometheus; the hub stays on
   # Prometheus-style metrics (§3.4). Do not set CHRONON_METRICS_READER=gcp.
+  # No UI LOG_PROVIDER here: the chart's Loki default is the only store with the
+  # crucible-spark log profile; with "gcp" the UI's Spark log query never matches.
   ui_env = [
     { name = "METRICS_PROVIDER", value = "gcp" },
-    { name = "LOG_PROVIDER", value = "gcp" },
   ]
 
   # Every service gets runtime_env, so GOOGLE_CLOUD_PROJECT is set here only.
@@ -317,18 +359,14 @@ locals {
       persistence = {
         storageClass = local.cloud_args.storage_class
       }
-      # §9.5: StarRocks reaches GCS over the S3 XML interop API, authenticated
-      # by HMAC keys. The HMAC key material lives in state + in the SR CR
-      # (R11); keep the bucket-scoped GSA so rotation is a bounded blast.
+      # FE and CN use the orchestration KSA. GKE's metadata server supplies
+      # its bound GSA credentials through the Compute Engine credential API.
       feConfig = {
-        run_mode                            = "shared_data"
-        cloud_native_storage_type           = "S3"
-        aws_s3_path                         = "${local.cloud_args.warehouse_bucket}/dataexplorer"
-        aws_s3_region                       = local.cloud_args.region
-        aws_s3_endpoint                     = "https://storage.googleapis.com"
-        aws_s3_use_aws_sdk_default_behavior = false
-        aws_s3_use_instance_profile         = false
-        enable_load_volume_from_conf        = true
+        run_mode                                   = "shared_data"
+        cloud_native_storage_type                  = "GS"
+        gcp_gcs_path                               = "${local.cloud_args.warehouse_bucket}/dataexplorer"
+        gcp_gcs_use_compute_engine_service_account = true
+        enable_load_volume_from_conf               = true
       }
       awsGlueCatalog = {
         enabled = false
@@ -358,7 +396,7 @@ locals {
               type             = "GCS"
               allowedLocations = [local.polaris_base_location]
               config = {
-                gcsServiceAccount = "serviceAccount:${google_service_account.polaris_storage.email}"
+                gcsServiceAccount = google_service_account.polaris_storage.email
               }
             }
           }
@@ -405,6 +443,31 @@ locals {
         nodeSelector = local.system_node_selector
         tolerations  = local.system_node_tolerations
       }
+    }
+
+    costExport = {
+      enabled      = local.cost_tracking_enabled
+      cloud        = "gcp"
+      namespace    = try(local.cost_tracking.namespace, try(var.orchestration.compute.default_namespace, "zipline-default"))
+      schedule     = try(local.cost_tracking.schedule, "0 6 * * *")
+      lookbackDays = try(local.cost_tracking.lookback_days, 5)
+      gcp = {
+        billingExportDataset = local.cost_billing_export_dataset
+        projects             = try(local.cost_tracking.projects, [local.cloud_args.project_id])
+        jobProject           = local.cloud_args.project_id
+      }
+      nodeSelector = { "zipline.ai/engine" = "spark", "zipline.ai/role" = "driver" }
+      tolerations = [
+        { key = "zipline.ai/workload", operator = "Equal", value = "spark", effect = "NoSchedule" },
+        { key = "kubernetes.io/arch", operator = "Exists", effect = "NoSchedule" },
+      ]
+    }
+
+    nodepoolExporter = {
+      enabled      = true
+      clusterName  = local.cluster_name
+      nodeSelector = local.system_node_selector
+      tolerations  = local.system_node_tolerations
     }
 
     "ingress-nginx-ui" = {

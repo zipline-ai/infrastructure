@@ -751,3 +751,29 @@ resource "aws_iam_role_policy" "polaris_storage" {
   role   = aws_iam_role.polaris_storage.id
   policy = data.aws_iam_policy_document.polaris_storage.json
 }
+
+# Cost export reads the CUR 2.0 export as the Spark role. The export usually lives in the payer
+# account, whose bucket policy must also allow this account (see README, Cost tracking).
+data "aws_iam_policy_document" "spark_compute_cost_export" {
+  count = local.cost_tracking_enabled ? 1 : 0
+
+  statement {
+    effect    = "Allow"
+    actions   = ["s3:ListBucket", "s3:GetBucketLocation"]
+    resources = ["arn:aws:s3:::${local.cost_cur_bucket}"]
+  }
+
+  statement {
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
+    resources = ["arn:aws:s3:::${local.cost_cur_bucket}/${local.cost_cur_prefix}/*"]
+  }
+}
+
+resource "aws_iam_role_policy" "spark_compute_cost_export" {
+  count = local.cost_tracking_enabled ? 1 : 0
+
+  name   = "${local.name_prefix}-spark-compute-cost-export"
+  role   = aws_iam_role.spark_compute_execution.id
+  policy = data.aws_iam_policy_document.spark_compute_cost_export[0].json
+}

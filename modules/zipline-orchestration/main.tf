@@ -381,6 +381,94 @@ locals {
   }
   ui = merge(local.ui_defaults, try(local.orchestration.ui, {}))
 
+  # Cloud SecretStore implementations resolve these references without secret values in Helm.
+  conf_repo = merge({
+    url                             = ""
+    path                            = ""
+    branch                          = "main"
+    zipline_env                     = "default"
+    github_client_id                = ""
+    github_scope                    = "repo"
+    github_token_remote_ref         = {}
+    github_client_secret_remote_ref = {}
+  }, try(local.orchestration.conf_repo, {}))
+  conf_repo_enabled = trimspace(local.conf_repo.url) != ""
+  conf_repo_remote_refs = {
+    for key, ref in {
+      github-token         = local.conf_repo.github_token_remote_ref
+      github-client-secret = local.conf_repo.github_client_secret_remote_ref
+    } : key => ref if local.conf_repo_enabled && try(ref.key, "") != ""
+  }
+  conf_repo_external_secret = {
+    name = "conf-repo-credentials"
+    spec = {
+      refreshInterval = local.secrets.refresh_interval
+      secretStoreRef = {
+        name = local.secrets.secret_store.name
+        kind = local.secrets.secret_store.kind
+      }
+      target = {
+        name           = "conf-repo-credentials"
+        creationPolicy = "Owner"
+      }
+      data = [for key, ref in local.conf_repo_remote_refs : {
+        secretKey = key
+        remoteRef = ref
+      }]
+    }
+  }
+
+  agents_remote_refs = {
+    for name, ref in {
+      AGENTS_ANTHROPIC_API_KEY = try(local.orchestration.agents.anthropic_api_key_remote_ref, {})
+      AGENTS_OPENAI_API_KEY    = try(local.orchestration.agents.openai_api_key_remote_ref, {})
+      AGENTS_GOOGLE_API_KEY    = try(local.orchestration.agents.gemini_api_key_remote_ref, {})
+    } : name => ref if try(local.orchestration.agents.enable, false) && try(ref.key, "") != ""
+  }
+  agents_external_secret = {
+    name = "agents-provider-credentials"
+    spec = {
+      refreshInterval = local.secrets.refresh_interval
+      secretStoreRef = {
+        name = local.secrets.secret_store.name
+        kind = local.secrets.secret_store.kind
+      }
+      target = {
+        name           = "agents-provider-credentials"
+        creationPolicy = "Owner"
+      }
+      data = [for name, ref in local.agents_remote_refs : {
+        secretKey = name
+        remoteRef = ref
+      }]
+    }
+  }
+
+  ui_env_all = concat(
+    local.orchestration.metrics_provider == "" ? [] : [{ name = "METRICS_PROVIDER", value = local.orchestration.metrics_provider }],
+    try(local.orchestration.agents.enable, false) ? [
+      { name = "AGENTS", value = "true" },
+      { name = "AGENTS_LLM_PROXY_URL", value = try(local.orchestration.agents.llm_proxy_url, "http://orchestration-ui-service") },
+    ] : [],
+    [for name, ref in local.agents_remote_refs : {
+      name = name
+      valueFrom = {
+        secretKeyRef = {
+          name = "agents-provider-credentials"
+          key  = name
+        }
+      }
+    }],
+    try(local.orchestration.provider_ui_env, []),
+    try(local.orchestration.ui_env, []),
+  )
+  # Duplicate env names make Kubernetes reject Deployment patches once the list
+  # changes shape. Keep one entry per name; the last wins, as kubelet would.
+  ui_env = [
+    for name in distinct([for e in local.ui_env_all : e.name]) :
+    [for e in local.ui_env_all : e if e.name == name][length([for e in local.ui_env_all : e if e.name == name]) - 1]
+  ]
+
   hub_env = concat(
     local.hub.data_quality_metrics_dataset == "" ? [] : [
       {
@@ -447,6 +535,8 @@ locals {
 
   external_secret_targets = concat(
     [local.database_external_secret],
+    length(local.agents_remote_refs) > 0 ? [local.agents_external_secret] : [],
+    length(local.conf_repo_remote_refs) > 0 ? [local.conf_repo_external_secret] : [],
     local.auth_enabled ? [local.auth_external_secret] : [],
     local.secrets.extra_external_secrets,
   )
@@ -750,6 +840,17 @@ locals {
     }
 
     orchestration = {
+      confRepo = {
+        url             = trimspace(local.conf_repo.url)
+        path            = local.conf_repo.path
+        branch          = local.conf_repo.branch
+        ziplineEnv      = local.conf_repo.zipline_env
+        githubClientId  = local.conf_repo.github_client_id
+        githubScope     = local.conf_repo.github_scope
+        tokenKey        = contains(keys(local.conf_repo_remote_refs), "github-token") ? "github-token" : ""
+        clientSecretKey = contains(keys(local.conf_repo_remote_refs), "github-client-secret") ? "github-client-secret" : ""
+      }
+      sandbox = try(local.orchestration.sandbox, {})
       hub = {
         image          = local.hub.image
         verticleClass  = local.hub_verticle_class
@@ -760,11 +861,7 @@ locals {
       }
       ui = {
         origin = local.ui.origin
-        env = concat(
-          local.orchestration.metrics_provider == "" ? [] : [{ name = "METRICS_PROVIDER", value = local.orchestration.metrics_provider }],
-          try(local.orchestration.provider_ui_env, []),
-          try(local.orchestration.ui_env, []),
-        )
+        env    = local.ui_env
       }
       fetcher = {
         env = concat(

@@ -1,6 +1,14 @@
 variable "orchestration" {
   description = "Shared Zipline orchestration install inputs consumed by modules/zipline-orchestration."
   type        = any
+
+  validation {
+    condition = (
+      trimspace(try(var.orchestration.cost_tracking.billing_export_dataset, "")) == "" ||
+      can(regex("^[a-z][a-z0-9-]*\\.[A-Za-z0-9_]+$", var.orchestration.cost_tracking.billing_export_dataset))
+    )
+    error_message = "orchestration.cost_tracking.billing_export_dataset must be <project>.<dataset>."
+  }
 }
 
 variable "gcp" {
@@ -12,10 +20,9 @@ variable "gcp" {
       for key in [
         "project_id",
         "region",
-        "warehouse_bucket",
       ] : trimspace(tostring(try(var.gcp[key], ""))) != ""
     ])
-    error_message = "gcp must include non-empty project_id, region, and warehouse_bucket."
+    error_message = "gcp must include non-empty project_id and region."
   }
 
   # network/subnet are provisioned on the fly when omitted (see network.tf);
@@ -50,7 +57,7 @@ resource "terraform_data" "configuration_validation" {
         can(regex("^projects/[^/]+/secrets/[^/]+$", local.auth_secret_id)) ||
         can(regex("^[A-Za-z0-9_-]+$", local.auth_secret_id))
       )
-      error_message = "When auth.enabled is true, set gcp.auth_secret_id or orchestration.auth.secrets_arn to a Secret Manager id (projects/<project>/secrets/<name> or a bare id)."
+      error_message = "When auth.enabled is true, set gcp.auth_secret_id or orchestration.auth.secrets_arn to an existing Secret Manager secret (projects/<project>/secrets/<name>, or a bare id in gcp.project_id). Terraform does not create the auth secret."
     }
   }
 }
@@ -62,18 +69,22 @@ module "zipline_orchestration" {
   provider_context = local.provider_context
 
   depends_on = [
+    terraform_data.controller_resource_cleanup,
     google_container_node_pool.pools,
     google_project_iam_member.orchestration,
     google_project_iam_member.spark,
     google_project_iam_member.flink,
     google_project_iam_member.eval,
     google_service_account_iam_member.orchestration_wi,
+    google_storage_bucket_iam_member.bucket_grants,
     google_service_account_iam_member.spark_wi,
     google_service_account_iam_member.flink_wi,
     google_service_account_iam_member.eval_wi,
-    google_service_account_iam_member.polaris_wi,
+    google_service_account_iam_member.orchestration_polaris_token_creator,
     google_service_account_iam_member.external_secrets_wi,
     google_secret_manager_secret_version.db_credentials,
+    google_secret_manager_secret_iam_member.orchestration_extras,
+    google_secret_manager_secret_iam_member.eso_extras,
     google_sql_database.execution_info,
     google_bigtable_app_profile.groupby_ingest,
     google_storage_bucket_object.spark_events_prefix,

@@ -7,6 +7,8 @@ resource "google_compute_address" "ingress" {
   name         = "${local.name_prefix}-ingress"
   address_type = "EXTERNAL"
   region       = local.cloud_args.region
+
+  depends_on = [google_project_service.required]
 }
 
 locals {
