@@ -61,12 +61,16 @@ compute:
       defaultRequest:
         cpu: "0"
         memory: "0"
-      # Refused at admission, with a clear message, rather than left Pending for
-      # ever: a container may not ask for more than the largest node can hold.
-      # Raise this in step with the biggest instance type the pools can grow to.
-      max:
-        cpu: "15"
-        memory: "56Gi"
+      # No `max` by default: nothing caps what a container may ask for unless a
+      # deployment sets one. The template still renders `max` (and `min`, and
+      # `maxLimitRequestRatio`) when present, so a cluster that wants an
+      # admission ceiling can add it per namespace or in its own values.
+      #
+      # The cost of leaving it out, for whoever revisits this: a container asking
+      # for more than any node can hold is admitted and then sits Pending with
+      # `PodScheduled: Unschedulable` instead of being refused with a message at
+      # submission time. That is Kubernetes' normal behaviour and the autoscaler
+      # needs it — a Pending pod is what asks for a bigger node.
   namespaces:
     - name: zipline-default
       team: default
