@@ -76,7 +76,7 @@ metadata:
   labels:
     {{- $labels | nindent 4 }}
   annotations:
-    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook": post-install,post-upgrade,post-rollback
     "helm.sh/hook-weight": "2"
     "helm.sh/hook-delete-policy": before-hook-creation
     checksum/script: {{ printf "%s%s" (.Files.Get "files/cost-export.py") (.Files.Get "files/cost-export-init.py") | sha256sum }}

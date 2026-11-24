@@ -49,6 +49,16 @@ class CostExportChartTest(unittest.TestCase):
     def test_disabled_by_default(self):
         docs = render({})
         self.assertFalse(any(d["kind"] == "ScheduledSparkApplication" for d in docs))
+        # helm template has no cluster, so lookup finds no leftover schedule to clean up.
+        self.assertFalse(any(d["metadata"]["name"].startswith("cost-export") for d in docs))
+
+    def test_hooks_also_run_on_rollback(self):
+        docs = render(ENABLED)
+        for kind, name, weight in [("Job", "cost-export-webhook-gate", "1"),
+                                   ("ScheduledSparkApplication", "cost-export", "2")]:
+            annotations = find(docs, kind, name)["metadata"]["annotations"]
+            self.assertEqual(annotations["helm.sh/hook"], "post-install,post-upgrade,post-rollback")
+            self.assertEqual(annotations["helm.sh/hook-weight"], weight)
 
     def test_enabled(self):
         docs = render(ENABLED)
