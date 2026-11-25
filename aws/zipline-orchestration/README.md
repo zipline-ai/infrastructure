@@ -676,3 +676,19 @@ When agents are enabled, External Secrets syncs these into the UI through
 `AGENTS_GOOGLE_API_KEY`, respectively.
 See [provider credential configuration](../../charts/zipline-orchestration/AGENT_CREDENTIALS.md)
 for reference formats and examples. All references are optional.
+
+### Scheduled request jobs
+
+Set `aws.request_jobs` in the deployment's private tfvars to a map from CronJob
+name to Kubernetes `batch/v1` CronJob spec. The wrapper manages these jobs in the
+orchestration namespace. The default is an empty map, so existing deployments
+are unchanged. Keep image digests, join names and schedules in private config.
+For an existing job, import it before applying:
+
+```sh
+tofu import 'kubernetes_manifest.request_jobs["my-request-job"]' \
+  'apiVersion=batch/v1,kind=CronJob,namespace=zipline-system,name=my-request-job'
+```
+
+Deploy and verify the referenced features before changing a job's join target.
+Removing a map entry removes the managed CronJob on the next apply.
