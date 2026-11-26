@@ -162,11 +162,16 @@ Hub and Eval use the GCP repositories `ziplineai/hub-gcp` and
 ### Ingress and TLS
 
 The wrapper reserves a regional external IP for ingress-nginx and creates a
-public GKE L4 load balancer. After apply, run
-`tofu output -raw ingress_dns_instructions` and create a DNS A record for
-`orchestration.ingress.domain` pointing to the effective ingress Service IP
-shown in that output. TLS terminates at ingress-nginx using a Kubernetes TLS
-Secret.
+public GKE L4 load balancer. Before creating DNS records, confirm the ingress
+controller Service has an external IP in `.status.loadBalancer.ingress`, run
+`tofu apply -refresh-only`, and reread `tofu output -raw ingress_dns_instructions`
+as shown in [Deploy](#deploy). Create a DNS A record for
+`orchestration.ingress.domain` pointing to the confirmed Service IP.
+
+Until the Service publishes its IP and state is refreshed, the output can fall
+back to the wrapper's reserved IP. That IP may be incorrect when
+`orchestration.install.helm_wait = false` or a Helm override sets a different
+`loadBalancerIP`. TLS terminates at ingress-nginx using a Kubernetes TLS Secret.
 
 For cert-manager HTTP-01 certificates, add these settings to `orchestration`.
 DNS must resolve to the ingress IP and port 80 must be reachable for validation:
@@ -549,18 +554,33 @@ tofu plan -out="$HOME/.config/zipline-bootstrap/customer.tfplan"
 tofu apply "$HOME/.config/zipline-bootstrap/customer.tfplan"
 ```
 
-After apply, configure DNS using the ingress IP and configure kubectl:
+After apply, configure kubectl and inspect the ingress controller Service:
 
 ```shell
-tofu output -raw ingress_dns_instructions
 tofu output -raw kubeconfig_command
-# Run the command printed above, then inspect the installation:
+# Run the command printed above, then inspect the Service's external IP:
+kubectl get service zipline-orchestration-ingress-nginx-ui-controller \
+  -n zipline-system -o jsonpath='{.status.loadBalancer.ingress[*].ip}{"\n"}'
+```
+
+Use your configured release name and namespace if they differ from
+`zipline-orchestration` and `zipline-system`. Wait until the Service status shows
+an external IP. Then refresh the stored output and read the DNS instructions:
+
+```shell
+tofu apply -refresh-only
+tofu output -raw ingress_dns_instructions
+```
+
+Confirm the IP in the output matches the Service status before creating the
+DNS A record for `orchestration.ingress.domain`. Inspect the installation:
+
+```shell
 kubectl get pods -n zipline-system
 kubectl get ingress -n zipline-system
 ```
 
-Use your configured namespace if it differs from `zipline-system`. Verify DNS,
-TLS issuance, and application readiness before submitting jobs.
+Verify DNS, TLS issuance, and application readiness before submitting jobs.
 
 
 ## Outputs
