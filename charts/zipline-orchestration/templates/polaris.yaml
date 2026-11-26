@@ -52,6 +52,18 @@
 {{- if hasKey $existingRuntimeClientSecretData $runtimeClientCredentialsSecretKey -}}
 {{- $runtimeClientCredentials = index $existingRuntimeClientSecretData $runtimeClientCredentialsSecretKey -}}
 {{- end -}}
+{{- $tokenBrokerSecret := default dict (default dict $polaris.tokenBroker).secret -}}
+{{- $tokenBrokerSecretName := default "polaris-token-broker" $tokenBrokerSecret.name -}}
+{{- $tokenBrokerSecretKey := default "symmetric-key" $tokenBrokerSecret.key -}}
+{{- $existingTokenBrokerSecret := lookup "v1" "Secret" .Release.Namespace $tokenBrokerSecretName -}}
+{{- $existingTokenBrokerSecretData := dict -}}
+{{- if $existingTokenBrokerSecret -}}
+{{- $existingTokenBrokerSecretData = default dict $existingTokenBrokerSecret.data -}}
+{{- end -}}
+{{- $tokenBrokerKey := randAlphaNum 64 | b64enc -}}
+{{- if hasKey $existingTokenBrokerSecretData $tokenBrokerSecretKey -}}
+{{- $tokenBrokerKey = index $existingTokenBrokerSecretData $tokenBrokerSecretKey -}}
+{{- end -}}
 {{- $databaseName := required "polaris.database.name is required" $polaris.database.name -}}
 {{- $databaseHost := required "database.host is required" .Values.database.host -}}
 {{- $databaseAddress := printf "%s:%v" $databaseHost (.Values.database.port | default 5432) -}}
@@ -89,6 +101,21 @@ data:
   {{ $runtimeClientCredentialsSecretKey }}: {{ $runtimeClientCredentials | quote }}
 ---
 apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $tokenBrokerSecretName | quote }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/resource-policy": keep
+  labels:
+    app: polaris
+    app.kubernetes.io/component: polaris-token-broker
+    {{- include "zipline-orchestration.labels" . | nindent 4 }}
+type: Opaque
+data:
+  {{ $tokenBrokerSecretKey }}: {{ $tokenBrokerKey | quote }}
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: polaris-config
@@ -107,6 +134,7 @@ data:
     polaris.realm-context.type=default
     polaris.realm-context.realms={{ $realm }}
     polaris.realm-context.require-header={{ $polaris.realmContext.requireHeader }}
+    polaris.authentication.token-broker.type=symmetric-key
     {{- range $key, $value := $polaris.extraConfig }}
     {{ $key }}={{ $value }}
     {{- end }}
@@ -1032,6 +1060,11 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           env:
+            - name: POLARIS_AUTHENTICATION_TOKEN_BROKER_SYMMETRIC_KEY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $tokenBrokerSecretName | quote }}
+                  key: {{ $tokenBrokerSecretKey }}
             - name: QUARKUS_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef:

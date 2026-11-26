@@ -220,6 +220,13 @@ polaris:
     clusterIP: None
   realmContext:
     requireHeader: false
+  # Polaris signs OAuth tokens with this key. Its default broker generates keys at startup, so every
+  # restart or redeploy rejects tokens already issued and fails running Spark jobs. The key is generated
+  # once on install, kept across upgrades and uninstalls, and shared by all replicas.
+  tokenBroker:
+    secret:
+      name: "polaris-token-broker"
+      key: "symmetric-key"
   bootstrap:
     backoffLimit: 6
     activeDeadlineSeconds: 900
