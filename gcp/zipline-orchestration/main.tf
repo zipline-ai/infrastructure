@@ -57,7 +57,7 @@ resource "terraform_data" "configuration_validation" {
         can(regex("^projects/[^/]+/secrets/[^/]+$", local.auth_secret_id)) ||
         can(regex("^[A-Za-z0-9_-]+$", local.auth_secret_id))
       )
-      error_message = "When auth.enabled is true, set gcp.auth_secret_id or orchestration.auth.secrets_arn to a Secret Manager id (projects/<project>/secrets/<name> or a bare id)."
+      error_message = "When auth.enabled is true, set gcp.auth_secret_id or orchestration.auth.secrets_arn to an existing Secret Manager secret (projects/<project>/secrets/<name>, or a bare id in gcp.project_id). Terraform does not create the auth secret."
     }
   }
 }
@@ -83,6 +83,8 @@ module "zipline_orchestration" {
     google_service_account_iam_member.orchestration_polaris_token_creator,
     google_service_account_iam_member.external_secrets_wi,
     google_secret_manager_secret_version.db_credentials,
+    google_secret_manager_secret_iam_member.orchestration_extras,
+    google_secret_manager_secret_iam_member.eso_extras,
     google_sql_database.execution_info,
     google_bigtable_app_profile.groupby_ingest,
     google_storage_bucket_object.spark_events_prefix,

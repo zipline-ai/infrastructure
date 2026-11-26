@@ -206,14 +206,12 @@ store is fixed to `gcp.project_id`, and the auth reference is passed through
 without normalization. Cross-project auth requires a separate store that the
 wrapper does not currently configure.
 
-For a secret in the target project, Terraform creates the secret container but
-**does not populate an auth secret version**. If the container already exists,
-import it before apply. For a new same-project secret, use the staged bootstrap
-below: create the container first, publish its JSON version, then run the full
-apply. Helm waits for readiness by default, so a full apply before publishing
-the version can time out waiting for authenticated services. The deploying
-identity needs permission to grant secret access in the cluster project. The
-wrapper grants orchestration and External Secrets Operator access.
+
+Create the auth secret and populate its JSON value before the full apply.
+Terraform does not create the auth container or write its value; it grants
+orchestration and External Secrets Operator access to the existing secret.
+Helm waits for readiness by default, so applying without a populated secret
+can time out waiting for authenticated services.
 
 The JSON secret must have these properties (include empty values for unused
 providers):
@@ -240,38 +238,36 @@ touch "$HOME/.config/zipline-bootstrap/auth-secrets.json"
 chmod 600 "$HOME/.config/zipline-bootstrap/auth-secrets.json"
 ```
 
-Keep this directory outside any Git checkout. With authentication enabled and
-the secret ID configured in tfvars, bootstrap a **new same-project** secret
-from this wrapper directory:
-
-1. Initialize the configured state backend and create only the auth container:
-
-   ```shell
-   tofu init -reconfigure -backend-config=backend.hcl
-   tofu apply -target='google_secret_manager_secret.auth[0]'
-   ```
-
-2. Publish the JSON version, replacing the example project and secret ID:
-
-   ```shell
-   gcloud secrets versions add example-zipline-auth \
-     --project=example-project \
-     --data-file="$HOME/.config/zipline-bootstrap/auth-secrets.json"
-   ```
-
-3. Run the full plan and apply in [Deploy](#deploy). The targeted apply above is
-   only for bootstrapping the secret; it does not deploy the complete stack.
-
-If the same-project container already exists, import it instead of creating it:
+Keep this directory outside any Git checkout. After editing the JSON, create
+and populate a new secret in the cluster project before applying the stack:
 
 ```shell
-tofu import 'google_secret_manager_secret.auth[0]' \
-  projects/example-project/secrets/example-zipline-auth
+gcloud secrets create example-zipline-auth \
+  --project=example-project --replication-policy=automatic \
+  --data-file="$HOME/.config/zipline-bootstrap/auth-secrets.json"
 ```
 
-Initialize the backend before import, and publish a version if one is not already
-populated before running the full apply. The fully qualified path above is the
-Terraform import identifier only; keep the tfvars auth secret ID bare.
+If the secret already exists, publish a new version when needed:
+
+```shell
+gcloud secrets versions add example-zipline-auth \
+  --project=example-project \
+  --data-file="$HOME/.config/zipline-bootstrap/auth-secrets.json"
+```
+
+Use the bare ID `example-zipline-auth` in tfvars. Do not import the auth
+container into Terraform; it is managed externally.
+
+### Migrating stacks that created the auth secret
+
+Earlier versions created an empty `google_secret_manager_secret.auth` container
+when `gcp.auth_secret_id` pointed at this project. This version drops it from
+state without deleting it (`removed` block in `secrets.tf`). The secret, its
+versions, and the accessor grants stay in place. Plan shows the container as
+no longer managed; no tfvars change is needed. After that, `tofu destroy` no
+longer fails on `prevent_destroy`, and the auth secret survives teardown.
+Delete it with `gcloud secrets delete` if the stack is gone for good.
+
 
 Set the matching provider IDs and callback configuration in tfvars:
 
@@ -434,8 +430,8 @@ or the required permissions before workloads that need those tables.
 
 The wrapper configures a GCP Secret Manager ClusterSecretStore named
 `zipline-secret-store`. Prefer `gcp.extra_external_secrets` for GCP declarations.
-The same-project auth container has unconditional `prevent_destroy`; the
-`gcp.secret_deletion_protection` input is declared but does not control it.
+Auth containers are managed externally and survive Terraform teardown.
+`gcp.secret_deletion_protection` is declared but does not control them.
 
 | Field | Default | Use |
 | --- | --- | --- |
@@ -587,6 +583,7 @@ kubectl get ingress -n zipline-system
 Use your configured namespace if it differs from `zipline-system`. Verify DNS,
 TLS issuance, and application readiness before submitting jobs.
 
+
 ## Outputs
 
 | Output | Use |
@@ -633,7 +630,7 @@ The GCP wrapper configures a GCS catalog location under the warehouse bucket.
 
 GKE, Cloud SQL, and Bigtable deletion protection default to enabled. Disable
 and apply the corresponding protection settings before an intentional destroy.
-Auth secret destruction remains blocked by its Terraform lifecycle rule.
+Auth secrets remain externally managed and survive Terraform teardown.
 Destroy also uses `gcloud` and `kubectl` to drain controller-managed resources.
 
 `gcp.artifact_repository`, `gcp.compute_namespace_prefix`, and

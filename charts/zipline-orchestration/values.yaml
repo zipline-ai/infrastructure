@@ -32,24 +32,41 @@ compute:
     annotations: {}
     resourceQuota:
       enabled: true
+      # The budget is expressed in LIMITS, because that is what every pod here is
+      # guaranteed to carry: a container that sets no limit is given the default
+      # below before the quota counts it, whereas requests are now defaulted to
+      # zero and only the engines set real ones.
+      #
+      # Mind the granularity this implies: a container that declares nothing books
+      # the full default limit, so a pod doing nothing still costs 15 cpu / 56Gi of
+      # the budget below. Sizing a team ceiling in limits is therefore coarse —
+      # roughly 26 defaulted pods per 400 cpu.
       hard:
-        requests.cpu: "200"
-        requests.memory: "800Gi"
         limits.cpu: "400"
         limits.memory: "1600Gi"
         pods: "500"
     limitRange:
       enabled: true
-      # Default LIMIT (ceiling) for containers that don't set their own — sized
-      # for a fat Spark executor's node so executors can burst above their
-      # request (request stays the guaranteed floor). Raise if using larger
-      # executor instance sizes. Small pods are unaffected (they request 500m).
+      # Default LIMIT (ceiling) for containers that don't set their own, sized to
+      # the largest node a compute pool provisions so a defaulted pod can use a
+      # whole machine rather than being throttled against an arbitrary number.
       default:
-        cpu: "16"
-        memory: "64Gi"
+        cpu: "15"
+        memory: "56Gi"
+      # Nothing is held in reserve. The scheduler packs by what pods actually
+      # consume rather than by what they declared, which oversubscribes nodes on
+      # purpose; the kubelet decides who is evicted under pressure. Engines that
+      # set their own requests (Spark executors, Flink TaskManagers) are unaffected
+      # by this default — it applies only to containers that declare nothing.
       defaultRequest:
-        cpu: "500m"
-        memory: "1Gi"
+        cpu: "0"
+        memory: "0"
+      # Refused at admission, with a clear message, rather than left Pending for
+      # ever: a container may not ask for more than the largest node can hold.
+      # Raise this in step with the biggest instance type the pools can grow to.
+      max:
+        cpu: "15"
+        memory: "56Gi"
   namespaces:
     - name: zipline-default
       team: default
@@ -620,8 +637,11 @@ costExport:
   # Billing rows keep arriving for days after usage, so each run rewrites this many trailing days.
   lookbackDays: 5
   outputTable: zipline_catalog.cost.daily_cost
-  # Defaults to <global.artifact_prefix>/release/<global.version>/jars/cloud_<cloud>_lib_spark4_deploy.jar.
+  # Defaults to <global.artifact_prefix>/release/<engineVersion>/jars/cloud_<cloud>_lib_spark4_deploy.jar.
   engineJar: ""
+  # Artifact release folder for the engine jar. Matches the hub's default team VERSION; global.version
+  # is the image tag (for example nightly) and has no release folder.
+  engineVersion: latest
   gcp:
     billingExportDataset: ""  # project.dataset holding the detailed usage cost export
     projects: []              # projects whose costs are kept

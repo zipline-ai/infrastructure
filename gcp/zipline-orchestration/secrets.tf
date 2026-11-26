@@ -41,47 +41,16 @@ resource "google_secret_manager_secret_iam_member" "db_credentials_eso" {
 }
 
 # ---------------------------------------------------------------------------
-# Auth secret container (§7.4). One JSON secret with five/six keys for all SSO
-# providers. TF creates the container only; values live out of band
-# (`gcloud secrets versions add`). Grants are added when auth.enabled=true
-# AND auth_secret_id resolves to a secret in THIS project.
+# Auth secret: the customer creates it and its value outside Terraform and sets
+# gcp.auth_secret_id. Existing stacks created an empty container here; keep it
+# (and any out-of-band versions) while dropping it from state.
 # ---------------------------------------------------------------------------
 
-locals {
-  auth_secret_in_project = local.auth_enabled && (
-    can(regex("^projects/${local.cloud_args.project_id}/secrets/[^/]+$", local.auth_secret_id)) ||
-    can(regex("^[A-Za-z0-9_-]+$", local.auth_secret_id))
-  )
-  # Short name used to resolve this project's secret-manager resource IDs. For a
-  # fully-qualified ref (projects/<p>/secrets/<name>), take the trailing
-  # segment; for a bare id, use it as-is. Only consulted when auth_secret_in_project.
-  auth_secret_short_name = local.auth_secret_in_project ? regex("[^/]+$", local.auth_secret_id) : ""
-}
-
-resource "google_secret_manager_secret" "auth" {
-  count = local.auth_enabled && local.auth_secret_in_project ? 1 : 0
-
-  secret_id = local.auth_secret_short_name
-
-  replication {
-    auto {
-      dynamic "customer_managed_encryption" {
-        for_each = local.cloud_args.cmek_key_id != "" ? [1] : []
-        content {
-          kms_key_name = local.cloud_args.cmek_key_id
-        }
-      }
-    }
-  }
-
+removed {
+  from = google_secret_manager_secret.auth
   lifecycle {
-    # Preserves out-of-band version writes (gcloud secrets versions add) when
-    # the container is managed here. TF won't recreate the container just
-    # because versions appeared.
-    prevent_destroy = true
+    destroy = false
   }
-
-  depends_on = [google_project_service.required]
 }
 
 # ---------------------------------------------------------------------------
@@ -124,6 +93,8 @@ resource "google_secret_manager_secret_iam_member" "orchestration_extras" {
   secret_id = each.value
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.orchestration.email}"
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_secret_manager_secret_iam_member" "eso_extras" {
@@ -132,4 +103,6 @@ resource "google_secret_manager_secret_iam_member" "eso_extras" {
   secret_id = each.value
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.external_secrets.email}"
+
+  depends_on = [google_project_service.required]
 }

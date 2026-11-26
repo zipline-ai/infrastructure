@@ -49,6 +49,16 @@ class CostExportChartTest(unittest.TestCase):
     def test_disabled_by_default(self):
         docs = render({})
         self.assertFalse(any(d["kind"] == "ScheduledSparkApplication" for d in docs))
+        # helm template has no cluster, so lookup finds no leftover schedule to clean up.
+        self.assertFalse(any(d["metadata"]["name"].startswith("cost-export") for d in docs))
+
+    def test_hooks_also_run_on_rollback(self):
+        docs = render(ENABLED)
+        for kind, name, weight in [("Job", "cost-export-webhook-gate", "1"),
+                                   ("ScheduledSparkApplication", "cost-export", "2")]:
+            annotations = find(docs, kind, name)["metadata"]["annotations"]
+            self.assertEqual(annotations["helm.sh/hook"], "post-install,post-upgrade,post-rollback")
+            self.assertEqual(annotations["helm.sh/hook-weight"], weight)
 
     def test_enabled(self):
         docs = render(ENABLED)
@@ -68,7 +78,7 @@ class CostExportChartTest(unittest.TestCase):
         self.assertFalse(any(key.endswith(".credential") for key in conf))
         init_env = {e["name"]: e["value"] for e in app["driver"]["initContainers"][0]["env"]}
         self.assertEqual(init_env["ENGINE_JAR"],
-                         "gs://test-artifacts/release/1.2.3/jars/cloud_gcp_lib_spark4_deploy.jar")
+                         "gs://test-artifacts/release/latest/jars/cloud_gcp_lib_spark4_deploy.jar")
         self.assertEqual(init_env["POLARIS_SECRET_NAMESPACE"], "zipline-system")
 
         role = find(docs, "Role", "cost-export-polaris-credential")
@@ -96,7 +106,14 @@ class CostExportChartTest(unittest.TestCase):
         self.assertEqual(conf["spark.sql.sources.partitionColumnTypeInference.enabled"], "false")
         init_env = {e["name"]: e["value"] for e in app["driver"]["initContainers"][0]["env"]}
         self.assertEqual(init_env["ENGINE_JAR"],
-                         "gs://test-artifacts/release/1.2.3/jars/cloud_aws_lib_spark4_deploy.jar")
+                         "gs://test-artifacts/release/latest/jars/cloud_aws_lib_spark4_deploy.jar")
+
+    def test_engine_version_override(self):
+        app = find(render({**ENABLED, "engineVersion": "1.30.1"}), "ScheduledSparkApplication",
+                   "cost-export")["spec"]["template"]
+        init_env = {e["name"]: e["value"] for e in app["driver"]["initContainers"][0]["env"]}
+        self.assertEqual(init_env["ENGINE_JAR"],
+                         "gs://test-artifacts/release/1.30.1/jars/cloud_gcp_lib_spark4_deploy.jar")
 
     def test_gcp_has_no_s3_settings(self):
         conf = find(render(ENABLED), "ScheduledSparkApplication", "cost-export")["spec"]["template"]["sparkConf"]
