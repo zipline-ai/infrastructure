@@ -62,3 +62,75 @@ StarRocks deployment stay consistent. Polaris remains available for other servic
 For existing deployments, set `enabled = true` before applying to retain
 Data Explorer. Applying with the default `false` removes the existing StarRocks
 release. A Terraform state migration preserves the release when enabled.
+
+## Override workload images
+
+Use the same `orchestration` input in your AWS, Azure, or GKE `.tfvars` file.
+Merge the fields you need into your existing configuration. Omitted fields use
+the deployment defaults.
+
+```hcl
+orchestration = {
+  hub     = { image = "registry.example.com/zipline/hub" }
+  eval    = { image = "registry.example.com/zipline/eval" }
+  ui      = { image = "registry.example.com/zipline/web-ui" }
+  fetcher = { image = "registry.example.com/zipline/chronon-fetcher" }
+
+  compute = {
+    spark_image          = "registry.example.com/zipline/spark:nightly"
+    flink_image          = "registry.example.com/zipline/flink:1.20.3-spark4"
+    history_server_image = "registry.example.com/zipline/spark:nightly"
+    image_prepull_images = ["registry.example.com/zipline/spark:nightly"]
+  }
+
+  starrocks = {
+    feImage = { repository = "registry.example.com/starrocks/fe-ubuntu", tag = "4.1.3" }
+    cnImage = { repository = "registry.example.com/starrocks/cn-ubuntu", tag = "4.1.3" }
+  }
+}
+```
+
+Use repository names for Hub, Eval, UI, and Fetcher. UI and Fetcher use
+`orchestration.deployment.zipline_version` as their tag. Hub and Eval use the
+Spark 4 variant of that tag. Use Spark 4-compatible compute images. Compute image fields
+take full image references. The history server and cost export use
+`spark_image` by default. The pre-pull DaemonSet includes `spark_image` and
+any additional images listed in `image_prepull_images`.
+
+For the remaining workload and helper images, add a map with the relevant Helm
+keys to `orchestration.extra_values`. These values layer on top of the wrapper's
+cloud defaults. For example:
+
+```hcl
+extra_values = [{
+  compute = {
+    warmPool     = { image = "registry.example.com/pause:3.9" }
+    imagePrepull = { pauseImage = "registry.example.com/pause:3.9" }
+    loki         = { image = "registry.example.com/grafana/loki:3.4.2" }
+  }
+  orchestration = {
+    setHubBaseUrl = { image = "registry.example.com/alpine/k8s:1.28.3" }
+  }
+  costExport       = { kubectlImage = "registry.example.com/alpine/k8s:1.28.3" }
+  nodepoolExporter = { image = "registry.example.com/python:3.12-slim" }
+  starrocks = {
+    mysqlImage = "registry.example.com/mysql:8.0"
+  }
+  polaris = {
+    image    = { repository = "registry.example.com/apache/polaris" }
+    database = { initImage = "registry.example.com/postgres:16" }
+    bootstrap = {
+      image = { repository = "registry.example.com/apache/polaris-admin-tool" }
+      rbac  = { image = { repository = "registry.example.com/python" } }
+    }
+  }
+}]
+```
+
+Set `tag` alongside a Polaris image's `repository` to override its version.
+The Polaris bootstrap image inherits the Polaris server tag when its own tag is
+empty.
+
+Set `orchestration.sandbox.image` to the Sandbox repository and
+`orchestration.sandbox.egress.image` to the full egress proxy image reference
+when you deploy Sandbox.

@@ -42,21 +42,20 @@ Spark 4 image; immutable and release tags use the explicit -spark4 suffix.
 {{- end -}}
 {{- end }}
 
-{{/* Crucible supports only the shared Spark 4 compute images. */}}
 {{- define "zipline-orchestration.sparkImage" -}}
-{{- "ziplineai/spark:nightly" -}}
+{{- .Values.compute.sparkDefaults.image -}}
 {{- end }}
 
 {{- define "zipline-orchestration.flinkImage" -}}
-{{- "ziplineai/flink:1.20.3-spark4" -}}
+{{- .Values.compute.flinkDefaults.image -}}
 {{- end }}
 
-{{/* Prevent runtime env from bypassing the fixed Crucible compute images. */}}
+{{/* Keep compute image selection consistent across workloads. */}}
 {{- define "zipline-orchestration.validateComputeImageEnv" -}}
 {{- range concat (.Values.runtime.env | default list) (.Values.orchestration.hub.env | default list) -}}
 {{- $name := .name | default "" -}}
 {{- if or (eq $name "CRUCIBLE_SPARK_IMAGE") (eq $name "CRUCIBLE_FLINK_IMAGE") -}}
-{{- fail (printf "%s is fixed by the Crucible chart and cannot be overridden" $name) -}}
+{{- fail (printf "%s is chart-owned. Set compute.sparkDefaults.image or compute.flinkDefaults.image instead" $name) -}}
 {{- end -}}
 {{- end -}}
 {{- end }}

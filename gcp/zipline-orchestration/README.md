@@ -146,8 +146,8 @@ shape.
 Crucible always runs Spark 4. Spark jobs and the History Server use
 `ziplineai/spark:nightly`, Flink uses `ziplineai/flink:1.20.3-spark4`, and Hub
 and Eval use the Spark 4 variant of `orchestration.deployment.zipline_version`.
-These images cannot be overridden through Terraform. Configure a pull secret
-when the environment needs authenticated Docker Hub pulls.
+Configure a pull secret when the environment needs authenticated Docker Hub
+pulls.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -158,6 +158,11 @@ when the environment needs authenticated Docker Hub pulls.
 
 Hub and Eval use the GCP repositories `ziplineai/hub-gcp` and
 `ziplineai/eval-gcp`.
+
+### Container images
+
+Override workload and helper images in your `.tfvars` file using the
+[shared image settings](../../modules/zipline-orchestration/README.md#override-workload-images).
 
 ### Ingress and TLS
 
@@ -199,6 +204,43 @@ ingress = {
 | `orchestration.ingress.cluster_issuer_server` | Let's Encrypt production | Select another ACME endpoint. |
 | `orchestration.ingress.cluster_issuer_secret_name` | `""` | Customize the ACME account Secret name. |
 | `orchestration.ingress.cluster_issuer_ingress_class` | ingress class name | Override the HTTP-01 solver ingress class. |
+
+#### Use a client-managed TLS certificate
+
+Configure your certificate management system to create and renew a Secret of
+type `kubernetes.io/tls` in the Zipline installation namespace
+(`orchestration.install.namespace`, which defaults to `zipline-system`). The
+Secret must contain `tls.crt` and `tls.key`. The certificate must cover your
+ingress hostname.
+
+Merge these settings into your existing `orchestration` input:
+
+```hcl
+addons = {
+  install_cert_manager = false
+}
+
+ingress = {
+  domain                      = "zipline.customer.example"
+  tls_secret_name             = "customer-zipline-tls"
+  cert_manager_cluster_issuer = ""
+  create_cluster_issuer       = false
+}
+```
+
+Use your DNS hostname and Secret name. Remove any cert-manager issuer
+annotations you previously set in `orchestration.ingress.annotations`.
+
+If you already run cert-manager in the cluster, you can use its existing
+ClusterIssuer. Set `cert_manager_cluster_issuer` to that issuer's name and keep
+`install_cert_manager` and `create_cluster_issuer` set to `false`.
+
+For an existing deployment, create the client-managed Secret first. Apply the
+ingress changes with the bundled cert-manager still enabled, then verify that
+the HTTPS endpoint serves the client-managed certificate. Before applying the
+change to disable cert-manager, review the Terraform plan for removal of its
+Helm release. If you enabled the optional OpenTelemetry Operator, verify how
+its webhook certificate is provisioned before removing cert-manager.
 
 ### Authentication and Secret Manager
 

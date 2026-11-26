@@ -84,10 +84,12 @@ compute:
     # The Hub still receives the namespace template and provisions synced teams.
     create: true
   sparkDefaults:
+    image: ziplineai/spark:nightly
     eventLogDir: ""
     imagePullPolicy: "Always"
     chrononJarPath: "/opt/chronon/chronon-spark.jar"
   flinkDefaults:
+    image: ziplineai/flink:1.20.3-spark4
     serviceAccount: flink
     serviceAccountAnnotations: {}
   systemPriorityClass:
@@ -115,6 +117,7 @@ compute:
         priorityClassName: "zipline-deploy"
         hard: {}
   warmPool:
+    image: registry.k8s.io/pause:3.9
     enabled: false
     replicas: 2
     priorityClassName: "zipline-spark-pause"
@@ -128,11 +131,13 @@ compute:
     tolerations: []
     annotations: {}
   imagePrepull:
+    pauseImage: registry.k8s.io/pause:3.9
     enabled: false
     images: []
     nodeSelector: {}
     tolerations: []
   historyServer:
+    image: ""
     proxyBase: "spark-history"
     daemonMemory: "5g"
     hybridStoreMemory: "4g"
@@ -382,6 +387,8 @@ domains:
 
 # Orchestration services configuration
 orchestration:
+  setHubBaseUrl:
+    image: alpine/k8s:1.28.3
   hub:
     image: ""
     verticleClass: ""
@@ -627,6 +634,7 @@ nodepoolExporter:
   tolerations: []
 
 costExport:
+  kubectlImage: alpine/k8s:1.28.3
   # Daily job: cloud billing export -> cloud-neutral Iceberg table in Polaris, read by Data Explorer.
   enabled: false
   cloud: ""  # gcp or aws

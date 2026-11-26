@@ -53,7 +53,7 @@ spec:
       terminationGracePeriodSeconds: 0
       containers:
         - name: pause
-          image: registry.k8s.io/pause:3.9
+          image: {{ .Values.compute.warmPool.image | quote }}
           # Warm-pool capacity is configured independently from application sizing.
           resources:
             requests:

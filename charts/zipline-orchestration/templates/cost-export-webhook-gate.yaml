@@ -65,7 +65,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: wait-for-spark-webhook
-        image: alpine/k8s:1.28.3
+        image: {{ $ce.kubectlImage | quote }}
         command:
         - /bin/sh
         - -c
