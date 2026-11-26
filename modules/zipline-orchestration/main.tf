@@ -184,8 +184,8 @@ locals {
     tolerations    = []
   }
   starrocks = merge(local.starrocks_defaults, local.starrocks_input, {
-    feImage       = merge(local.starrocks_defaults.feImage, try(local.starrocks_input.feImage, {}))
-    cnImage       = merge(local.starrocks_defaults.cnImage, try(local.starrocks_input.cnImage, {}))
+    feImage       = merge(local.starrocks_defaults.feImage, try(local.starrocks_input.feImage, {}), try(local.orchestration.starrocks.feImage, {}))
+    cnImage       = merge(local.starrocks_defaults.cnImage, try(local.starrocks_input.cnImage, {}), try(local.orchestration.starrocks.cnImage, {}))
     ports         = merge(local.starrocks_defaults.ports, try(local.starrocks_input.ports, {}))
     persistence   = merge(local.starrocks_defaults.persistence, try(local.starrocks_input.persistence, {}))
     feResources   = merge(local.starrocks_defaults.feResources, try(local.starrocks_input.feResources, {}))
@@ -727,6 +727,7 @@ locals {
         env            = local.hub_env
       }
       ui = {
+        image  = try(local.orchestration.ui.image, "ziplineai/web-ui")
         origin = local.ui.origin
         env = concat(
           local.orchestration.metrics_provider == "" ? [] : [{ name = "METRICS_PROVIDER", value = local.orchestration.metrics_provider }],
@@ -735,6 +736,7 @@ locals {
         )
       }
       fetcher = {
+        image = try(local.orchestration.fetcher.image, "ziplineai/chronon-fetcher")
         env = concat(
           try(local.orchestration.provider_fetcher_env, []),
           try(local.orchestration.fetcher_env, []),

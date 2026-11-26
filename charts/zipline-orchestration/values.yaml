@@ -75,6 +75,7 @@ compute:
     name: "zipline-compute-system"
     value: 1000
   warmPool:
+    image: registry.k8s.io/pause:3.9
     enabled: false
     replicas: 2
     priorityClassName: "zipline-spark-pause"
@@ -88,6 +89,7 @@ compute:
     tolerations: []
     annotations: {}
   imagePrepull:
+    pauseImage: registry.k8s.io/pause:3.9
     enabled: false
     images: []
     nodeSelector: {}
@@ -334,6 +336,8 @@ domains:
 
 # Orchestration services configuration
 orchestration:
+  setHubBaseUrl:
+    image: alpine/k8s:1.28.3
   hub:
     image: ""
     verticleClass: ""

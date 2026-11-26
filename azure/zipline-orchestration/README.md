@@ -110,6 +110,11 @@ pulls.
 | `orchestration.hub.image` | Azure wrapper default | You need to override the Azure Hub image. |
 | `orchestration.eval.image` | Azure wrapper default | You need to override the Azure Eval image. |
 
+### Container images
+
+Override workload and helper images in your `.tfvars` file using the
+[shared image settings](../../modules/zipline-orchestration/README.md#override-workload-images).
+
 ### Ingress and TLS
 
 By default, the wrapper creates an Azure Load Balancer for ingress-nginx and the

@@ -171,8 +171,8 @@ locals {
   spark_event_log_managed     = startswith(local.spark_event_log_dir, local.spark_event_log_uri_prefix)
   spark_event_log_path        = trim(trimprefix(local.spark_event_log_dir, local.spark_event_log_uri_prefix), "/")
   polaris_base_location       = "${local.abfs_base_uri}polaris/polaris_${local.deployment.customer_name}/"
-  hub_image                   = "ziplineai/hub-azure"
-  eval_image                  = "ziplineai/eval-azure"
+  hub_image                   = try(var.orchestration.hub.image, "ziplineai/hub-azure")
+  eval_image                  = try(var.orchestration.eval.image, "ziplineai/eval-azure")
   hub_verticle_class          = "ai.chronon.hub.AzureOrchestrationVerticle,ai.chronon.hub.AzureWorkflowExecutionVerticle"
   hub_metrics_reader          = try(var.orchestration.hub.chronon_metrics_reader, try(var.orchestration.hub.metricsReader, "prometheus"))
   hub_metrics_port            = try(var.orchestration.hub.metrics_port, try(var.orchestration.hub.metricsPort, 8905))

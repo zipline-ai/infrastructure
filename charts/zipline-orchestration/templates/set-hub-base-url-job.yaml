@@ -26,7 +26,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: set-hub-url
-        image: alpine/k8s:1.28.3
+        image: {{ .Values.orchestration.setHubBaseUrl.image | quote }}
         command:
         - /bin/sh
         - -c

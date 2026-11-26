@@ -78,6 +78,11 @@ for example `gs://example-artifacts/zipline/artifacts`.
 `orchestration.deployment.customer_name` must be 5-20 lowercase letters,
 numbers, or hyphens, start with a letter, and end with a letter or number.
 
+## Container images
+
+Override workload and helper images in your `.tfvars` file using the
+[shared image settings](../../modules/zipline-orchestration/README.md#override-workload-images).
+
 ## Use a client-managed TLS certificate
 
 Configure your certificate management system to create and renew a Secret of

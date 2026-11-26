@@ -112,6 +112,11 @@ pulls.
 | `orchestration.hub.image` | AWS wrapper default | You need to override the AWS Hub image. |
 | `orchestration.eval.image` | AWS wrapper default | You need to override the AWS Eval image. |
 
+### Container images
+
+Override workload and helper images in your `.tfvars` file using the
+[shared image settings](../../modules/zipline-orchestration/README.md#override-workload-images).
+
 ### Ingress and TLS
 
 By default, the wrapper creates an internet-facing NLB for ingress-nginx and the

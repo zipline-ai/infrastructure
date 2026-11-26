@@ -173,8 +173,8 @@ locals {
   spark_event_log_dir       = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "gs://${local.warehouse_bucket_name}/spark-events"
   polaris_base_location     = "gs://${local.warehouse_bucket_name}/polaris/polaris_${local.name_prefix}/"
   prometheus_query_endpoint = "https://monitoring.googleapis.com/v1/projects/${local.project_id}/location/global/prometheus/api/v1"
-  hub_image                 = "ziplineai/hub-gcp"
-  eval_image                = "ziplineai/eval-gcp"
+  hub_image                 = try(var.orchestration.hub.image, "ziplineai/hub-gcp")
+  eval_image                = try(var.orchestration.eval.image, "ziplineai/eval-gcp")
   hub_verticle_class        = "ai.chronon.hub.GCPOrchestrationVerticle,ai.chronon.hub.GCPWorkflowExecutionVerticle"
   hub_metrics_reader        = try(var.orchestration.hub.chronon_metrics_reader, try(var.orchestration.hub.metricsReader, "prometheus"))
   hub_metrics_port          = try(var.orchestration.hub.metrics_port, try(var.orchestration.hub.metricsPort, 8905))
