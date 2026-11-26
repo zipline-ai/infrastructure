@@ -110,6 +110,9 @@ when the environment needs authenticated Docker Hub pulls.
 
 ### Ingress and TLS
 
+To bring your own controller and routes, see the
+[client-managed ingress setup](../../modules/zipline-orchestration/README.md#use-a-client-managed-ingress-controller).
+
 By default, the wrapper creates an Azure Load Balancer for ingress-nginx and the
 shared chart creates Kubernetes Ingress resources for
 `orchestration.ingress.domain`. TLS termination is expected to happen at

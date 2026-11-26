@@ -2,7 +2,7 @@
 # spec.loadBalancerIP. The chart's `ingress-nginx-ui.controller.service.*` keys
 # surface this through provider_values.
 resource "google_compute_address" "ingress" {
-  count = local.cloud_args.ingress_load_balancer_ip == "" ? 1 : 0
+  count = !local.external_ingress_controller && local.cloud_args.ingress_load_balancer_ip == "" ? 1 : 0
 
   name         = "${local.name_prefix}-ingress"
   address_type = "EXTERNAL"
@@ -12,7 +12,10 @@ resource "google_compute_address" "ingress" {
 }
 
 locals {
-  ingress_lb_ip = local.cloud_args.ingress_load_balancer_ip != "" ? local.cloud_args.ingress_load_balancer_ip : google_compute_address.ingress[0].address
+  external_ingress_controller = try(var.orchestration.ingress.external_controller, false)
+  ingress_lb_ip = local.external_ingress_controller ? "" : (
+    local.cloud_args.ingress_load_balancer_ip != "" ? local.cloud_args.ingress_load_balancer_ip : google_compute_address.ingress[0].address
+  )
 
   # §8: GKE's L4 LB (NetworkLoadBalancer) is produced by Service type=LoadBalancer.
   # externalTrafficPolicy=Local preserves client IPs but requires the ingress

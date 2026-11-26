@@ -17,7 +17,10 @@ class GcpDnsInstructionsTest(unittest.TestCase):
         source = source.replace('module.zipline_orchestration.ingress_load_balancer_ip', 'var.controller_ip')
         fixture = '''variable "controller_ip" { type = string }
 variable "orchestration" { type = any }
-locals { ingress_lb_ip = "203.0.113.10" }
+locals {
+  ingress_lb_ip = "203.0.113.10"
+  external_ingress_controller = try(var.orchestration.ingress.external_controller, false)
+}
 ''' + source
         with tempfile.TemporaryDirectory() as directory:
             Path(directory, 'main.tf').write_text(fixture)
@@ -42,3 +45,16 @@ locals { ingress_lb_ip = "203.0.113.10" }
                             self.assertIn('DNS A record for ' + domain, value)
                         else:
                             self.assertIn('No ingress domain is configured.', value)
+
+            Path(directory, 'test.auto.tfvars.json').write_text(json.dumps({
+                'controller_ip': None,
+                'orchestration': {
+                    'ingress': {'domain': 'zipline.example.com', 'external_controller': True},
+                },
+            }))
+            subprocess.run([TERRAFORM, 'plan', '-out=test.tfplan'], cwd=directory,
+                           check=True, capture_output=True)
+            result = subprocess.run([TERRAFORM, 'show', '-json', 'test.tfplan'],
+                                    cwd=directory, check=True, capture_output=True, text=True)
+            value = json.loads(result.stdout)['planned_values']['outputs']['ingress_dns_instructions']['value']
+            self.assertEqual(value, 'Point DNS for zipline.example.com to your ingress controller.')

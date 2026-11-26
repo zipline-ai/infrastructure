@@ -1,4 +1,4 @@
-{{- if and (not .Values.ingress.hub.host) (not .Values.ingress.hub.externalUrl) }}
+{{- if and (not .Values.ingress.externalController) (not .Values.ingress.hub.host) (not .Values.ingress.hub.externalUrl) }}
 {{- $ingressControllerServiceName := include "zipline-orchestration.ingressNginxControllerServiceName" (dict "root" . "alias" "ingress-nginx-ui") }}
 {{- $hubPath := default "/" (trimSuffix "/" (.Values.ingress.hub.path | default "/")) }}
 apiVersion: batch/v1

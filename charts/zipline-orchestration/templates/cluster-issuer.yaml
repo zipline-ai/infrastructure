@@ -1,4 +1,4 @@
-{{- if .Values.clusterIssuer.enabled }}
+{{- if and (not .Values.ingress.externalController) .Values.clusterIssuer.enabled }}
 {{- $issuerName := default "letsencrypt-prod" .Values.clusterIssuer.name -}}
 {{- $email := required "clusterIssuer.email is required when clusterIssuer.enabled is true" .Values.clusterIssuer.email -}}
 apiVersion: cert-manager.io/v1
