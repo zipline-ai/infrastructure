@@ -255,19 +255,8 @@ gcloud secrets versions add example-zipline-auth \
   --data-file="$HOME/.config/zipline-bootstrap/auth-secrets.json"
 ```
 
-Use the bare ID `example-zipline-auth` in tfvars. Do not import the auth
-container into Terraform; it is managed externally.
-
-### Migrating stacks that created the auth secret
-
-Earlier versions created an empty `google_secret_manager_secret.auth` container
-when `gcp.auth_secret_id` pointed at this project. This version drops it from
-state without deleting it (`removed` block in `secrets.tf`). The secret, its
-versions, and the accessor grants stay in place. Plan shows the container as
-no longer managed; no tfvars change is needed. After that, `tofu destroy` no
-longer fails on `prevent_destroy`, and the auth secret survives teardown.
-Delete it with `gcloud secrets delete` if the stack is gone for good.
-
+Use the bare ID `example-zipline-auth` in tfvars. The auth container is managed
+externally.
 
 Set the matching provider IDs and callback configuration in tfvars:
 
@@ -512,19 +501,6 @@ the installation namespace. Helm values do not annotate an account when
 annotation automatically; when the selected name differs, the wrapper still
 creates the annotated fixed store account under the ownership rules above.
 
-To adopt an externally provisioned store account, set
-`gcp.create_secret_store_service_account = true` and import it before the full
-apply (replace the namespace if needed):
-
-```shell
-tofu import 'module.zipline_orchestration.kubernetes_service_account_v1.secret_store[0]' \
-  zipline-system/external-secrets
-```
-
-When renaming an existing Helm-owned ESO account, arrange Helm retention and
-release its old ownership before importing it at the same address. A fresh
-installation with wrapper account ownership needs no import.
-
 ### Runtime and Advanced Helm Overrides
 
 Use these as escape hatches for environment-specific behavior that is not
@@ -745,52 +721,3 @@ When agents are enabled, External Secrets syncs these into the UI through
 `AGENTS_GOOGLE_API_KEY`, respectively.
 See [provider credential configuration](../../charts/zipline-orchestration/AGENT_CREDENTIALS.md)
 for reference formats and examples. All references are optional.
-
-### Migrating Secret Manager IAM grant state
-
-Secret accessor grants now use `projects/<project>/secrets/<secret>` as their
-Terraform instance keys. Short IDs resolve against `cloud_args.project_id` before
-deduplication. Two-component `project/secret` references expand to
-`projects/<project>/secrets/<secret>`, retaining the explicitly specified project.
-Already-canonical references remain unchanged, including those to other projects. Use the same project identifier consistently; project numbers
-and project IDs are not resolved into one another.
-
-Before applying this version to an existing deployment, migrate any bare-secret or `project/secret`-keyed
-`google_secret_manager_secret_iam_member.orchestration_extras` and
-`google_secret_manager_secret_iam_member.eso_extras` instances. This applies to
-all grant sources, including auth, extra secrets, repository credentials, and
-agent credentials. New deployments need no migration.
-
-1. Select the deployment's usual backend, workspace, and variables. Back up state
-   with `terraform state pull` to a secure location; state may contain secrets.
-2. Inspect `terraform state list` and `terraform state show` for the two resources.
-   Determine each secret's project from state and the configured provider project.
-3. If only the noncanonical instance exists, move it to its canonical address.
-   For a root GCP wrapper, an example for secret `my-key` in `my-project` is:
-
-   ```sh
-   terraform state mv 'google_secret_manager_secret_iam_member.orchestration_extras["my-key"]' 'google_secret_manager_secret_iam_member.orchestration_extras["projects/my-project/secrets/my-key"]'
-   terraform state mv 'google_secret_manager_secret_iam_member.eso_extras["my-key"]' 'google_secret_manager_secret_iam_member.eso_extras["projects/my-project/secrets/my-key"]'
-   ```
-
-   Include the deployment's module prefix when the wrapper is called as a module.
-   For an existing `project/secret` key, move both resources similarly:
-
-   ```sh
-   terraform state mv 'google_secret_manager_secret_iam_member.orchestration_extras["my-project/my-key"]' 'google_secret_manager_secret_iam_member.orchestration_extras["projects/my-project/secrets/my-key"]'
-   terraform state mv 'google_secret_manager_secret_iam_member.eso_extras["my-project/my-key"]' 'google_secret_manager_secret_iam_member.eso_extras["projects/my-project/secrets/my-key"]'
-   ```
-
-   Repeat for every noncanonical instance. Alternatively, declare deployment-specific
-   `moved` blocks with these same source and destination addresses.
-4. If both addresses already exist, first verify in state that they represent the
-   same project, secret, role, and member. Keep the canonical instance and remove
-   only the duplicate noncanonical address from state with `terraform state rm`. This
-   forgets duplicate tracking without revoking the live membership. Do not run a
-   destroy or apply the duplicate-removal plan before this state cleanup.
-5. Run the normal Terraform plan. Confirm these IAM resources show no membership
-   deletion or replacement before applying. Investigate any such change first.
-
-Static `moved` blocks are not included in the shared wrapper because secret names
-and module addresses vary by deployment. State migration does not change the
-External Secrets references or the secret values.
