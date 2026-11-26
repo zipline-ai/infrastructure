@@ -246,8 +246,17 @@ touch "$HOME/.config/zipline-bootstrap/auth-secrets.json"
 chmod 600 "$HOME/.config/zipline-bootstrap/auth-secrets.json"
 ```
 
-Keep this directory outside any Git checkout. After editing the JSON, create
-and populate a new secret in the cluster project before applying the stack:
+Keep this directory outside any Git checkout. Before creating the auth secret,
+enable the Secret Manager API in the cluster project. The stack normally enables
+it during apply, but this secret must exist first. If API enablement is managed
+by your platform team, have them complete this step:
+
+```shell
+gcloud services enable secretmanager.googleapis.com --project=example-project
+```
+
+After editing the JSON, create and populate a new secret in the same cluster
+project before applying the stack:
 
 ```shell
 gcloud secrets create example-zipline-auth \
