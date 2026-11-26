@@ -28,6 +28,8 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
+      securityContext:
+        {{- include "zipline-orchestration.restrictedPodSecurityContext" . | nindent 8 }}
       priorityClassName: {{ .Values.compute.warmPool.priorityClassName | default "zipline-spark-pause" }}
       {{- if or .Values.compute.warmPool.taintKey .Values.compute.warmPool.nodeSelector }}
       nodeSelector:
@@ -54,6 +56,8 @@ spec:
       containers:
         - name: pause
           image: registry.k8s.io/pause:3.9
+          securityContext:
+            {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
           # Warm-pool capacity is configured independently from application sizing.
           resources:
             requests:

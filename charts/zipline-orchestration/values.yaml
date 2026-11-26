@@ -383,6 +383,7 @@ domains:
 # Orchestration services configuration
 orchestration:
   hub:
+    runAsUser: 999 # Numeric UID of hubuser in the default Hub images.
     image: ""
     verticleClass: ""
     replicas: 1
@@ -719,38 +720,15 @@ kube-state-metrics:
     limits:
       memory: 256Mi
 
-promtail:
+alloy:
   enabled: true
-  config:
-    clients: []
-    snippets:
-      pipelineStages:
-        - cri: {}
-        - json:
-            expressions:
-              workflowId: workflowId
-              stepId: stepId
-        - structured_metadata:
-            workflowId:
-            stepId:
-      extraRelabelConfigs:
-        - source_labels: [__meta_kubernetes_namespace]
-          action: drop
-          regex: kube-system|kube-public|kube-node-lease|cert-manager|default
-        - source_labels: [__meta_kubernetes_pod_label_chronon_job_id]
-          action: replace
-          target_label: chronon_job_id
-        - source_labels: [__meta_kubernetes_pod_label_spark_role]
-          action: replace
-          target_label: spark_role
-  tolerations:
-    - operator: Exists
+  image: grafana/alloy:v1.22.0
   resources:
     requests:
       cpu: 50m
-      memory: 64Mi
-    limits:
       memory: 128Mi
+    limits:
+      memory: 512Mi
 
 auth:
   enabled: false

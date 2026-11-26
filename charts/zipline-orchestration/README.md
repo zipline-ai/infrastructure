@@ -148,6 +148,18 @@ aggregate `resourceQuota.hard` values, so enabling the scoped quotas does not
 reduce existing capacity. Add another namespace key with explicit `hard` values
 when extending mode quotas to another team.
 
+## Pod Security Admission
+
+The shared chart defaults target the Kubernetes Restricted Pod Security
+Standard. If you use a custom Hub image, set `orchestration.hub.runAsUser`
+to its numeric non-root UID. The Spark history server uses UID and group 185.
+Its cache volume must support writes by that group.
+
+Grafana Alloy streams Pod stdout and stderr through the Kubernetes API and
+forwards it to the bundled Loki service. Its service account can discover
+Pods and read their logs across namespaces. Set `alloy.enabled=false` when
+another collector handles Pod logs. Alloy uses no host mounts.
+
 ## Validation
 
 Run the fetcher rendering and AWS scrape discovery regression tests (requires

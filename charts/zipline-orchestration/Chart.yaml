@@ -27,9 +27,6 @@ dependencies:
   - name: spark-operator
     version: "2.5.0"
     repository: "https://kubeflow.github.io/spark-operator"
-  - name: promtail
-    version: "6.16.6"
-    repository: "https://grafana.github.io/helm-charts"
   - name: kube-state-metrics
     version: "8.6.0"
     repository: "https://prometheus-community.github.io/helm-charts"

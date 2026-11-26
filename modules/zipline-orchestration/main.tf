@@ -243,9 +243,6 @@ locals {
   image_pull_secret      = merge(local.image_pull_secret_defaults, try(local.orchestration.image_pull_secret, {}))
   image_pull_secret_name = local.image_pull_secret.create ? kubernetes_secret_v1.docker_hub_creds[0].metadata[0].name : local.image_pull_secret.name
   image_pull_secrets     = local.image_pull_secret_name == "" ? [] : [{ name = local.image_pull_secret_name }]
-  helm_release_name      = local.install.release_name
-  helm_fullname          = strcontains(local.helm_release_name, "zipline-orchestration") ? local.helm_release_name : "${local.helm_release_name}-zipline-orchestration"
-  loki_service_url       = "http://${local.helm_fullname}-loki.${local.install.namespace}.svc.cluster.local:3100/loki/api/v1/push"
 
   addons_defaults = {
     install_external_secrets_operator = true
@@ -808,16 +805,6 @@ locals {
     prometheus = {
       queryEndpoint = local.prometheus.query_endpoint
       namespace     = local.install.namespace
-    }
-
-    promtail = {
-      config = {
-        clients = [
-          {
-            url = local.loki_service_url
-          }
-        ]
-      }
     }
 
     certManager = {

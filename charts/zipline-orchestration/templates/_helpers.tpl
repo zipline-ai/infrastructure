@@ -260,3 +260,16 @@ Hub reads it rather than hard-coding it.
 {{- define "zipline-orchestration.computeNamespacePlaceholder" -}}
 __ZIPLINE_COMPUTE_NAMESPACE__
 {{- end -}}
+
+{{- define "zipline-orchestration.restrictedPodSecurityContext" -}}
+runAsNonRoot: true
+seccompProfile:
+  type: RuntimeDefault
+{{- end -}}
+
+{{- define "zipline-orchestration.restrictedContainerSecurityContext" -}}
+allowPrivilegeEscalation: false
+capabilities:
+  drop:
+    - ALL
+{{- end -}}

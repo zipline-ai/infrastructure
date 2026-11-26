@@ -18,6 +18,8 @@ spec:
         app.kubernetes.io/name: {{ include "zipline-orchestration.name" . }}-image-prepull
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      securityContext:
+        {{- include "zipline-orchestration.restrictedPodSecurityContext" . | nindent 8 }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -35,6 +37,9 @@ spec:
         {{- range $i, $image := $images }}
         - name: pull-{{ $i }}
           image: {{ $image }}
+          securityContext:
+            {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
+            runAsUser: 10000
           command: ["sh", "-c", "exit 0"]
           resources:
             requests:
@@ -47,6 +52,8 @@ spec:
       containers:
         - name: pause
           image: registry.k8s.io/pause:3.9
+          securityContext:
+            {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
           resources:
             requests:
               cpu: "10m"

@@ -39,6 +39,9 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      securityContext:
+        {{- include "zipline-orchestration.restrictedPodSecurityContext" . | nindent 8 }}
+        fsGroup: 10000
       serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -55,6 +58,9 @@ spec:
       containers:
         - name: fetcher
           image: "{{ required "orchestration.fetcher.image is required" .Values.orchestration.fetcher.image }}:{{ .Values.global.version }}"
+          securityContext:
+            {{- include "zipline-orchestration.restrictedContainerSecurityContext" $ | nindent 12 }}
+            runAsUser: 10000
           imagePullPolicy: Always
           env:
             - name: FETCHER_PORT
@@ -81,6 +87,9 @@ spec:
             {{- with .Values.orchestration.fetcher.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          volumeMounts:
+            - name: fetcher-logs
+              mountPath: /srv/zipline/fetcher/logs
           ports:
             - containerPort: {{ .Values.orchestration.fetcher.port }}
             {{- if eq $metricsReader "prometheus" }}
@@ -105,6 +114,9 @@ spec:
               port: {{ .Values.orchestration.fetcher.port }}
             initialDelaySeconds: 10
             periodSeconds: 5
+      volumes:
+        - name: fetcher-logs
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

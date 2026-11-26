@@ -5,11 +5,8 @@ dependencies:
 - name: spark-operator
   repository: https://kubeflow.github.io/spark-operator
   version: 2.5.0
-- name: promtail
-  repository: https://grafana.github.io/helm-charts
-  version: 6.16.6
 - name: kube-state-metrics
   repository: https://prometheus-community.github.io/helm-charts
   version: 8.6.0
-digest: sha256:10024bf7e07c95b8c732a3009cc9d00fde5027d1752210d7657b8844b20b2174
+digest: sha256:358b2aaf4f14b59dd4da05f7005e25d5db0714d9a5922d83b9d8a1de8c55c4e0
 generated: "2026-10-08T14:39:20.466677-04:00"
