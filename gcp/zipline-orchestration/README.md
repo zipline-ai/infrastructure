@@ -56,7 +56,6 @@ Verify both authentication and HTTPS before allowing public access.
 orchestration = {
   deployment = {
     customer_name   = "example"
-    artifact_prefix = "gs://example-zipline-artifacts"
     zipline_version = "<zipline-release-tag>"
   }
   ingress = {
@@ -73,6 +72,10 @@ gcp = {
   create_spark_libs_bucket  = true
 }
 ```
+
+`orchestration.deployment.artifact_prefix` is optional and defaults to
+`gs://zipline-<customer_name>-artifacts` (`gs://zipline-example-artifacts` for
+this example). Set it only to override the default artifact location.
 
 Alternatively, use `crucible.auto.tfvars.example` as a JSON configuration
 reference. Replace its environment-specific values and remove unused OAuth
@@ -116,7 +119,7 @@ Add these fields inside the existing `orchestration` or `gcp` object.
 
 | Field | Default | Use |
 | --- | --- | --- |
-| `orchestration.deployment.artifact_prefix` | `gs://zipline-<customer_name>-artifacts` | Artifact URI; the wrapper creates the bucket portion. |
+| `orchestration.deployment.artifact_prefix` | `gs://zipline-<customer_name>-artifacts` | Set only to override the default artifact URI; the wrapper creates the bucket portion. |
 | `gcp.warehouse_bucket` | `zipline-<customer_name>-warehouse` | Bare warehouse bucket name to create. |
 | `gcp.enable_apis` | `true` | Set to `false` when project APIs are managed externally. |
 
