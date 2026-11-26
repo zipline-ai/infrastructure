@@ -169,7 +169,7 @@ resource "google_service_account_iam_member" "orchestration_polaris_token_creato
 resource "google_service_account_iam_member" "external_secrets_wi" {
   service_account_id = google_service_account.external_secrets.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${local.wi_pool}[${local.orchestration_namespace}/external-secrets]"
+  member             = "serviceAccount:${local.wi_pool}[${local.orchestration_namespace}/${local.eso_store_service_account_name}]"
 }
 
 # ---------------------------------------------------------------------------
