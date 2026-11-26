@@ -288,14 +288,20 @@ Set the matching provider IDs and callback configuration in tfvars:
 
 ### Compute Namespaces
 
-The default compute namespace is `zipline-default` for team `default`. Change
-these values when an environment needs more than one compute namespace or custom
-namespace policy.
+The Hub creates team compute namespaces dynamically when teams sync. You do
+not need to set `orchestration.compute.namespaces` or list each team in tfvars.
+The default compute namespace is `zipline-default` for team `default`.
+
+Use `orchestration.compute.namespace_defaults` to customize the namespace
+policies used by the Hub's template. Set `orchestration.compute.namespaces` only
+when you need additional namespaces provisioned by Helm or explicit per-namespace
+settings. See the [team namespace guide](../../charts/zipline-orchestration/README.md#team-compute-namespaces)
+for provisioning and permissions.
 
 | Field | Default | Use when |
 | --- | --- | --- |
 | `orchestration.compute.default_namespace` | `zipline-default` | Jobs should default to another namespace. |
-| `orchestration.compute.namespaces` | `[{ name = "zipline-default", team = "default" }]` | You need multiple compute namespaces or team labels. |
+| `orchestration.compute.namespaces` | `[{ name = "zipline-default", team = "default" }]` | Optional: provision explicit namespaces through Helm; not required for dynamically created team namespaces. |
 | `orchestration.compute.namespace_defaults` | `{}` | Compute namespaces need default labels, annotations, ResourceQuota, or LimitRange settings. |
 | `orchestration.compute.spark_service_account` | `spark-operator-spark` | Spark jobs use a non-default service account name. |
 | `orchestration.compute.flink_service_account` | `flink` | Flink jobs use a non-default service account name. |
