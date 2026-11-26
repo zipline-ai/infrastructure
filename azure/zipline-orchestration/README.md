@@ -137,6 +137,46 @@ ingress-nginx through Kubernetes TLS Secrets.
 Azure Application Gateway or Front Door can be layered in front of ingress-nginx
 without changing the shared chart boundary.
 
+#### Use a client-managed TLS certificate
+
+Configure your certificate management system to create and renew a Secret of
+type `kubernetes.io/tls` in the Zipline installation namespace
+(`orchestration.install.namespace`, which defaults to `zipline-system`). The
+Secret must contain `tls.crt` and `tls.key`. The certificate must cover your
+ingress hostname.
+
+Merge these settings into your existing `orchestration` input:
+
+```hcl
+addons = {
+  install_cert_manager = false
+}
+
+ingress = {
+  domain                      = "zipline.customer.example"
+  tls_secret_name             = "customer-zipline-tls"
+  cert_manager_cluster_issuer = ""
+  create_cluster_issuer       = false
+}
+```
+
+Use your DNS hostname and Secret name. Remove any cert-manager issuer
+annotations you previously set in `orchestration.ingress.annotations`.
+
+Set `cert_manager_cluster_issuer` explicitly to `""` to clear the Azure
+default of `letsencrypt-prod`.
+
+If you already run cert-manager in the cluster, you can use its existing
+ClusterIssuer. Set `cert_manager_cluster_issuer` to that issuer's name and keep
+`install_cert_manager` and `create_cluster_issuer` set to `false`.
+
+For an existing deployment, create the client-managed Secret first. Apply the
+ingress changes with the bundled cert-manager still enabled, then verify that
+the HTTPS endpoint serves the client-managed certificate. Before applying the
+change to disable cert-manager, review the Terraform plan for removal of its
+Helm release. If you enabled the optional OpenTelemetry Operator, verify how
+its webhook certificate is provisioned before removing cert-manager.
+
 ### Authentication
 
 Authentication is disabled unless `orchestration.auth.enabled = true`. When auth
