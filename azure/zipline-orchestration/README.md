@@ -166,16 +166,24 @@ annotations you previously set in `orchestration.ingress.annotations`.
 Set `cert_manager_cluster_issuer` explicitly to `""` to clear the Azure
 default of `letsencrypt-prod`.
 
-If you already run cert-manager in the cluster, you can use its existing
-ClusterIssuer. Set `cert_manager_cluster_issuer` to that issuer's name and keep
-`install_cert_manager` and `create_cluster_issuer` set to `false`.
-
 For an existing deployment, create the client-managed Secret first. Apply the
 ingress changes with the bundled cert-manager still enabled, then verify that
 the HTTPS endpoint serves the client-managed certificate. Before applying the
 change to disable cert-manager, review the Terraform plan for removal of its
 Helm release. If you enabled the optional OpenTelemetry Operator, verify how
 its webhook certificate is provisioned before removing cert-manager.
+
+#### Use an existing cert-manager ClusterIssuer
+
+If you already run cert-manager in the cluster, you can let it issue and renew
+the certificate. Set `cert_manager_cluster_issuer` to the existing issuer's
+name, set `tls_secret_name` to the Secret cert-manager should populate, and set
+`install_cert_manager` and `create_cluster_issuer` to `false`.
+
+Cert-manager creates and renews the Secret in this mode. Use a Secret name
+reserved for cert-manager so each TLS Secret has a single writer. When switching
+from a client-managed certificate, choose a different Secret name for the
+issuer-managed certificate.
 
 ### Authentication
 
