@@ -231,11 +231,12 @@ ingress = {
 Use your DNS hostname and Secret name. Remove any cert-manager issuer
 annotations you previously set in `orchestration.ingress.annotations`.
 
-For an existing deployment, create the client-managed Secret first. Apply the
-ingress changes with the bundled cert-manager still enabled, then verify that
-the HTTPS endpoint serves the client-managed certificate. Before applying the
-change to disable cert-manager, review the Terraform plan for removal of its
-Helm release. If you enabled the optional OpenTelemetry Operator, verify how
+For an existing deployment, create the client-managed Secret under a new name
+that no cert-manager Certificate references. Set `tls_secret_name` to that new
+name and apply the ingress changes with the bundled cert-manager still enabled.
+Then verify that the HTTPS endpoint serves the client-managed certificate.
+Before applying the change to disable cert-manager, review the Terraform plan
+for removal of its Helm release. If you enabled the optional OpenTelemetry Operator, verify how
 its webhook certificate is provisioned before removing cert-manager.
 
 #### Use an existing cert-manager ClusterIssuer
