@@ -179,6 +179,21 @@ change to disable cert-manager, review the Terraform plan for removal of its
 Helm release. If you enabled the optional OpenTelemetry Operator, verify how
 its webhook certificate is provisioned before removing cert-manager.
 
+**Before disabling the bundled release**, inventory cert-manager resources
+across the cluster:
+
+```sh
+kubectl get issuers,clusterissuers,certificates,certificaterequests,orders,challenges --all-namespaces
+```
+
+The bundled cert-manager chart defaults to `v1.13.3` with `installCRDs = true`.
+Uninstalling that release can delete its custom resource definitions (CRDs)
+and their custom resources across the cluster, including resources used by
+other workloads. Terraform may show only the Helm release removal. Back up the
+resources you need and verify that they are preserved or migrated before
+setting `install_cert_manager = false`.
+[cert-manager v1.13 Helm uninstall guidance](https://cert-manager.io/v1.13-docs/installation/helm/#uninstalling)
+
 #### Use an existing cert-manager ClusterIssuer
 
 If you already run cert-manager in the cluster, you can let it issue and renew
