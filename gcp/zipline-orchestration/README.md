@@ -235,9 +235,22 @@ For an existing deployment, create the client-managed Secret under a new name
 that no cert-manager Certificate references. Set `tls_secret_name` to that new
 name and apply the ingress changes with the bundled cert-manager still enabled.
 Then verify that the HTTPS endpoint serves the client-managed certificate.
-Before applying the change to disable cert-manager, review the Terraform plan
-for removal of its Helm release. If you enabled the optional OpenTelemetry Operator, verify how
-its webhook certificate is provisioned before removing cert-manager.
+Before applying `install_cert_manager = false`, review the Terraform plan
+and inventory cert-manager resources across the cluster. The bundled
+`v1.13.3` chart defaults to `installCRDs = true`. Uninstalling it can delete
+its CRDs and their custom resources across all namespaces, even if the plan
+shows only the Helm release removal.
+
+If those resources must remain, upgrade the bundled release first to a
+supported chart version that retains CRDs on uninstall and verify that CRD
+retention is enabled. The behavior was introduced in v1.15.0, and upgrading
+the bundled release requires updating the add-on module's chart version.
+If you cannot upgrade, back up the cert-manager resources before applying
+and plan to restore any needed resources after reinstalling their CRDs.
+[cert-manager Helm uninstall guidance](https://cert-manager.io/docs/installation/helm/#uninstalling)
+
+If you enabled the optional OpenTelemetry Operator, verify how its webhook
+certificate is provisioned before removing cert-manager.
 
 #### Use an existing cert-manager ClusterIssuer
 
