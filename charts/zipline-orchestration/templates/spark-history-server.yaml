@@ -63,6 +63,10 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- if and .Values.compute.systemPriorityClass.enabled .Values.compute.systemPriorityClass.name }}
       priorityClassName: {{ .Values.compute.systemPriorityClass.name }}
       {{- end }}
