@@ -201,6 +201,13 @@ the certificate. Set `cert_manager_cluster_issuer` to the existing issuer's
 name, set `tls_secret_name` to the Secret cert-manager should populate, and set
 `install_cert_manager` and `create_cluster_issuer` to `false`.
 
+If Zipline originally created the ClusterIssuer, Helm removes it when you set
+`create_cluster_issuer = false`. Before applying that change, complete an
+ownership handoff that preserves the issuer outside the Zipline Helm release,
+or create an independently managed ClusterIssuer under a different name.
+For a replacement, verify that it is Ready and update
+`cert_manager_cluster_issuer` to point to it before retiring the original.
+
 Cert-manager creates and renews the Secret in this mode. Use a Secret name
 reserved for cert-manager so each TLS Secret has a single writer. When switching
 from a client-managed certificate, choose a different Secret name for the
