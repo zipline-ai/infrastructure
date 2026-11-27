@@ -127,6 +127,10 @@ extra_values = [{
 }]
 ```
 
+If the `setHubBaseUrl.image` registry requires authentication, set
+`orchestration.image_pull_secret.name` to an existing Secret in the Zipline
+installation namespace with credentials for that registry.
+
 Set `tag` alongside a Polaris image's `repository` to override its version.
 The Polaris bootstrap image inherits the Polaris server tag when its own tag is
 empty.
