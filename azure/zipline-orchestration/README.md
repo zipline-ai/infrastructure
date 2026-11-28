@@ -98,8 +98,8 @@ shape.
 Crucible always runs Spark 4. Spark jobs and the History Server use
 `ziplineai/spark:nightly`, Flink uses `ziplineai/flink:1.20.3-spark4`, and Hub
 and Eval use the Spark 4 variant of `orchestration.deployment.zipline_version`.
-These images cannot be overridden through Terraform. Configure a pull secret
-when the environment needs authenticated Docker Hub pulls.
+Configure a pull secret when the environment needs authenticated Docker Hub
+pulls.
 
 | Field | Default | Use when |
 | --- | --- | --- |
@@ -107,6 +107,11 @@ when the environment needs authenticated Docker Hub pulls.
 | `orchestration.image_pull_secret.create` | `false` | Terraform should create the Docker Hub pull Secret. |
 | `orchestration.image_pull_secret.dockerhub_username` | `ziplineai` | The pull token belongs to a different Docker Hub user. |
 | `orchestration.image_pull_secret.dockerhub_token` | `""` | Required when `create = true`. |
+
+### Container images
+
+Override workload and helper images in your `.tfvars` file using the
+[shared image settings](../../modules/zipline-orchestration/README.md#override-workload-images).
 
 ### Ingress and TLS
 

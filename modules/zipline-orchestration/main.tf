@@ -185,8 +185,8 @@ locals {
     tolerations    = []
   }
   starrocks = merge(local.starrocks_defaults, local.starrocks_input, {
-    feImage       = merge(local.starrocks_defaults.feImage, try(local.starrocks_input.feImage, {}))
-    cnImage       = merge(local.starrocks_defaults.cnImage, try(local.starrocks_input.cnImage, {}))
+    feImage       = merge(local.starrocks_defaults.feImage, try(local.starrocks_input.feImage, {}), try(local.orchestration.starrocks.feImage, {}))
+    cnImage       = merge(local.starrocks_defaults.cnImage, try(local.starrocks_input.cnImage, {}), try(local.orchestration.starrocks.cnImage, {}))
     ports         = merge(local.starrocks_defaults.ports, try(local.starrocks_input.ports, {}))
     persistence   = merge(local.starrocks_defaults.persistence, try(local.starrocks_input.persistence, {}))
     feResources   = merge(local.starrocks_defaults.feResources, try(local.starrocks_input.feResources, {}))
@@ -600,6 +600,9 @@ locals {
     image_prepull_enabled  = true
     image_prepull_images   = []
     history_server_options = []
+    spark_image            = "ziplineai/spark:nightly"
+    flink_image            = "ziplineai/flink:1.20.3-spark4"
+    history_server_image   = ""
     spark_defaults         = {}
     flink_defaults         = {}
     namespace_defaults     = {}
@@ -647,12 +650,14 @@ locals {
   compute_spark_defaults = merge(
     {
       eventLogDir = local.compute.spark_event_log_dir
+      image       = local.compute.spark_image
     },
     { for key, value in local.compute.spark_defaults : key => value if key != "image" },
   )
 
   compute_flink_defaults = merge(
     {
+      image                     = local.compute.flink_image
       serviceAccount            = local.compute.flink_service_account
       serviceAccountAnnotations = local.compute_service_account.annotations
     },
@@ -693,6 +698,7 @@ locals {
   )
 
   compute_history_server = {
+    image                 = local.compute.history_server_image
     extraSparkHistoryOpts = local.compute.history_server_options
   }
 
@@ -860,10 +866,12 @@ locals {
         env            = local.hub_env
       }
       ui = {
+        image  = try(local.orchestration.ui.image, "ziplineai/web-ui")
         origin = local.ui.origin
         env    = local.ui_env
       }
       fetcher = {
+        image = try(local.orchestration.fetcher.image, "ziplineai/chronon-fetcher")
         env = concat(
           try(local.orchestration.provider_fetcher_env, []),
           try(local.orchestration.fetcher_env, []),

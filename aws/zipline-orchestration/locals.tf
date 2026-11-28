@@ -504,8 +504,8 @@ locals {
     "-Dspark.hadoop.fs.s3a.connection.maximum=200",
     "-Dspark.hadoop.fs.s3a.threads.max=50",
   ]
-  hub_image                   = "ziplineai/hub-aws"
-  eval_image                  = "ziplineai/eval-aws"
+  hub_image                   = try(var.orchestration.hub.image, "ziplineai/hub-aws")
+  eval_image                  = try(var.orchestration.eval.image, "ziplineai/eval-aws")
   hub_verticle_class          = "ai.chronon.hub.AWSOrchestrationVerticle,ai.chronon.hub.AWSWorkflowExecutionVerticle,ai.chronon.hub.cleanup.AWSCleanupVerticle"
   polaris_base_location       = "s3://${local.cloud_args.warehouse_bucket}/polaris/polaris_${local.deployment.customer_name}/"
   polaris_client_secret_name  = "polaris-client-credentials"

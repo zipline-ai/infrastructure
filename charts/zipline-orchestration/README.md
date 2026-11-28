@@ -30,8 +30,10 @@ The chart does not branch on a cloud provider. Cloud-specific infrastructure is 
 ## Spark 4 Runtime
 
 Crucible has one compute runtime across every cloud. Spark jobs and the History
-Server use `ziplineai/spark:nightly`, and Flink uses
-`ziplineai/flink:1.20.3-spark4`. `CRUCIBLE_SPARK_IMAGE` and
+Server default to `ziplineai/spark:nightly`, and Flink defaults to
+`ziplineai/flink:1.20.3-spark4`. Override these images with
+`compute.sparkDefaults.image`, `compute.flinkDefaults.image`, and
+`compute.historyServer.image`. `CRUCIBLE_SPARK_IMAGE` and
 `CRUCIBLE_FLINK_IMAGE` are chart-owned environment variables and cannot be set
 through `runtime.env` or `orchestration.hub.env`.
 

@@ -63,6 +63,10 @@ spec:
         {{- end }}
     spec:
       serviceAccountName: {{ include "zipline-orchestration.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- if and .Values.compute.systemPriorityClass.enabled .Values.compute.systemPriorityClass.name }}
       priorityClassName: {{ .Values.compute.systemPriorityClass.name }}
       {{- end }}
@@ -82,7 +86,7 @@ spec:
       {{- end }}
       initContainers:
         - name: fix-permissions
-          image: {{ include "zipline-orchestration.sparkImage" . | quote }}
+          image: {{ default (include "zipline-orchestration.sparkImage" .) .Values.compute.historyServer.image | quote }}
           command: ["sh", "-c", "mkdir -p /data/spark-history-cache && chown -R spark:spark /data"]
           securityContext:
             runAsUser: 0
@@ -91,7 +95,7 @@ spec:
               mountPath: /data
       containers:
         - name: history-server
-          image: {{ include "zipline-orchestration.sparkImage" . | quote }}
+          image: {{ default (include "zipline-orchestration.sparkImage" .) .Values.compute.historyServer.image | quote }}
           imagePullPolicy: Always
           command:
             - /opt/spark/bin/spark-class

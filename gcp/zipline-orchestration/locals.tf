@@ -123,8 +123,8 @@ locals {
     try(var.orchestration.auth.secrets_arn, ""),
   ), "")
 
-  hub_image           = "ziplineai/hub-gcp"
-  eval_image          = "ziplineai/eval-gcp"
+  hub_image           = try(var.orchestration.hub.image, "ziplineai/hub-gcp")
+  eval_image          = try(var.orchestration.eval.image, "ziplineai/eval-gcp")
   hub_verticle_class  = "ai.chronon.hub.GCPOrchestrationVerticle,ai.chronon.hub.GCPWorkflowExecutionVerticle,ai.chronon.hub.cleanup.GCPCleanupVerticle"
   spark_event_log_dir = try(var.orchestration.compute.spark_event_log_dir, "") != "" ? var.orchestration.compute.spark_event_log_dir : "gs://${local.cloud_args.warehouse_bucket}/spark-events"
 
