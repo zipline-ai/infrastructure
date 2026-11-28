@@ -62,3 +62,36 @@ StarRocks deployment stay consistent. Polaris remains available for other servic
 For existing deployments, set `enabled = true` before applying to retain
 Data Explorer. Applying with the default `false` removes the existing StarRocks
 release. A Terraform state migration preserves the release when enabled.
+
+## Use a client-managed Loki-compatible backend
+
+Merge the following into your existing AWS, Azure, or GKE `.tfvars`:
+
+```hcl
+orchestration = {
+  logging = {
+    loki_query_url = "https://logs.example.com"
+  }
+}
+```
+
+Set `loki_query_url` to the base URL. Hub and UI append
+`/loki/api/v1/query_range`. The endpoint must be reachable from their pods
+and support GET and POST range queries with LogQL. Put the endpoint behind
+client-managed network controls or a gateway that supplies any upstream
+authentication and tenant headers. Remove any manual `LOKI_URL` environment
+override so Hub and UI use the configured endpoint.
+
+Zipline skips the bundled Loki and Promtail when this setting is present.
+Configure your collector to send Hub and compute pod logs to your backend
+before switching. Preserve the Kubernetes stream labels `namespace`, `pod`,
+and `container`, the `app` and `component` labels for Flink, and the
+`chronon_job_id` and `spark_role` labels where present. Extract `workflowId`
+and `stepId` from Hub log entries as structured metadata so the built-in
+workflow and step filters continue to work.
+
+When migrating a deployment, verify that the external backend receives logs
+with these labels. Back up or migrate any history you need before applying:
+Helm removes the bundled Loki resources, including its PVC if one was created.
+After applying, verify that Hub and UI can retrieve job logs and that the UI
+can retrieve workflow and step logs. Omit the setting to use bundled logging.

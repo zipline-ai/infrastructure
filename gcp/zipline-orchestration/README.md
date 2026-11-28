@@ -452,6 +452,9 @@ Auth containers are managed externally and survive Terraform teardown.
 
 ### Observability
 
+To use your own log collector and backend, see the
+[client-managed Loki-compatible backend setup](../../modules/zipline-orchestration/README.md#use-a-client-managed-loki-compatible-backend).
+
 GKE managed Prometheus is enabled. The wrapper creates PodMonitoring resources
 for Hub and, when deployed, Fetcher. The UI uses `METRICS_PROVIDER=gcp` and the
 project-scoped Monitoring Prometheus endpoint. Hub uses the Prometheus metrics

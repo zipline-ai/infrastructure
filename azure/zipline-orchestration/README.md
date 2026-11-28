@@ -489,6 +489,9 @@ Use these when AKS needs pull permissions for a private Azure Container Registry
 
 ### Observability
 
+To use your own log collector and backend, see the
+[client-managed Loki-compatible backend setup](../../modules/zipline-orchestration/README.md#use-a-client-managed-loki-compatible-backend).
+
 The wrapper enables AKS managed Prometheus, creates an Azure Monitor workspace,
 creates an AKS-specific `MSPROM-*` data collection endpoint and rule, associates
 that endpoint and rule with the AKS cluster, grants the AKS managed identity

@@ -260,3 +260,11 @@ Hub reads it rather than hard-coding it.
 {{- define "zipline-orchestration.computeNamespacePlaceholder" -}}
 __ZIPLINE_COMPUTE_NAMESPACE__
 {{- end -}}
+
+{{- define "zipline-orchestration.lokiQueryUrl" -}}
+{{- if .Values.compute.loki.queryUrl -}}
+{{- trimSuffix "/" .Values.compute.loki.queryUrl -}}
+{{- else -}}
+{{- printf "http://%s-loki.%s.svc.cluster.local:3100" (include "zipline-orchestration.fullname" .) (include "zipline-orchestration.computeSystemNamespace" .) -}}
+{{- end -}}
+{{- end }}

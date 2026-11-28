@@ -153,6 +153,7 @@ compute:
       storageClass: ""
       size: 10Gi
   loki:
+    queryUrl: ""
     image: "grafana/loki:3.4.2"
     retention: "168h"
     objectStore: filesystem

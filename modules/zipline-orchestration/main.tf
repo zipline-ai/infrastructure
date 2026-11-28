@@ -247,6 +247,8 @@ locals {
   helm_fullname          = strcontains(local.helm_release_name, "zipline-orchestration") ? local.helm_release_name : "${local.helm_release_name}-zipline-orchestration"
   loki_service_url       = "http://${local.helm_fullname}-loki.${local.install.namespace}.svc.cluster.local:3100/loki/api/v1/push"
 
+  external_loki_query_url = try(trimspace(local.orchestration.logging.loki_query_url), "")
+
   addons_defaults = {
     install_external_secrets_operator = true
     install_cert_manager              = true
@@ -889,6 +891,11 @@ resource "terraform_data" "configuration_validation" {
 
   lifecycle {
     precondition {
+      condition     = local.external_loki_query_url == "" || can(regex("^https?://[^/@?#[:space:]]+(/[^?#@[:space:]]*)?$", local.external_loki_query_url))
+      error_message = "orchestration.logging.loki_query_url must be an HTTP or HTTPS base URL without credentials, query parameters, or a fragment."
+    }
+
+    precondition {
       condition     = !local.image_pull_secret.create || trimspace(local.image_pull_secret.dockerhub_token) != ""
       error_message = "orchestration.image_pull_secret.dockerhub_token must be set when orchestration.image_pull_secret.create is true."
     }
@@ -1097,6 +1104,10 @@ resource "helm_release" "this" {
     # Keep the UI and catalog job consistent with the Terraform-managed release,
     # including when callers supply additional Helm values.
     [yamlencode({ dataExplorer = { enabled = local.data_explorer_enabled } })],
+    local.external_loki_query_url != "" ? [yamlencode({
+      compute  = { loki = { queryUrl = local.external_loki_query_url } }
+      promtail = { enabled = false }
+    })] : [],
   )
 
   depends_on = [

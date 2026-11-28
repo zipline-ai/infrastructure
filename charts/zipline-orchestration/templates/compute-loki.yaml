@@ -1,3 +1,4 @@
+{{- if not .Values.compute.loki.queryUrl }}
 {{- $systemNamespace := include "zipline-orchestration.computeSystemNamespace" . }}
 ---
 apiVersion: v1
@@ -180,3 +181,4 @@ spec:
           emptyDir:
             sizeLimit: {{ .Values.compute.loki.storage.size | default "10Gi" }}
           {{- end }}
+{{- end }}
