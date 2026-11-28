@@ -195,8 +195,15 @@ setting `install_cert_manager = false`.
 
 If you already run cert-manager in the cluster, you can let it issue and renew
 the certificate. Set `cert_manager_cluster_issuer` to the existing issuer's
-name, set `tls_secret_name` to the Secret cert-manager should populate, and set
-`install_cert_manager` and `create_cluster_issuer` to `false`.
+name and set `tls_secret_name` to the Secret cert-manager should populate.
+
+Before setting `install_cert_manager = false` on an existing deployment,
+preserve or migrate the cert-manager CRDs and their resources. If the bundled
+Helm release owns the CRDs, complete that transition before uninstalling it.
+Verify that the selected ClusterIssuer and its Certificates will remain
+available to a working cert-manager controller after the bundled release is
+removed. Set `create_cluster_issuer = false` only after handling any
+Zipline-created issuer as described below.
 
 If Zipline originally created the ClusterIssuer, Helm removes it when you set
 `create_cluster_issuer = false`. Before applying that change, complete an
