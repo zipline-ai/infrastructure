@@ -62,3 +62,51 @@ StarRocks deployment stay consistent. Polaris remains available for other servic
 For existing deployments, set `enabled = true` before applying to retain
 Data Explorer. Applying with the default `false` removes the existing StarRocks
 release. A Terraform state migration preserves the release when enabled.
+
+## Use a client-managed ingress controller
+
+Merge these settings into your existing `orchestration` input on AWS, Azure,
+or GKE:
+
+```hcl
+orchestration = {
+  ingress = {
+    external_controller = true
+    domain              = "zipline.example.com"
+  }
+}
+```
+
+Set `domain` to the hostname clients use over HTTPS. Zipline uses it to build
+public URLs. Terraform skips the controller Service lookup, and the chart
+skips ingress-nginx, Zipline's Ingress resources, the ingress ClusterIssuer,
+and the Job that discovers the bundled load balancer address. GKE also skips
+reserving an IP for the bundled controller. Use your controller's endpoint for
+DNS. The Terraform outputs for the bundled load balancer are empty in this mode.
+
+Create routes in your controller to the following Services in
+`orchestration.install.namespace` (default `zipline-system`). These paths match
+the chart defaults. If you change a path through Helm values, configure the
+same path on your controller.
+
+| Public path | Backend Service and port | Forwarding |
+| --- | --- | --- |
+| `/` | `orchestration-ui-service:80` | Preserve the path. |
+| `/services/hub` | `orchestration-hub-service:80` | Strip the prefix. |
+| `/services/eval` | `eval-service:80` | Strip the prefix. |
+| `/services/fetcher` | `fetcher-service:80` | Strip the prefix. Add this route when Fetcher is enabled. |
+| `/spark-history` | `spark-history-server:18080` | Strip the prefix on requests and add it back to backend redirects. |
+| `/services/catalog` | `polaris-service:8181` | Map this prefix to `/api/catalog` if clients need public catalog access. |
+
+Configure TLS and any route-level authentication in your controller. If Zipline
+auth is enabled and users access Hub through a browser session, configure your
+controller to forward-auth against `/auth/forward` on
+`orchestration-ui-service:80`. Pass through the request's session cookie and
+`Authorization` header, forward the returned `Authorization` header to Hub,
+and route rejected browser sessions to the UI sign-in page. Preserve bearer
+authentication for API clients.
+
+When migrating an existing deployment, test your routes and TLS against the
+client-managed endpoint before switching DNS and applying the opt-in setting.
+The apply removes the bundled controller and routes. On GKE, it also releases
+the Terraform-reserved ingress address if one was created for that controller.

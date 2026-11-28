@@ -561,6 +561,7 @@ locals {
   legacy_secret_provider_class_name = try(local.secrets.class_name, "")
 
   ingress_defaults = {
+    external_controller = false
     # Empty domain leaves the ingress host unset so the chart's set-hub-base-url
     # job points hub + ingress at the provisioned NLB DNS.
     domain                       = ""
@@ -889,6 +890,11 @@ resource "terraform_data" "configuration_validation" {
 
   lifecycle {
     precondition {
+      condition     = !local.ingress.external_controller || can(regex("^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$", local.ingress.domain))
+      error_message = "Set orchestration.ingress.domain to the public hostname when orchestration.ingress.external_controller is true."
+    }
+
+    precondition {
       condition     = !local.image_pull_secret.create || trimspace(local.image_pull_secret.dockerhub_token) != ""
       error_message = "orchestration.image_pull_secret.dockerhub_token must be set when orchestration.image_pull_secret.create is true."
     }
@@ -1097,6 +1103,14 @@ resource "helm_release" "this" {
     # Keep the UI and catalog job consistent with the Terraform-managed release,
     # including when callers supply additional Helm values.
     [yamlencode({ dataExplorer = { enabled = local.data_explorer_enabled } })],
+    local.ingress.external_controller ? [yamlencode({
+      "ingress-nginx-ui" = { enabled = false }
+      ingress = {
+        externalController = true
+        ui                 = { host = local.ingress.domain }
+        hub                = { host = local.ingress.domain }
+      }
+    })] : [],
   )
 
   depends_on = [
@@ -1110,6 +1124,8 @@ resource "helm_release" "this" {
 }
 
 data "kubernetes_service_v1" "ingress_controller" {
+  count = local.ingress.external_controller ? 0 : 1
+
   metadata {
     name      = "${local.install.release_name}-ingress-nginx-ui-controller"
     namespace = local.install.namespace

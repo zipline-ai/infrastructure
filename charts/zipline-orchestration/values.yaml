@@ -516,6 +516,7 @@ ingress-nginx-ui:
 
 # Ingress configuration
 ingress:
+  externalController: false
   ui:
     className: nginx-ui
     host: ""

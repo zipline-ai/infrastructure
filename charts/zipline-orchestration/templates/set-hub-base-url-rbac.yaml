@@ -1,4 +1,4 @@
-{{- if and (not .Values.ingress.hub.host) (not .Values.ingress.hub.externalUrl) }}
+{{- if and (not .Values.ingress.externalController) (not .Values.ingress.hub.host) (not .Values.ingress.hub.externalUrl) }}
 {{- $ingressControllerServiceName := include "zipline-orchestration.ingressNginxControllerServiceName" (dict "root" . "alias" "ingress-nginx-ui") }}
 # RBAC for the set-hub-base-url hook (domain-less installs only): it reads the
 # ingress-nginx load-balancer Service to discover the LB DNS, then patches the

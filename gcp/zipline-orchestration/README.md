@@ -161,6 +161,9 @@ Hub and Eval use the GCP repositories `ziplineai/hub-gcp` and
 
 ### Ingress and TLS
 
+To bring your own controller and routes, see the
+[client-managed ingress setup](../../modules/zipline-orchestration/README.md#use-a-client-managed-ingress-controller).
+
 The wrapper reserves a regional external IP for ingress-nginx and creates a
 public GKE L4 load balancer. Before creating DNS records, confirm the ingress
 controller Service has an external IP in `.status.loadBalancer.ingress`, run
