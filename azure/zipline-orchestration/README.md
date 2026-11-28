@@ -202,14 +202,23 @@ name, set `tls_secret_name` to the Secret cert-manager should populate, and set
 `install_cert_manager` and `create_cluster_issuer` to `false`.
 
 If Zipline originally created the ClusterIssuer, Helm removes it when
-`create_cluster_issuer` becomes `false`. Before disabling creation, complete an
-ownership handoff that preserves the issuer outside the Zipline Helm release,
-or create an independently managed ClusterIssuer under a different name and
-verify that it is Ready. If you use a replacement, update
-`cert_manager_cluster_issuer` and migrate any other Certificates that reference
-the old issuer before retiring it. Keep a working cert-manager controller and
-its CRDs in place, and verify that affected certificates can still issue and
-renew through the retained or replacement issuer.
+`create_cluster_issuer` becomes `false`. Complete an ownership handoff that
+preserves the issuer outside the Zipline Helm release, or migrate to an
+independently managed ClusterIssuer:
+
+1. Create the replacement under a different name and verify it is Ready. Keep
+   the original `cert_manager_cluster_issuer` value and leave
+   `create_cluster_issuer = true` so Helm continues to manage the original.
+2. Set `orchestration.ingress.annotations["cert-manager.io/cluster-issuer"]` to
+   the replacement name and apply. Migrate any other Ingresses and Certificates
+   that reference the original issuer. Verify that every dependent Certificate
+   references the replacement and can still be issued and renewed.
+3. Set `cert_manager_cluster_issuer` to the replacement name, set
+   `create_cluster_issuer = false`, and remove the temporary annotation override
+   in the same Terraform apply. This retires the original issuer.
+
+Keep a working cert-manager controller and its CRDs in place throughout the
+migration.
 
 Cert-manager creates and renews the Secret in this mode. Use a Secret name
 reserved for cert-manager so each TLS Secret has a single writer. When switching
