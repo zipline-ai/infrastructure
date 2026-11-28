@@ -141,6 +141,78 @@ ACM-specific load balancer TLS termination is not the default shared path. If an
 environment needs it, layer the required ingress-nginx service annotations
 through Helm values.
 
+#### Use a client-managed TLS certificate
+
+Configure your certificate management system to create and renew a Secret of
+type `kubernetes.io/tls` in the Zipline installation namespace
+(`orchestration.install.namespace`, which defaults to `zipline-system`). The
+Secret must contain `tls.crt` and `tls.key`. The certificate must cover your
+ingress hostname.
+
+Merge these settings into your existing `orchestration` input:
+
+```hcl
+addons = {
+  install_cert_manager = false
+}
+
+ingress = {
+  domain                      = "zipline.customer.example"
+  tls_secret_name             = "customer-zipline-tls"
+  cert_manager_cluster_issuer = ""
+  create_cluster_issuer       = false
+}
+```
+
+Use your DNS hostname and Secret name. Remove any cert-manager issuer
+annotations you previously set in `orchestration.ingress.annotations`.
+
+For an existing deployment, create the client-managed Secret under a new name
+that no cert-manager Certificate in the Zipline namespace references. Set
+`tls_secret_name` to that name and apply the ingress changes with the bundled
+cert-manager still enabled. Then verify that the HTTPS endpoint serves the
+client-managed certificate. Before applying the change to disable cert-manager,
+review the Terraform plan for removal of its Helm release. If you enabled the
+optional OpenTelemetry Operator, verify how its webhook certificate is
+provisioned before removing cert-manager.
+
+**Before disabling the bundled release**, inventory cert-manager resources
+across the cluster:
+
+```sh
+kubectl get issuers,clusterissuers,certificates,certificaterequests,orders,challenges --all-namespaces
+```
+
+The bundled cert-manager chart defaults to `v1.13.3` with `installCRDs = true`.
+Uninstalling that release can delete its custom resource definitions (CRDs)
+and their custom resources across the cluster, including resources used by
+other workloads. Terraform may show only the Helm release removal. Back up the
+resources you need and verify that they are preserved or migrated before
+setting `install_cert_manager = false`.
+[cert-manager v1.13 Helm uninstall guidance](https://cert-manager.io/v1.13-docs/installation/helm/#uninstalling)
+
+#### Use an existing cert-manager ClusterIssuer
+
+If you already run cert-manager in the cluster, you can let it issue and renew
+the certificate. Set `cert_manager_cluster_issuer` to the existing issuer's
+name, set `tls_secret_name` to the Secret cert-manager should populate, and set
+`install_cert_manager` and `create_cluster_issuer` to `false`.
+
+If Zipline originally created the ClusterIssuer, Helm removes it when you set
+`create_cluster_issuer = false`. Before applying that change, complete an
+ownership handoff that preserves the issuer outside the Zipline Helm release,
+or create an independently managed ClusterIssuer under a different name.
+For a replacement, verify that it is Ready and migrate any other dependents
+of the original issuer first. Then set `cert_manager_cluster_issuer` to the
+replacement name and `create_cluster_issuer = false` in the same Terraform
+apply. Changing the name while creation is enabled makes the chart try to
+create a ClusterIssuer with the replacement's name.
+
+Cert-manager creates and renews the Secret in this mode. Use a Secret name
+reserved for cert-manager so each TLS Secret has a single writer. When switching
+from a client-managed certificate, choose a different Secret name for the
+issuer-managed certificate.
+
 ### Authentication
 
 Authentication is disabled unless `orchestration.auth.enabled = true`. When auth

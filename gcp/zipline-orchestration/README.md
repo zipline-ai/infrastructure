@@ -200,6 +200,75 @@ ingress = {
 | `orchestration.ingress.cluster_issuer_secret_name` | `""` | Customize the ACME account Secret name. |
 | `orchestration.ingress.cluster_issuer_ingress_class` | ingress class name | Override the HTTP-01 solver ingress class. |
 
+#### Use a client-managed TLS certificate
+
+Configure your certificate management system to create and renew a Secret of
+type `kubernetes.io/tls` in the Zipline installation namespace
+(`orchestration.install.namespace`, which defaults to `zipline-system`). The
+Secret must contain `tls.crt` and `tls.key`. The certificate must cover your
+ingress hostname.
+
+Merge these settings into your existing `orchestration` input:
+
+```hcl
+addons = {
+  install_cert_manager = false
+}
+
+ingress = {
+  domain                      = "zipline.customer.example"
+  tls_secret_name             = "customer-zipline-tls"
+  cert_manager_cluster_issuer = ""
+  create_cluster_issuer       = false
+}
+```
+
+Use your DNS hostname and Secret name. Remove any cert-manager issuer
+annotations you previously set in `orchestration.ingress.annotations`.
+
+For an existing deployment, create the client-managed Secret under a new name
+that no cert-manager Certificate references. Set `tls_secret_name` to that new
+name and apply the ingress changes with the bundled cert-manager still enabled.
+Then verify that the HTTPS endpoint serves the client-managed certificate.
+Before applying `install_cert_manager = false`, review the Terraform plan
+and inventory cert-manager resources across the cluster. The bundled
+`v1.13.3` chart defaults to `installCRDs = true`. Uninstalling it can delete
+its CRDs and their custom resources across all namespaces, even if the plan
+shows only the Helm release removal.
+
+If those resources must remain, upgrade the bundled release first to a
+supported chart version that retains CRDs on uninstall and verify that CRD
+retention is enabled. The behavior was introduced in v1.15.0, and upgrading
+the bundled release requires updating the add-on module's chart version.
+If you cannot upgrade, back up the cert-manager resources before applying
+and plan to restore any needed resources after reinstalling their CRDs.
+[cert-manager Helm uninstall guidance](https://cert-manager.io/docs/installation/helm/#uninstalling)
+
+If you enabled the optional OpenTelemetry Operator, verify how its webhook
+certificate is provisioned before removing cert-manager.
+
+#### Use an existing cert-manager ClusterIssuer
+
+If you already run cert-manager in the cluster, you can let it issue and renew
+the certificate. Set `cert_manager_cluster_issuer` to the existing issuer's
+name, set `tls_secret_name` to the Secret cert-manager should populate, and set
+`install_cert_manager` and `create_cluster_issuer` to `false`.
+
+If Zipline originally created the ClusterIssuer, Helm removes it when
+`create_cluster_issuer` becomes `false`. Before disabling creation, complete an
+ownership handoff that preserves the issuer outside the Zipline Helm release,
+or create an independently managed ClusterIssuer under a different name and
+verify that it is Ready. If you use a replacement, update
+`cert_manager_cluster_issuer` and migrate any other Certificates that reference
+the old issuer before retiring it. Keep a working cert-manager controller and
+its CRDs in place, and verify that affected certificates can still issue and
+renew through the retained or replacement issuer.
+
+Cert-manager creates and renews the Secret in this mode. Use a Secret name
+reserved for cert-manager so each TLS Secret has a single writer. When switching
+from a client-managed certificate, choose a different Secret name for the
+issuer-managed certificate.
+
 ### Authentication and Secret Manager
 
 Authentication defaults to disabled. To enable it, set
