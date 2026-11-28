@@ -93,7 +93,7 @@ spec:
             - name: CRUCIBLE_SPARK_EVENT_LOG_DIR
               value: {{ include "zipline-orchestration.sparkEventLogDir" . | quote }}
             - name: LOKI_URL
-              value: "http://{{ include "zipline-orchestration.fullname" . }}-loki.{{ include "zipline-orchestration.computeSystemNamespace" . }}.svc.cluster.local:3100"
+              value: {{ include "zipline-orchestration.lokiQueryUrl" . | quote }}
             - name: CRUCIBLE_FLINK_IMAGE
               value: {{ include "zipline-orchestration.flinkImage" . | quote }}
             - name: CRUCIBLE_FLINK_SERVICE_ACCOUNT

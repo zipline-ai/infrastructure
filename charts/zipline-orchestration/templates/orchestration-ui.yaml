@@ -98,7 +98,7 @@ spec:
               value: "loki"
             {{- end }}
             - name: LOKI_URL
-              value: "http://{{ include "zipline-orchestration.fullname" . }}-loki.{{ include "zipline-orchestration.computeSystemNamespace" . }}.svc.cluster.local:3100"
+              value: {{ include "zipline-orchestration.lokiQueryUrl" . | quote }}
             - name: LOKI_NAMESPACE
               value: {{ include "zipline-orchestration.computeSystemNamespace" . | quote }}
             # Built-in UI log profile for Spark drivers submitted through

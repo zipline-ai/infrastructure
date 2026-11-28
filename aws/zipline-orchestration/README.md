@@ -368,6 +368,9 @@ for the environment.
 
 ### DynamoDB, Glue, MSK, and Observability
 
+To use your own log collector and backend, see the
+[client-managed Loki-compatible backend setup](../../modules/zipline-orchestration/README.md#use-a-client-managed-loki-compatible-backend).
+
 To publish sampled fetch responses and their schemas to an existing MSK topic,
 set `aws.fetcher_ooc.cluster_name` and `aws.fetcher_ooc.topic` in your deployment
 tfvars. The fetcher must be enabled and able to reach the cluster’s IAM brokers.
