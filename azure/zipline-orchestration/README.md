@@ -161,11 +161,20 @@ annotations you previously set in `orchestration.ingress.annotations`.
 Set `cert_manager_cluster_issuer` explicitly to `""` to clear the Azure
 default of `letsencrypt-prod`.
 
-For an existing deployment, create the client-managed Secret under a new name
-that no cert-manager Certificate in the Zipline namespace references. Set
-`tls_secret_name` to that name and apply the ingress changes with the bundled
-cert-manager still enabled. Then verify that the HTTPS endpoint serves the
-client-managed certificate. Before applying the change to disable cert-manager,
+For an existing deployment, first inventory all Certificates, Ingresses, and
+workloads across the cluster that rely on a Zipline-created ClusterIssuer.
+Migrate every dependent outside the Zipline ingress to an independently managed
+issuer or certificate source and verify that issuance and renewal still work.
+Helm removes the Zipline-created issuer when `create_cluster_issuer` becomes
+`false`.
+
+Create the client-managed Secret under a new name that no cert-manager
+Certificate in the Zipline namespace references. After those dependents have
+migrated, set `tls_secret_name` to that name and apply the ingress changes above,
+including `create_cluster_issuer = false`, while keeping the bundled cert-manager
+enabled. Then verify that the HTTPS endpoint serves the client-managed certificate.
+
+Before applying the change to disable cert-manager,
 review the Terraform plan for removal of its Helm release. If you enabled the
 optional OpenTelemetry Operator, verify how its webhook certificate is
 provisioned before removing cert-manager.
