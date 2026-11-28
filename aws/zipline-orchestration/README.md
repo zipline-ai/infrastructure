@@ -167,14 +167,24 @@ ingress = {
 Use your DNS hostname and Secret name. Remove any cert-manager issuer
 annotations you previously set in `orchestration.ingress.annotations`.
 
-For an existing deployment, create the client-managed Secret under a new name
-that no cert-manager Certificate in the Zipline namespace references. Set
-`tls_secret_name` to that name and apply the ingress changes with the bundled
-cert-manager still enabled. Then verify that the HTTPS endpoint serves the
-client-managed certificate. Before applying the change to disable cert-manager,
-review the Terraform plan for removal of its Helm release. If you enabled the
-optional OpenTelemetry Operator, verify how its webhook certificate is
-provisioned before removing cert-manager.
+For an existing deployment, first inventory the Certificates, Ingresses, and
+workloads across the cluster that rely on a Zipline-created ClusterIssuer.
+Before changing the Zipline ingress, migrate every other dependent to an
+independently managed issuer or certificate source and verify that issuance
+and renewal still work. Helm removes the Zipline-created issuer when
+`create_cluster_issuer` becomes `false`.
+
+Create the client-managed Secret under a new name that no cert-manager
+Certificate in the Zipline namespace references. After migrating the other
+dependents, set `tls_secret_name` to the new name and apply the ingress changes
+above, including `create_cluster_issuer = false`. Keep the bundled cert-manager
+enabled during this apply and verify that HTTPS serves the client-managed
+certificate.
+
+Before applying the change to disable cert-manager, review the Terraform plan
+for removal of its Helm release. If you enabled the optional OpenTelemetry
+Operator, verify how its webhook certificate is provisioned before removing
+cert-manager.
 
 **Before disabling the bundled release**, inventory cert-manager resources
 across the cluster:
