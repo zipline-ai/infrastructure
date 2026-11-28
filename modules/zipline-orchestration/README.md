@@ -69,9 +69,11 @@ Merge these settings into your existing `orchestration` input on AWS, Azure,
 or GKE:
 
 ```hcl
-ingress = {
-  external_controller = true
-  domain              = "zipline.example.com"
+orchestration = {
+  ingress = {
+    external_controller = true
+    domain              = "zipline.example.com"
+  }
 }
 ```
 
