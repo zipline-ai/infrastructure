@@ -205,8 +205,11 @@ If Zipline originally created the ClusterIssuer, Helm removes it when you set
 `create_cluster_issuer = false`. Before applying that change, complete an
 ownership handoff that preserves the issuer outside the Zipline Helm release,
 or create an independently managed ClusterIssuer under a different name.
-For a replacement, verify that it is Ready and update
-`cert_manager_cluster_issuer` to point to it before retiring the original.
+For a replacement, verify that it is Ready and migrate any other dependents
+of the original issuer first. Then set `cert_manager_cluster_issuer` to the
+replacement name and `create_cluster_issuer = false` in the same Terraform
+apply. Changing the name while creation is enabled makes the chart try to
+create a ClusterIssuer with the replacement's name.
 
 Cert-manager creates and renews the Secret in this mode. Use a Secret name
 reserved for cert-manager so each TLS Secret has a single writer. When switching
